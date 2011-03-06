@@ -3,64 +3,14 @@
 import re
 import math
 import numpy
-from optparse import OptionParser
+import sys
+import time
+import optparse
+import copy
+import Image
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
-import sys
-import time
-
-from OpenGL.arrays import ArrayDatatype as ADT
-from OpenGL.GL import *
-from OpenGL.raw import GL
-
-#class vertexBuffer(object):
-  #def __init__(self, data, usage):
-    #self.buffer = GL.GLuint(0)
-    #glGenBuffers(1, self.buffer)
-    #self.buffer = self.buffer.value
-    #glBindBuffer(GL_ARRAY_BUFFER, self.buffer)
-    #glBufferData(GL_ARRAY_BUFFER, ADT.arrayByteCount(data), ADT.voidDataPointer(data), usage)
-
-  #def __del__(self):
-    #glDeleteBuffers(1, GL.GLuint(self.buffer))
-
-  #def bind(self):
-    #glBindBuffer(GL_ARRAY_BUFFER, self.buffer)
-
-  #def bind_colors(self, size, type, stride=0):
-    #self.bind()
-    #glColorPointer(size, type, stride, None)
-
-  #def bind_edgeflags(self, stride=0):
-    #self.bind()
-    #glEdgeFlagPointer(stride, None)
-
-  #def bind_indexes(self, type, stride=0):
-    #self.bind()
-    #glIndexPointer(type, stride, None)
-
-  #def bind_normals(self, type, stride=0):
-    #self.bind()
-    #glNormalPointer(type, stride, None)
-
-  #def bind_texcoords(self, size, type, stride=0):
-    #self.bind()
-    #glTexCoordPointer(size, type, stride, None)
-
-  #def bind_vertexes(self, size, type, stride=0):
-    #self.bind()
-    #glVertexPointer(size, type, stride, None)
-
-
-def fillRotateMatrix(v, angle):
-  cs = math.cos(angle)
-  sn = math.sin(angle)
-  v = [float(v[0]), float(v[1]), float(v[2])]
-  return numpy.matrix([[     cs + v[0]*v[0]*(1 - cs), v[0]*v[1]*(1 - cs) - v[2]*sn, v[0]*v[2]*(1 - cs) + v[1]*sn, 0.],
-                       [v[1]*v[0]*(1 - cs) + v[2]*sn,      cs + v[1]*v[1]*(1 - cs), v[1]*v[2]*(1 - cs) - v[0]*sn, 0.],
-                       [v[2]*v[0]*(1 - cs) - v[1]*sn, v[2]*v[1]*(1 - cs) + v[0]*sn,      cs + v[2]*v[2]*(1 - cs), 0.],
-                       [                          0.,                           0.,                           0., 1.]])
 
 def getAngle(v1, v2):
   mag1 = math.sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2])
@@ -76,30 +26,67 @@ def getNormal(v1, v2):
                        [float(v1[2] * v2[0] - v1[0] * v2[2])],
                        [float(v1[0] * v2[1] - v1[1] * v2[0])]])
 
-def getChunkEnd(arg, start):
-  balance = 1
-  for i in range(start, len(arg)):
-    if arg[i] == '{' or arg[i] == '[':
-      balance += 1
-    if arg[i] == '}' or arg[i] == ']':
-      balance -= 1
-    if balance == 0:
-      return (i - 1)
-  return None
+def fillRotateMatrix(v, angle):
+  cs = math.cos(angle)
+  sn = math.sin(angle)
+  v = [float(v[0]), float(v[1]), float(v[2])]
+  return numpy.matrix([[     cs + v[0]*v[0]*(1 - cs), v[0]*v[1]*(1 - cs) - v[2]*sn, v[0]*v[2]*(1 - cs) + v[1]*sn, 0.],
+                       [v[1]*v[0]*(1 - cs) + v[2]*sn,      cs + v[1]*v[1]*(1 - cs), v[1]*v[2]*(1 - cs) - v[0]*sn, 0.],
+                       [v[2]*v[0]*(1 - cs) - v[1]*sn, v[2]*v[1]*(1 - cs) + v[0]*sn,      cs + v[2]*v[2]*(1 - cs), 0.],
+                       [                          0.,                           0.,                           0., 1.]])
 
-class scene:
+def getChunk(fd):
+  balance = 1
+  content = ""
+  while 1:
+    data = fd.readline()
+    if len(data) == 0:
+      break
+    for i in range(0, len(data)):
+      if data[i] == '{' or data[i] == '[':
+        balance += 1
+      if data[i] == '}' or data[i] == ']':
+        balance -= 1
+      if balance == 0:
+        fd.seek(-(len(data) - i - 2), os.SEEK_CUR)
+        return content + data[0:i - 1]
+    content += data
+  return ""
+
+def skipChunk(fd):
+  balance = 1
+  while 1:
+    data = fd.readline()
+    if len(data) == 0:
+      break
+    for i in range(0, len(data)):
+      if data[i] == '{' or data[i] == '[':
+        balance += 1
+      if data[i] == '}' or data[i] == ']':
+        balance -= 1
+      if balance == 0:
+        return len(data) - i - 2
+  return 0
+
+def calcBalance(string):
+  balance = 0
+  offset = 0
+  for i in range(0, len(string)):
+    if string[i] == '{' or string[i] == '[':
+      balance += 1
+    if string[i] == '}' or string[i] == ']':
+      balance -= 1
+      offset = len(string) - i - 2
+  return (balance, offset)
+
+class vrmlScene:
   def __init__(self):
-    self.materials = []
-    self.entities = []
-    self.shapes = []
+    self.objects = []
+    self.entries = []
     self.transform = numpy.matrix([[1., 0., 0., 0.],
                                    [0., 1., 0., 0.],
                                    [0., 0., 1., 0.],
                                    [0., 0., 0., 1.]])
-  def clear(self):
-    self.materials = []
-    self.entities = []
-    self.shapes = []
   def setTransform(self, aTrans, aRot, aScale):
     translation = numpy.matrix([[1., 0., 0., aTrans[0]],
                                 [0., 1., 0., aTrans[1]],
@@ -113,267 +100,621 @@ class scene:
     self.transform = translation * rotation * scale
   def loadFile(self, fileName):
     wrlFile = open(fileName, "r")
-    wrlContent = wrlFile.read()
+    oldDir = os.getcwd()
+    os.chdir(os.path.dirname(fileName))
+    defPattern = re.compile("([\w\-]*?)\s*(\w+)\s*{", re.I | re.S)
+    line = 0
+    while 1:
+      wrlContent = wrlFile.readline()
+      if len(wrlContent) == 0:
+        break
+      tmp = defPattern.search(wrlContent)
+      if tmp != None:
+        print "\nEntry: '%s' '%s'" % (tmp.group(1), tmp.group(2))
+        subname = tmp.group(1)
+        if tmp.group(2) == "Transform":
+          entry = vrmlObject(self)
+          entry.name = tmp.group(1)
+          entry.read(wrlFile)
+          self.objects.append(entry)
+        elif tmp.group(2) == "Shape":
+          newShape = vrmlShape(self)
+          newShape.name = subname
+          newShape.read(wrlFile)
+          self.objects.append(newShape)
+        else:
+          skipChunk(wrlFile)
+    os.chdir(oldDir)
     wrlFile.close()
-    contentPos = 0
-    transformPattern = re.compile("DEF\s+(\w+)\s+Transform\s+{", re.I | re.S)
-    vertexPattern = re.compile("coord[\s\w]+{\s+point\s+\[([+e,\s\d\.\-]*)\]\s+}", re.I | re.S)
-    indexPattern = re.compile("coordIndex[\s]+\[([,\s\d\-]*)\]", re.I | re.S)
-    while (1):
-      tmp = transformPattern.search(wrlContent, contentPos)
-      if tmp == None:
-        break
-      startPos = tmp.end()
-      endPos = getChunkEnd(wrlContent, tmp.end())
-      if endPos == None:
-        break
-      newEntity = entity()
-      newEntity.name = tmp.group(1)
-      print 'Object %s at %d' % (newEntity.name, tmp.start())
-      newEntity.findTransform(wrlContent[startPos:endPos])
-      newEntity.transform = newEntity.transform * self.transform
-      existing = re.search("children\s+\[\s+USE\s+(\w+)\s+\]", wrlContent[startPos:endPos], re.I | re.S)
-      if existing != None:
-        for i in self.shapes:
-          if i.name == existing.group(1):
-            newEntity.shapeReference = i
-            newEntity.shapeLinked = True
-            print "  Temp shape: %s" % i.name
-            break
-      else:
-        vert = vertexPattern.search(wrlContent, startPos, endPos)
-        ind = indexPattern.search(wrlContent, startPos, endPos)
-        if vert != None and ind != None:
-          newShape = shape()
-          newShape.loadVertices(vert.group(1))
-          newShape.loadPolygons(ind.group(1))
-          tmp = re.search("DEF\s+(\w+)\s+Group", wrlContent[startPos:endPos], re.I | re.S)
-          if tmp != None:
-            newShape.name = tmp.group(1)
-            print "  Shape: %s" % newShape.name
-          mat = re.search("material\s+DEF\s+(\w+)\s+Material\s+{(.*?)}", wrlContent[startPos:endPos], re.I | re.S)
-          if mat != None:
-            newMaterial = material(mat.group(2))
-            newMaterial.name = mat.group(1)
-            self.materials.append(newMaterial)
-            print "  Material: %s" % newMaterial.name
-            newShape.materialReference = newMaterial
-          mat = re.search("material\s+USE\s+(\w+)", wrlContent[startPos:endPos], re.I | re.S)
-          if mat != None:
-            for i in self.materials:
-              if i.name == mat.group(1):
-                newShape.materialReference = i
-                newShape.materialLinked = True
-                print "  Temp material: %s" % i.name
-                break
-          self.shapes.append(newShape)
-          newEntity.shapeReference = newShape
-      self.entities.append(newEntity)
-      contentPos = endPos
   def saveFile(self, fileName):
     wrlFile = open(fileName, "w")
     wrlFile.write("#VRML V2.0 utf8\n#Exported from Blender by wrlconv.py\n")
-    for ent in self.entities:
-      ent.write(wrlFile)
+    for entry in self.objects:
+      entry.write(wrlFile, self.transform)
     wrlFile.close()
-  def render(self):
-    for ent in self.entities:
-      ent.render()
 
-class entity:
-  def __init__(self):
+class vrmlObject:
+  def __init__(self, parent):
+    self.parent = parent
     self.name = ""
-    self.shapeReference = None
-    self.shapeLinked = False
-    self.transform   = numpy.matrix([[1., 0., 0., 0.],
-                                     [0., 1., 0., 0.],
-                                     [0., 0., 1., 0.],
-                                     [0., 0., 0., 1.]])
-  def findTransform(self, string):
-    translation = numpy.matrix([[1., 0., 0., 0.],
-                                [0., 1., 0., 0.],
-                                [0., 0., 1., 0.],
+    self.subobject = []
+    self.transform = numpy.matrix([[1., 0., 0., 0.],
+                                   [0., 1., 0., 0.],
+                                   [0., 0., 1., 0.],
+                                   [0., 0., 0., 1.]])
+  def read(self, fd):
+    print "Read object start"
+    defPattern = re.compile("([\w\-]*?)\s*(\w+)\s*{", re.I | re.S)
+    delta, offset, balance = 0, 0, 0
+    #Highest level
+    while 1:
+      data = fd.readline()
+      if len(data) == 0:
+        break
+      (delta, offset) = calcBalance(data)
+      balance += delta
+      if balance < 0:
+        print "  Wrong highbalance: %d" % balance
+        fd.seek(-offset, os.SEEK_CUR)
+        break
+      high = defPattern.search(data)
+      if high != None:
+        lowbalance = balance
+        print "  vrmlObject: '%s' '%s'" % (high.group(1), high.group(2))
+        if high.group(2) == "Transform":
+          newObj = vrmlObject(self)
+          newObj.name = high.group(1)
+          newObj.read(fd)
+          self.subobject.append(newObj)
+          balance -= delta
+        elif high.group(2) == "Group":
+          subname = high.group(1)
+          #Lowest level
+          while 1:
+            subdata = fd.readline()
+            if len(subdata) == 0:
+              break
+            (delta, offset) = calcBalance(subdata)
+            balance += delta
+            if balance < lowbalance:
+              print "    Wrong lowbalance: %d" % balance
+              fd.seek(-offset, os.SEEK_CUR)
+              break
+            low = defPattern.search(subdata)
+            if low != None:
+              print "    SubGroup: '%s' '%s'" % (low.group(1), low.group(2))
+              if low.group(2) == "Shape":
+                newShape = vrmlShape(self)
+                newShape.name = subname
+                newShape.read(fd)
+                ptr = self
+                while not isinstance(ptr, vrmlScene):
+                  ptr = ptr.parent
+                self.subobject.append(newShape)
+                ptr.entries.append(newShape)
+              else:
+                skipChunk(fd)
+              balance -= delta
+        elif high.group(2) == "Shape":
+          newShape = vrmlShape(self)
+          newShape.read(fd)
+          ptr = self
+          while not isinstance(ptr, vrmlScene):
+            ptr = ptr.parent
+          self.subobject.append(newShape)
+          ptr.entries.append(newShape)
+          balance -= delta
+        else:
+          skipChunk(fd)
+          balance -= delta
+      else:
+        translation = None
+        rotation = None
+        scale = None
+        tmp = re.search("translation\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", data, re.I | re.S)
+        if tmp != None:
+          translation = numpy.matrix([[1., 0., 0., float(tmp.group(1))],
+                                      [0., 1., 0., float(tmp.group(2))],
+                                      [0., 0., 1., float(tmp.group(3))],
+                                      [0., 0., 0., 1.]])
+        tmp = re.search("rotation\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", data, re.I | re.S)
+        if tmp != None:
+          rotation = fillRotateMatrix([float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3))], float(tmp.group(4)))
+        tmp = re.search("scale\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", data, re.I | re.S)
+        if tmp != None:
+          scale = numpy.matrix([[float(tmp.group(1)), 0., 0., 0.],
+                                [0., float(tmp.group(2)), 0., 0.],
+                                [0., 0., float(tmp.group(3)), 0.],
                                 [0., 0., 0., 1.]])
-    rotation    = numpy.matrix([[1., 0., 0., 0.],
-                                [0., 1., 0., 0.],
-                                [0., 0., 1., 0.],
-                                [0., 0., 0., 1.]])
-    scale       = numpy.matrix([[1., 0., 0., 0.],
-                                [0., 1., 0., 0.],
-                                [0., 0., 1., 0.],
-                                [0., 0., 0., 1.]])
-    tmp = re.search("translation\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", string, re.I | re.S)
-    if tmp != None:
-      translation = numpy.matrix([[1., 0., 0., float(tmp.group(1))],
-                                  [0., 1., 0., float(tmp.group(2))],
-                                  [0., 0., 1., float(tmp.group(3))],
-                                  [0., 0., 0., 1.]])
-    tmp = re.search("rotation\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", string, re.I | re.S)
-    if tmp != None:
-      rotation = fillRotateMatrix([float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3))], float(tmp.group(4)));
-    tmp = re.search("scale\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", string, re.I | re.S)
-    if tmp != None:
-      scale = numpy.matrix([[float(tmp.group(1)), 0., 0., 0.],
-                            [0., float(tmp.group(2)), 0., 0.],
-                            [0., 0., float(tmp.group(3)), 0.],
-                            [0., 0., 0., 1.]])
-    self.transform = translation * rotation * scale
-  def write(self, handler):
-    print "Writing item %s" % self.name
-    handler.write("DEF %s Transform {\n  children [\n" % self.name)
-    if self.shapeReference != None:
-      self.shapeReference.write(self.shapeLinked, self.transform, handler)
-    handler.write("  ]\n}\n\n")
-  def render(self):
-    print "Drawing item %s" % self.name
-    if self.shapeReference != None:
-      self.shapeReference.render(self.transform)
+        tmp = re.search("USE\s+([\w\-]+)", data, re.I | re.S)
+        if tmp != None:
+          ptr = self
+          while not isinstance(ptr, vrmlScene):
+            ptr = ptr.parent
+          for sh in ptr.entries:
+            if sh.name == tmp.group(1):
+              print "  Found shape %s" % sh.name
+              self.subobject.append(sh)
+        if translation != None:
+          self.transform = self.transform * translation
+        if rotation != None:
+          self.transform = self.transform * rotation
+        if scale != None:
+          self.transform = self.transform * scale
+    print "Read object end\n"
+  def getMesh(self, transform):
+    res = []
+    tform = transform * self.transform
+    for obj in self.subobject:
+      if isinstance(obj, vrmlShape) or isinstance(obj, vrmlObject):
+        res.extend(obj.getMesh(tform))
+    return res
+  def write(self, fd, transform):
+    tform = transform * self.transform
+    for obj in self.subobject:
+      if isinstance(obj, vrmlShape) or isinstance(obj, vrmlObject):
+        obj.write(fd, tform)
 
-class shape:
-  def __init__(self):
+class vrmlShape:
+  def __init__(self, parent):
+    self.parent = parent
     self.name = ""
-    self.materialReference = None
-    self.materialLinked = False
-    self.vertices = []
-    self.polygons = []
-    self.polygonVertices = 0
-    self.quadVertices = 0
-    self.triangleVertices = 0
-  def loadVertices(self, string):
-    vectorPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+).*?\n?", re.I | re.S)
-    pos = 0
-    while (1):
-      tmp = vectorPattern.search(string, pos)
-      if tmp == None:
+    self.subobject  = []
+  def read(self, fd):
+    defPattern = re.compile("([\w\-]*?)\s*(\w+)\s*{", re.I | re.S)
+    delta, offset, balance = 0, 0, 0
+    #Highest level
+    while 1:
+      data = fd.readline()
+      if len(data) == 0:
         break
-      self.vertices.append([float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3))])
-      pos = tmp.end()
-  def loadPolygons(self, string):
-    polyPattern = re.compile("([ ,\t\d]+)-1.*?\n?", re.I | re.S)
-    indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
-    polyPos = 0
-    while (1):
-      poly = polyPattern.search(string, polyPos)
-      if poly == None:
+      (delta, offset) = calcBalance(data)
+      balance += delta
+      if balance < 0:
+        print "    Wrong highbalance: %d" % balance
+        fd.seek(-offset, os.SEEK_CUR)
         break
-      polyData = []
-      indPos = 0
-      while (1):
-        ind = indPattern.search(poly.group(1), indPos)
-        if ind == None:
+      high = defPattern.search(data)
+      if high != None:
+        print "    vrmlShape: '%s' '%s', balance: %d" % (high.group(1), high.group(2), balance)
+        midbalance = balance
+        if high.group(2) == "Appearance":
+          #Middle level
+          while 1:
+            subdata = fd.readline()
+            if len(subdata) == 0:
+              break
+            (delta, offset) = calcBalance(subdata)
+            balance += delta
+            if balance < midbalance:
+              print "      Wrong balance: %d" % balance
+              fd.seek(-offset, os.SEEK_CUR)
+              break
+            middle = defPattern.search(subdata)
+            if middle != None:
+              print "      SubAppearance: '%s' '%s', balance: %d" % (middle.group(1), middle.group(2), balance)
+              if middle.group(2) == "Material":
+                print "      Material: %s" % middle.group(1)
+                matData = getChunk(fd)
+                newMat = vrmlMaterial(self)
+                newMat.name = middle.group(1)
+                newMat.read(matData)
+                self.subobject.append(newMat)
+                ptr = self
+                while not isinstance(ptr, vrmlScene):
+                  ptr = ptr.parent
+                ptr.entries.append(newMat)
+              elif middle.group(2) == "ImageTexture":
+                print "      ImageTexture: %s" % middle.group(1)
+                texData = getChunk(fd)
+                newTex = vrmlTexture(self)
+                newTex.name = middle.group(1)
+                newTex.read(texData)
+                self.subobject.append(newTex)
+                ptr = self
+                while not isinstance(ptr, vrmlScene):
+                  ptr = ptr.parent
+                ptr.entries.append(newTex)
+              else:
+                skipChunk(fd)
+              balance -= delta
+            else:
+              tmp = re.search("material\s+USE\s+([\w\-]+)", subdata, re.I | re.S)
+              if tmp != None:
+                ptr = self
+                while isinstance(ptr, vrmlScene) == False:
+                  ptr = ptr.parent
+                for mat in ptr.entries:
+                  if mat.name == tmp.group(1):
+                    print "      Found mat %s" % mat.name
+                    linkedMaterial = copy.copy(mat)
+                    linkedMaterial.linked = True
+                    self.subobject.append(linkedMaterial)
+        elif high.group(2) == "IndexedFaceSet":
+          newGeo = vrmlGeometry(self)
+          newGeo.read(fd)
+          self.subobject.append(newGeo)
+          ptr = self
+          while not isinstance(ptr, vrmlScene):
+            ptr = ptr.parent
+          ptr.entries.append(newGeo)
+          balance -= delta
+        else:
+          skipChunk(fd)
+          balance -= delta
+    print "      End shape read"
+  def getMesh(self, transform):
+    print "Draw object %s" % self.name
+    newMesh = mesh()
+    for obj in self.subobject:
+      if isinstance(obj, vrmlMaterial) or isinstance(obj, vrmlTexture):
+        newMesh.materials.append(obj)
+      elif isinstance(obj, vrmlGeometry):
+        print "  Draw subobject %s" % obj.name
+        if len(obj.polygons) == len(obj.polygonsUV):
+          genTex = True
+        else:
+          genTex = False
+        tsa = time.time()
+        newMesh.smooth = obj.smooth
+        tmpVertices = []
+        for vert in obj.vertices:
+          tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
+          tmp = transform * tmp
+          tmpVertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
+        newMesh.arraySizes.append(obj.triCount)
+        newMesh.arraySizes.append(obj.quadCount)
+        newMesh.arraySizes.append(obj.polyCount)
+        length = (obj.triCount + obj.quadCount + obj.polyCount)
+        newMesh.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
+        newMesh.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
+        if genTex == True:
+          newMesh.texList = numpy.zeros(length * 2, dtype = numpy.float32)
+        tPos = 0
+        qPos = obj.triCount
+        pPos = obj.triCount + obj.quadCount
+        if newMesh.smooth == False:
+          for poly in range(0, len(obj.polygons)):
+            normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
+                              tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]])
+            det = numpy.linalg.norm(normal)
+            if det != 0:
+              normal /= -det
+            pos = 0
+            if len(obj.polygons[poly]) == 3:
+              pos = tPos
+              tPos += 3
+            elif len(obj.polygons[poly]) == 4:
+              pos = qPos
+              qPos += 4
+            else:
+              pos = pPos
+              pPos += len(obj.polygons[poly])
+            for ind in range(0, len(obj.polygons[poly])):
+              newMesh.vertexList[3 * pos]     = tmpVertices[obj.polygons[poly][ind]][0]
+              newMesh.normalList[3 * pos]     = normal[0]
+              newMesh.vertexList[3 * pos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
+              newMesh.normalList[3 * pos + 1] = normal[1]
+              newMesh.vertexList[3 * pos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
+              newMesh.normalList[3 * pos + 2] = normal[2]
+              if genTex == True:
+                newMesh.texList[2 * pos]     = obj.verticesUV[obj.polygonsUV[poly][ind]][0]
+                newMesh.texList[2 * pos + 1] = obj.verticesUV[obj.polygonsUV[poly][ind]][1]
+              pos += 1
+        else:
+          tmpNormals = []
+          for i in range(0, len(obj.vertices)):
+            tmpNormals.append(numpy.array([0., 0., 0.,]))
+          for poly in obj.polygons:
+            normal = getNormal(tmpVertices[poly[1]] - tmpVertices[poly[0]], tmpVertices[poly[0]] - tmpVertices[poly[2]])
+            det = numpy.linalg.norm(normal)
+            if det != 0:
+              normal /= -det
+            for ind in poly:
+              tmpNormals[ind] += numpy.array([float(normal[0]), float(normal[1]), float(normal[2])])
+          for i in range(0, len(tmpNormals)):
+            det = numpy.linalg.norm(tmpNormals[i])
+            if det != 0:
+              tmpNormals[i] /= det
+          for poly in range(0, len(obj.polygons)):
+            pos = 0
+            if len(obj.polygons[poly]) == 3:
+              pos = tPos
+              tPos += 3
+            elif len(obj.polygons[poly]) == 4:
+              pos = qPos
+              qPos += 4
+            else:
+              pos = pPos
+              pPos += len(obj.polygons[poly])
+            for ind in range(0, len(obj.polygons[poly])):
+              newMesh.vertexList[3 * pos]     = tmpVertices[obj.polygons[poly][ind]][0]
+              newMesh.normalList[3 * pos]     = tmpNormals[obj.polygons[poly][ind]][0]
+              newMesh.vertexList[3 * pos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
+              newMesh.normalList[3 * pos + 1] = tmpNormals[obj.polygons[poly][ind]][1]
+              newMesh.vertexList[3 * pos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
+              newMesh.normalList[3 * pos + 2] = tmpNormals[obj.polygons[poly][ind]][2]
+              if genTex == True:
+                newMesh.texList[2 * pos]     = obj.verticesUV[obj.polygonsUV[poly][ind]][0]
+                newMesh.texList[2 * pos + 1] = obj.verticesUV[obj.polygonsUV[poly][ind]][1]
+              pos += 1
+        tsb = time.time()
+        print "Created in: %f" % (tsb - tsa)
+    return [newMesh]
+  def write(self, fd, transform):
+    print "Write object %s" % self.name
+    fd.write("DEF %s Transform {\n  children [\n" % self.name)
+    fd.write("    Shape {\n")
+    for obj in self.subobject:
+      if isinstance(obj, vrmlMaterial):
+        obj.write(fd)
+      elif isinstance(obj, vrmlGeometry):
+        fd.write("      geometry IndexedFaceSet {\n        coord Coordinate { point [\n")
+        for i in range(0, len(obj.vertices)):
+          tmp = numpy.matrix([[obj.vertices[i][0]], [obj.vertices[i][1]], [obj.vertices[i][2]], [1.]])
+          tmp = transform * tmp
+          fd.write("          %f %f %f" % (float(tmp[0]), float(tmp[1]), float(tmp[2])))
+          if i != len(obj.vertices) - 1:
+            fd.write(",\n")
+        fd.write(" ] }\n")
+        fd.write("        coordIndex [\n")
+        for i in range(0, len(obj.polygons)):
+          fd.write("          ")
+          for ind in obj.polygons[i]:
+            fd.write("%d, " % ind)
+          fd.write("-1")
+          if i != len(obj.polygons) - 1:
+            fd.write(",\n")
+        fd.write(" ]\n")
+        fd.write("      }\n")
+    fd.write("    }\n")
+    fd.write("  ]\n}\n\n")
+
+class vrmlGeometry:
+  def __init__(self, parent):
+    self.parent = parent
+    self.name = ""
+    self.smooth = False
+    self.vertices   = []
+    self.polygons   = []
+    self.verticesUV = []
+    self.polygonsUV = []
+    self.triCount   = 0
+    self.quadCount  = 0
+    self.polyCount  = 0
+  def read(self, fd):
+    defPattern = re.compile("([\w\-]*?)\s*(\w+)\s*{", re.I | re.S)
+    dataPattern = re.compile("(\w+)\s*\[", re.I | re.S)
+    delta, offset, balance = 0, 0, 0
+    #Highest level
+    while 1:
+      data = fd.readline()
+      if len(data) == 0:
+        break
+      (delta, offset) = calcBalance(data)
+      balance += delta
+      if balance < 0:
+        print "        Wrong highbalance: %d" % balance
+        fd.seek(-offset, os.SEEK_CUR)
+        break
+      high = defPattern.search(data)
+      if high != None:
+        lowbalance = balance
+        print "        SubSet: '%s' '%s', balance: %d delta: %d" % (high.group(1), high.group(2), balance, delta)
+        if high.group(2) == "Coordinate":
+          print "        Rename: %s -> %s" % (self.name, high.group(1))
+          self.name = high.group(1)
+          self.readVertices(fd)
+        elif high.group(2) == "TextureCoordinate":
+          self.readVerticesUV(fd)
+        else:
+          skipChunk(fd)
+        balance -= delta
+      else:
+        high = dataPattern.search(data)
+        if high != None:
+          print "      SubSet: '%s', balance: %d" % (high.group(1), balance)
+          if high.group(1) == "coordIndex":
+            self.readPolygons(fd)
+          elif high.group(1) == "texCoordIndex":
+            self.readPolygonsUV(fd)
+          else:
+            skipChunk(fd)
+          balance -= delta
+        else:
+          high = re.search("solid\s+(TRUE|FALSE)", data, re.I | re.S) #FIXME
+          if high != None:
+            if high.group(1) == "TRUE":
+              self.smooth = False
+            else:
+              self.smooth = True
+          high = re.search("coord\s+USE\s+([\w\-]+)", data, re.I | re.S)
+          if high != None:
+            ptr = self
+            while isinstance(ptr, vrmlScene) == False:
+              ptr = ptr.parent
+            for geo in ptr.entries:
+              if geo.name == high.group(1):
+                print "        Found geometry %s" % geo.name
+                self.vertices   = geo.vertices
+    print "      End geometry read"
+  def readVertices(self, fd):
+    print "      Start vertex read"
+    vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
+    delta, offset, balance = 0, 0, 0
+    while 1:
+      data = fd.readline()
+      if len(data) == 0:
+        break
+      (delta, offset) = calcBalance(data)
+      balance += delta
+      high = vertexPattern.search(data)
+      if high != None:
+        self.vertices.append(numpy.array([float(high.group(1)), float(high.group(2)), float(high.group(3))]))
+      if balance < 0:
+        print "      Wrong balance: %d" % balance
+        fd.seek(-offset, os.SEEK_CUR)
+        break
+    print "      End vertex read, loaded %d" % len(self.vertices)
+  def readVerticesUV(self, fd):
+    print "      Start UV vertex read"
+    vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
+    delta, offset, balance = 0, 0, 0
+    while 1:
+      data = fd.readline()
+      if len(data) == 0:
+        break
+      (delta, offset) = calcBalance(data)
+      balance += delta
+      vPos = 0
+      while 1:
+        high = vertexPattern.search(data, vPos)
+        if high != None:
+          self.verticesUV.append(numpy.array([float(high.group(1)), float(high.group(2))]))
+          vPos = high.end()
+        else:
           break
-        polyData.append(int(ind.group(1)))
-        indPos = ind.end()
-      if len(polyData) == 3:
-        self.triangleVertices += 3
-      elif len(polyData) == 4:
-        self.quadVertices += 4
-      else:
-        self.polygonVertices += len(polyData)
-      self.polygons.append(polyData)
-      polyPos = poly.end()
-    print "Loaded tri: %d, quad: %d, poly: %d, total vert: %d" % (self.triangleVertices / 3, self.quadVertices / 4, len(self.polygons) - self.triangleVertices / 3 - self.quadVertices / 4, self.polygonVertices + self.triangleVertices + self.quadVertices)
-  def write(self, link, transform, handler):
-    handler.write("    Shape {\n")
-    if self.materialReference != None:
-      matLink = False
-      if link == True or self.materialLinked == True:
-        matLink = True
-      self.materialReference.write(matLink, handler)
-    handler.write("      geometry IndexedFaceSet {\n        coord Coordinate { point [\n")
-    for i in range(0, len(self.vertices)):
-      vert = numpy.matrix([[self.vertices[i][0]], [self.vertices[i][1]], [self.vertices[i][2]], [1.]])
-      vert = transform * vert
-      handler.write("          %f %f %f" % (float(vert[0]), float(vert[1]), float(vert[2])))
-      if i != len(self.vertices) - 1:
-        handler.write(",\n")
-    handler.write(" ] }\n")
-    handler.write("        coordIndex [\n")
-    for i in range(0, len(self.polygons)):
-      handler.write("          ")
-      for j in range(0, len(self.polygons[i])):
-        handler.write("%d, " % self.polygons[i][j])
-      handler.write("-1")
-      if i != len(self.polygons) - 1:
-        handler.write(",\n")
-    handler.write(" ]\n")
-    handler.write("      }\n")
-    handler.write("    }\n")
-  def render(self, transform):
-    if self.materialReference != None:
-      self.materialReference.setMaterial()
-    translatedVertices = []
-    for i in range(0, len(self.vertices)):
-      vert = numpy.matrix([[self.vertices[i][0]], [self.vertices[i][1]], [self.vertices[i][2]], [1.]])
-      vert = transform * vert
-      translatedVertices.append(numpy.matrix([[float(vert[0])], [float(vert[1])], [float(vert[2])]]))
-    for i in range(0, len(self.polygons)):
-      if len(self.polygons) == 3:
-        glBegin(GL_TRIANGLES)
-      elif len(self.polygons) == 4:
-        glBegin(GL_QUADS)
-      else:
-        glBegin(GL_POLYGON)
-      if len(self.polygons[i]) >= 3:
-        normal = getNormal(translatedVertices[self.polygons[i][1]] - translatedVertices[self.polygons[i][0]], 
-                           translatedVertices[self.polygons[i][0]] - translatedVertices[self.polygons[i][2]])
-        normal /= -numpy.linalg.norm(normal)
-        glNormal3f(normal[0], normal[1], normal[2])
-      for j in range(0, len(self.polygons[i])):
-        glVertex3f(translatedVertices[self.polygons[i][j]][0], translatedVertices[self.polygons[i][j]][1], translatedVertices[self.polygons[i][j]][2])
-      glEnd()
+      if balance < 0:
+        print "      Wrong balance: %d" % balance
+        fd.seek(-offset, os.SEEK_CUR)
+        break
+    print "      End UV vertex read, loaded %d" % len(self.verticesUV)
+  def readPolygonsUV(self, fd):
+    print "      Start UV polygon read"
+    polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
+    indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
+    delta, offset, balance = 0, 0, 0
+    while 1:
+      data = fd.readline()
+      if len(data) == 0:
+        break
+      (delta, offset) = calcBalance(data)
+      balance += delta
+      high = polyPattern.search(data)
+      if high != None:
+        polyData = []
+        indPos = 0
+        while 1:
+          ind = indPattern.search(high.group(1), indPos)
+          if ind == None:
+            break
+          polyData.append(int(ind.group(1)))
+          indPos = ind.end()
+        self.polygonsUV.append(polyData)
+      if balance < 0:
+        print "      Wrong balance: %d" % balance
+        fd.seek(-offset, os.SEEK_CUR)
+        break
+    print "      End UV polygon read, loaded poly: %d" % len(self.polygons)
+  def readPolygons(self, fd):
+    print "      Start polygon read"
+    polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
+    indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
+    delta, offset, balance = 0, 0, 0
+    while 1:
+      data = fd.readline()
+      if len(data) == 0:
+        break
+      (delta, offset) = calcBalance(data)
+      balance += delta
+      high = polyPattern.search(data)
+      if high != None:
+        polyData = []
+        indPos = 0
+        while 1:
+          ind = indPattern.search(high.group(1), indPos)
+          if ind == None:
+            break
+          polyData.append(int(ind.group(1)))
+          indPos = ind.end()
+        if len(polyData) == 3:
+          self.triCount += 3
+        elif len(polyData) == 4:
+          self.quadCount += 4
+        else:
+          self.polyCount += len(polyData)
+        self.polygons.append(polyData)
+      if balance < 0:
+        print "      Wrong balance: %d" % balance
+        fd.seek(-offset, os.SEEK_CUR)
+        break
+    print "      End polygon read, loaded tri: %d, quad: %d, poly: %d, vTOT: %d" % (self.triCount / 3, self.quadCount / 4, len(self.polygons) - self.triCount / 3 - self.quadCount / 4, self.polyCount + self.triCount + self.quadCount)
 
-class material:
-  def __init__(self, string):
+class vrmlMaterial:
+  def __init__(self, parent):
+    self.parent = parent
     self.name = ""
-    self.diffuseColor = [0., 0., 0.]
+    self.linked = False
+    self.diffuseColor     = [0., 0., 0., 1.]
+    self.ambientColor     = [0., 0., 0., 1.]
+    self.specularColor    = [0., 0., 0., 1.]
+    self.emissiveColor    = [0., 0., 0., 1.]
     self.ambientIntensity = 0.
-    self.specularColor = [0., 0., 0.]
-    self.emissiveColor = [0., 0., 0.]
-    self.shininess = 0.
-    self.transparency = 0.
-    tmp = re.search("diffuseColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
-      self.diffuseColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3))]
-    tmp = re.search("ambientIntensity\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
-      self.ambientIntensity = float(tmp.group(1))
-    self.ambientIntensity *= 3.
-    if self.ambientIntensity > 1.:
-      self.ambientIntensity = 1.
-    tmp = re.search("specularColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
-      self.specularColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3))]
-    tmp = re.search("emissiveColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
-      self.emissiveColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3))]
-    tmp = re.search("shininess\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
-      self.shininess = float(tmp.group(1))
-    tmp = re.search("transparency\s+([+e\d\.]+)", string, re.I | re.S)
+    self.shininess        = 0.
+    self.transparency     = 0.
+  def read(self, fileContent):
+    tmp = re.search("transparency\s+([+e\d\.]+)", fileContent, re.I | re.S)
     if tmp != None:
       self.transparency = float(tmp.group(1))
-  def write(self, link, handler):
-    if link == False:
-      handler.write("      appearance Appearance {\n        material DEF %s Material {\n" % self.name)
-      handler.write("          diffuseColor %f %f %f\n" % (self.diffuseColor[0], self.diffuseColor[1], self.diffuseColor[2]))
-      handler.write("          emissiveColor %f %f %f\n" % (self.emissiveColor[0], self.emissiveColor[1], self.emissiveColor[2]))
-      handler.write("          specularColor %f %f %f\n" % (self.specularColor[0], self.specularColor[1], self.specularColor[2]))
-      handler.write("          ambientIntensity %f\n" % self.ambientIntensity)
-      handler.write("          transparency %f\n" % self.transparency)
-      handler.write("          shininess %f\n" % self.shininess)
-      handler.write("        }\n      }\n")
+    tmp = re.search("diffuseColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", fileContent, re.I | re.S)
+    if tmp != None:
+      self.diffuseColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1. - self.transparency]
+    tmp = re.search("ambientIntensity\s+([+e\d\.]+)", fileContent, re.I | re.S)
+    if tmp != None:
+      self.ambientIntensity = float(tmp.group(1))
+      self.ambientColor = [self.diffuseColor[0] * self.ambientIntensity, 
+                           self.diffuseColor[1] * self.ambientIntensity, 
+                           self.diffuseColor[2] * self.ambientIntensity, 
+                           1. - self.transparency]
+    tmp = re.search("specularColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", fileContent, re.I | re.S)
+    if tmp != None:
+      self.specularColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1.]
+    tmp = re.search("emissiveColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", fileContent, re.I | re.S)
+    if tmp != None:
+      self.emissiveColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1.]
+    tmp = re.search("shininess\s+([+e\d\.]+)", fileContent, re.I | re.S)
+    if tmp != None:
+      self.shininess = float(tmp.group(1))
+  def write(self, fd):
+    if self.linked == False:
+      aint = self.ambientIntensity * 3.
+      if aint > 1.:
+        aint = 1.
+      fd.write("      appearance Appearance {\n        material DEF %s Material {\n" % self.name)
+      fd.write("          diffuseColor %f %f %f\n" % (self.diffuseColor[0], self.diffuseColor[1], self.diffuseColor[2]))
+      fd.write("          emissiveColor %f %f %f\n" % (self.emissiveColor[0], self.emissiveColor[1], self.emissiveColor[2]))
+      fd.write("          specularColor %f %f %f\n" % (self.specularColor[0], self.specularColor[1], self.specularColor[2]))
+      fd.write("          ambientIntensity %f\n" % aint)
+      fd.write("          transparency %f\n" % self.transparency)
+      fd.write("          shininess %f\n" % self.shininess)
+      fd.write("        }\n      }\n")
     else:
-      handler.write("      appearance Appearance {\n        material USE %s\n      }\n" % self.name)
-  def setMaterial(self):
-    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
-    glColor4f(self.diffuseColor[0] * self.ambientIntensity,
-              self.diffuseColor[1] * self.ambientIntensity,
-              self.diffuseColor[2] * self.ambientIntensity,
-              1.0 - self.transparency)
-#    glColorMaterial(GL_FRONT_AND_BACK, GL_SPECULAR)
-#    glColor3f(self.specularColor[0], self.specularColor[1], self.specularColor[2])
-#    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+      fd.write("      appearance Appearance {\n        material USE %s\n      }\n" % self.name)
+
+class vrmlTexture:
+  def __init__(self, parent):
+    self.parent = parent
+    self.texID = None
+    self.fname = ""
+    self.fpath = ""
+    self.name = ""
+  def read(self, fileContent):
+    tmp = re.search("url\s+\"([\w\-\.]+)\"", fileContent, re.I | re.S)
+    if tmp != None:
+      self.fileName = tmp.group(1)
+    self.fpath = os.getcwd()
+
+class mesh:
+  def __init__(self):
+    self.vertexList  = None
+    self.vertexVBO   = 0
+    self.normalList  = None
+    self.normalVBO   = 0
+    self.texList     = None
+    self.texVBO      = 0
+    self.materials   = []
+    self.smooth      = False
+    self.arraySizes  = []
 
 class render:
   def __init__(self, aScene):
@@ -387,15 +728,9 @@ class render:
     self.drawList = None
     self.width = 640
     self.height = 480
-    self.vertexList  = []
-    self.normalList  = []
-    self.arrayOffset = []
-    self.arraySize   = []
-    self.vertexVBO   = []
-    self.normalVBO   = []
     self.cntr = time.time()
     self.fps = 0
-    self.mts = []
+    self.data = []
     glutInit(sys.argv)
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH)
     glutInitWindowSize(self.width, self.height)
@@ -410,26 +745,123 @@ class render:
     self.initGraphics()
     self.initScene(aScene)
     glutMainLoop()
+  def initGraphics(self):
+    glClearColor(0.0, 0.0, 0.0, 0.0)
+    glClearDepth(1.0)
+    glDepthFunc(GL_LESS)
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+    glEnable(GL_LIGHT0)
+    glLightfv(GL_LIGHT0, GL_POSITION, self.light)
+    #glEnable(GL_COLOR_MATERIAL)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glEnable(GL_CULL_FACE)
+    glCullFace(GL_BACK)
+    #glShadeModel(GL_FLAT)
+    #glLightModel(GL_LIGHT_MODEL_COLOR_CONTROL, GL_SEPARATE_SPECULAR_COLOR)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(45.0, float(self.width)/float(self.height), 0.1, 1000.0)
+    glMatrixMode(GL_MODELVIEW)
+  def initScene(self, aScene):
+    for entry in aScene.objects:
+      self.data.extend(entry.getMesh(aScene.transform))
+    for meshEntry in self.data:
+      print "Vertex count: %d" % len(meshEntry.vertexList)
+      meshEntry.vertexVBO = glGenBuffers(1)
+      #if glIsBuffer(meshEntry.vertexVBO) == GL_FALSE:
+        #print "Error creating OpenGL buffer"
+        #exit()
+      glBindBuffer(GL_ARRAY_BUFFER, meshEntry.vertexVBO)
+      glBufferData(GL_ARRAY_BUFFER, meshEntry.vertexList, GL_STATIC_DRAW)
+      meshEntry.normalVBO = glGenBuffers(1)
+      glBindBuffer(GL_ARRAY_BUFFER, meshEntry.normalVBO)
+      glBufferData(GL_ARRAY_BUFFER, meshEntry.normalList, GL_STATIC_DRAW)
+      if meshEntry.texList != None:
+        meshEntry.texVBO = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, meshEntry.texVBO)
+        glBufferData(GL_ARRAY_BUFFER, meshEntry.texList, GL_STATIC_DRAW)
+        for mat in meshEntry.materials:
+          if isinstance(mat, vrmlTexture):
+            self.loadTexture(mat)
+  def loadTexture(self, arg):
+    im = Image.open(arg.fpath + "/" + arg.fileName)
+    try:
+      #Get image dimensions and data
+      width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
+    except SystemError:
+      #Has no alpha channel, synthesize one, see the texture module for more realistic handling
+      width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBX", 0, -1)
+    arg.texID = glGenTextures(1)
+    #Make it current
+    glBindTexture(GL_TEXTURE_2D, arg.texID)
+    glPixelStorei(GL_UNPACK_ALIGNMENT,1)
+    #Copy the texture into the current texture ID
+    #glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
+    #gluBuild2DMipmaps(GL_TEXTURE_2D, GLU_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
+    gluBuild2DMipmaps(GL_TEXTURE_2D, 4, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
+    print "        Loaded %s, width: %d, height: %d, id: %d" % (arg.name, width, height, arg.texID)
+  def setTexture(self, arg):
+    glEnable(GL_TEXTURE_2D)
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+    #glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
+    glBindTexture(GL_TEXTURE_2D, arg.texID)
+  def setMaterial(self, arg):
+    #glDisable(GL_TEXTURE_2D)
+    #glDisable(GL_COLOR_MATERIAL)
+    glEnable(GL_COLOR_MATERIAL)
+#    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, arg.diffuseColor)
+    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, arg.shininess * 128.)
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, arg.specularColor)
+    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, arg.emissiveColor)
+    #glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, arg.ambientColor)
+    #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, arg.diffuseColor)
+    #glColorMaterial(GL_FRONT_AND_BACK, GL_EMISSION)
+    #glColor3f(arg.emissiveColor[0], arg.emissiveColor[1], arg.emissiveColor[2])
+    #glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT)
+    glColor4f(arg.ambientColor[0], arg.ambientColor[1], arg.ambientColor[2], arg.ambientColor[3])
+    glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE)
+    glColor4f(arg.diffuseColor[0], arg.diffuseColor[1], arg.diffuseColor[2], arg.diffuseColor[3])
+    #glColorMaterial(GL_FRONT_AND_BACK, GL_SPECULAR)
+    #glColor3f(arg.specularColor[0], arg.specularColor[1], arg.specularColor[2])
+    #glEnable(GL_COLOR_MATERIAL)
+    glDisable(GL_COLOR_MATERIAL)
   def drawAxis(self):
+    glDisable(GL_TEXTURE_2D)
+    glEnableClientState(GL_VERTEX_ARRAY)
+    glEnableClientState(GL_COLOR_ARRAY)
+    #glDisable(GL_BLEND)
+    #glDisable(GL_COLOR_MATERIAL)
+    glEnable(GL_COLOR_MATERIAL)
+    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 0.)
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [0., 0., 0., 1.])
+    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, [0., 0., 0., 1.])
     glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
-    glColor3f(1., 0., 0.)
-    glBegin(GL_LINES)
-    glNormal3f(0., 0., 1.)
-    glVertex3f(0., 0., 0.)
-    glVertex3f(4., 0., 0.)
-    glEnd()
-    glColor3f(0., 1., 0.)
-    glBegin(GL_LINES)
-    glNormal3f(0., 0., 1.)
-    glVertex3f(0., 0., 0.)
-    glVertex3f(0., 4., 0.)
-    glEnd()
-    glColor3f(0., 0., 1.)
-    glBegin(GL_LINES)
-    glNormal3f(1., 0., 0.)
-    glVertex3f(0., 0., 0.)
-    glVertex3f(0., 0., 2.)
-    glEnd()
+    glColor4f(1., 1., 1., 1.)
+    varray = numpy.array([0.0, 0.0, 0.0,
+                          4.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0,
+                          0.0, 4.0, 0.0,
+                          0.0, 0.0, 0.0,
+                          0.0, 0.0, 2.0], dtype=numpy.float32)
+    carray = numpy.array([1.0, 0.0, 0.0, 1.0,
+                          1.0, 0.0, 0.0, 1.0,
+                          0.0, 1.0, 0.0, 1.0,
+                          0.0, 1.0, 0.0, 1.0,
+                          0.0, 0.0, 1.0, 1.0,
+                          0.0, 0.0, 1.0, 1.0], dtype=numpy.float32)
+    glBindBuffer(GL_ARRAY_BUFFER, 0)
+    glColorPointer(4, GL_FLOAT, 0, carray)
+    glVertexPointer(3, GL_FLOAT, 0, varray)
+    #glEnable(GL_COLOR_MATERIAL)
+    glDrawArrays(GL_LINES, 0, len(varray) / 3)
+    glDisable(GL_COLOR_MATERIAL)
+    #glEnable(GL_BLEND)
+    glDisableClientState(GL_COLOR_ARRAY)
+    glDisableClientState(GL_VERTEX_ARRAY)
   def drawScene(self):
     self.updated = True
     if self.updated == True:
@@ -439,21 +871,33 @@ class render:
       gluLookAt(float(self.camera[0]), float(self.camera[1]), float(self.camera[2]), 
                 float(self.pov[0]), float(self.pov[1]), float(self.pov[2]), 0., 0., 1.)
       glLightfv(GL_LIGHT0, GL_POSITION, self.light)
-      glEnableClientState(GL_NORMAL_ARRAY)
+      self.drawAxis()
       glEnableClientState(GL_VERTEX_ARRAY)
-      for i in range(0, len(self.vertexList)):
-        if self.mts[i] != None:
-          self.mts[i].setMaterial()
-        glBindBuffer(GL_ARRAY_BUFFER, self.vertexVBO[i])
+      glEnableClientState(GL_NORMAL_ARRAY)
+      for current in self.data:
+        for mat in current.materials:
+          if isinstance(mat, vrmlMaterial):
+            self.setMaterial(mat)
+            #print "Set material"
+          elif isinstance(mat, vrmlTexture):
+            self.setTexture(mat)
+            #print "Set texture"
+        if current.texList != None:
+          #print "Set Tex Coords"
+          glEnableClientState(GL_TEXTURE_COORD_ARRAY)
+          glBindBuffer(GL_ARRAY_BUFFER, current.texVBO)
+          glTexCoordPointer(2, GL_FLOAT, 0, None)
+        glBindBuffer(GL_ARRAY_BUFFER, current.vertexVBO)
         glVertexPointer(3, GL_FLOAT, 0, None)
-        glBindBuffer( GL_ARRAY_BUFFER, self.normalVBO[i])
+        glBindBuffer(GL_ARRAY_BUFFER, current.normalVBO)
         glNormalPointer(GL_FLOAT, 0, None)
-        #glVertexPointer(3, GL_FLOAT, 0, self.vertexList)
-        #glNormalPointer(GL_FLOAT, 0, self.normalList)
-        #glDrawArrays(GL_QUADS, 0, len(self.vertexList[i]) / 4)
-        glDrawArrays(GL_TRIANGLES, self.arrayOffset[i][0], self.arraySize[i][0])
-        glDrawArrays(GL_QUADS, self.arrayOffset[i][1], self.arraySize[i][1])
-        glDrawArrays(GL_POLYGON, self.arrayOffset[i][2], self.arraySize[i][2])
+        glDrawArrays(GL_TRIANGLES, 0, current.arraySizes[0])
+        glDrawArrays(GL_QUADS, current.arraySizes[0], current.arraySizes[1])
+        glDrawArrays(GL_POLYGON, current.arraySizes[0] + current.arraySizes[1], current.arraySizes[2])
+        if current.texList != None:
+          glDisableClientState(GL_TEXTURE_COORD_ARRAY)
+      glDisableClientState(GL_NORMAL_ARRAY)
+      glDisableClientState(GL_VERTEX_ARRAY)
       glutSwapBuffers()
       self.fps += 1
       if time.time() - self.cntr >= 1.:
@@ -470,92 +914,9 @@ class render:
     glViewport(0, 0, self.width, self.height)
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    gluPerspective(45.0, float(self.width)/float(self.height), 0.1, 100.0)
-    glMatrixMode(GL_MODELVIEW)
-    self.updated = True
-  def initScene(self, aScene):
-#    sh1 = aScene.shapes[0]
-    for sh in aScene.shapes:
-      self.mts.append(sh.materialReference)
-      tsa = time.time()
-      #length = len(sh.triangles) * 9 + len(sh.quads) * 12 + sh.polygonVertices * 3
-      length = (sh.triangleVertices + sh.quadVertices + sh.polygonVertices) * 3
-      self.vertexList.append(numpy.zeros(length, dtype = numpy.float32))
-      self.normalList.append(numpy.zeros(length, dtype = numpy.float32))
-      self.arrayOffset.append([])
-      self.arraySize.append([])
-      listID = len(self.vertexList) - 1
-      self.arrayOffset[listID].append(0)
-      self.arraySize[listID].append(sh.triangleVertices)
-      self.arrayOffset[listID].append(sh.triangleVertices)
-      self.arraySize[listID].append(sh.quadVertices)
-      self.arrayOffset[listID].append(sh.triangleVertices + sh.quadVertices)
-      self.arraySize[listID].append(sh.polygonVertices)
-      tPos = 0
-      qPos = sh.triangleVertices * 3
-      pPos = sh.triangleVertices * 3 + sh.quadVertices * 4
-      for poly in sh.polygons:
-        v0 = numpy.array(sh.vertices[poly[0]])
-        v1 = numpy.array(sh.vertices[poly[1]])
-        v2 = numpy.array(sh.vertices[poly[2]])
-        normal = getNormal(v1 - v0, v0 - v2)
-        det = numpy.linalg.norm(normal)
-        if det != 0:
-          normal /= -det
-        pos = 0
-        if len(poly) == 3:
-          pos = tPos
-          tPos += 9
-        elif len(poly) == 4:
-          pos = qPos
-          qPos += 12
-        else:
-          pos = pPos
-          pPos += len(poly) * 3
-        for vert in poly:
-          self.vertexList[listID][pos]     = sh.vertices[vert][0]
-          self.vertexList[listID][pos + 1] = sh.vertices[vert][1]
-          self.vertexList[listID][pos + 2] = sh.vertices[vert][2]
-          self.normalList[listID][pos]     = normal[0]
-          self.normalList[listID][pos + 1] = normal[1]
-          self.normalList[listID][pos + 2] = normal[2]
-          pos += 3
-      print "Count tri: %d, quad: %d, poly: %d, total vert: %d" % (self.arraySize[listID][0] / 3, self.arraySize[listID][1] / 4, len(sh.polygons) - self.arraySize[listID][0] / 3 - self.arraySize[listID][1] / 4, length / 3)
-      #print "Size tri: %d, quad: %d, poly: %d" % (self.arraySize[listID][0], self.arraySize[listID][1], self.arraySize[listID][2])
-      #print "Offset tri: %d, quad: %d, poly: %d" % (self.arrayOffset[listID][0], self.arrayOffset[listID][1], self.arrayOffset[listID][2])
-      tsb = time.time()
-      print "Delta: %f" % (tsb - tsa)
-      self.vertexVBO.append(glGenBuffers(1))
-      #self.vertexVBO[listID] = glGenBuffers(1)
-      glBindBuffer(GL_ARRAY_BUFFER, self.vertexVBO[listID])
-      glBufferData(GL_ARRAY_BUFFER, self.vertexList[listID], GL_STATIC_DRAW)
-      self.normalVBO.append(glGenBuffers(1))
-      #self.normalVBO[listID] = glGenBuffers(1)
-      glBindBuffer(GL_ARRAY_BUFFER, self.normalVBO[listID])
-      glBufferData(GL_ARRAY_BUFFER, self.normalList[listID], GL_STATIC_DRAW)
-    #glEnableClientState(GL_COLOR_ARRAY)
-
-    #self.drawList = glGenLists(1)
-    ##Draw scene to the list 1
-    #glNewList(self.drawList, GL_COMPILE)
-    ##Draw axis
-    #self.drawAxis()
-    ##Draw objects
-    #aScene.render()
-    #glEndList()
-  def initGraphics(self):
-    glClearColor(0.0, 0.0, 0.0, 0.0)
-    glClearDepth(1.0)
-    glDepthFunc(GL_LESS)
-    glEnable(GL_DEPTH_TEST)
-    glEnable(GL_LIGHTING)
-    glEnable(GL_LIGHT0)
-    glLightfv(GL_LIGHT0, GL_POSITION, self.light)
-    glEnable(GL_COLOR_MATERIAL)
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
     gluPerspective(45.0, float(self.width)/float(self.height), 0.1, 1000.0)
     glMatrixMode(GL_MODELVIEW)
+    self.updated = True
   def mouseButton(self, bNumber, bAction, xPos, yPos):
     if bNumber == GLUT_LEFT_BUTTON:
       if bAction == GLUT_DOWN:
@@ -594,12 +955,18 @@ class render:
       normal = getNormal(self.camera, [0., 0., 1.])
       normal /= numpy.linalg.norm(normal)
       zrot = (self.mousePos[0] - xPos) / 100.
-      rotMatrixA = numpy.matrix([[math.cos(zrot), -math.sin(zrot), 0., 0.],
-                                 [math.sin(zrot),  math.cos(zrot), 0., 0.],
-                                 [            0.,              0., 1., 0.],
-                                 [            0.,              0., 0., 1.]])
-      rotMatrixB = fillRotateMatrix(normal, (yPos - self.mousePos[1]) / 100.)
-      self.camera = rotMatrixA * rotMatrixB * self.camera
+      nrot = (yPos - self.mousePos[1]) / 100.
+      if zrot != 0.:
+        rotMatrixA = numpy.matrix([[math.cos(zrot), -math.sin(zrot), 0., 0.],
+                                   [math.sin(zrot),  math.cos(zrot), 0., 0.],
+                                   [            0.,              0., 1., 0.],
+                                   [            0.,              0., 0., 1.]])
+        self.camera = rotMatrixA * self.camera
+      if nrot != 0.:
+        angle = getAngle(self.camera, [0., 0., 1.])
+        if not ((nrot > 0 and nrot > angle) or (nrot < 0 and -nrot > math.pi - angle)):
+          rotMatrixB = fillRotateMatrix(normal, nrot)
+          self.camera = rotMatrixB * self.camera
       self.camera += self.pov
       self.mousePos = [xPos, yPos]
     elif self.moveCamera == True:
@@ -629,44 +996,46 @@ class render:
       self.pov    = numpy.matrix([[0.], [0.], [0.], [1.]])
     self.updated = True
 
-parser = OptionParser()
+parser = optparse.OptionParser()
 parser.add_option("-v", "--view", dest="view", help="Render and show model.", default=False, action="store_true")
+parser.add_option("-w", "--write", dest="rebuild", help="Rebuild model.", default=False, action="store_true")
 parser.add_option("-t", "--translate", dest="translate", help="Move shapes to new coordinates [x,y,z], default value \"0.,0.,0.\".", default='0.,0.,0.')
-parser.add_option("-r", "--rotate", dest="rotate", help="Rotate shapes around vector [x,y,z] by angle, default value \"0.,0.,1.,0.\".", default='0.,0.,1.,0.')
+parser.add_option("-r", "--rotate", dest="rotate", help="Rotate shapes around vector [x,y,z] by angle in degrees, default value \"0.,0.,1.,0.\".", default='0.,0.,1.,0.')
 parser.add_option("-s", "--scale", dest="scale", help="Scale shapes by [x,y,z], default value \"1.,1.,1.\".", default='1.,1.,1.')
 (options, args) = parser.parse_args()
 
-if len(args) > 0:
-  options.translate = options.translate.split(",")
-  options.rotate = options.rotate.split(",")
-  options.scale = options.scale.split(",")
-  gTranslate = [0., 0., 0.]
-  gRotate = [0., 0., 1., 0.]
-  gScale = [1., 1., 1.]
-  for i in range(0, 3):
-    try:
-      gTranslate[i] = float(options.translate[i])
-    except ValueError:
-      print "Wrong translate parameter: %s" % options.translate[i]
-      exit()
-    try:
-      gScale[i] = float(options.scale[i])
-    except ValueError:
-      print "Wrong scale parameter: %s" % options.scale[i]
-      exit()
-  for i in range(0, 4):
-    try:
-      gRotate[i] = float(options.rotate[i])
-    except ValueError:
-      print "Wrong rotate parameter: %s" % options.rotate[i]
-      exit()
+options.translate = options.translate.split(",")
+options.rotate = options.rotate.split(",")
+options.scale = options.scale.split(",")
+gTranslate = [0., 0., 0.]
+gRotate = [0., 0., 1., 0.]
+gScale = [1., 1., 1.]
+for i in range(0, 3):
+  try:
+    gTranslate[i] = float(options.translate[i])
+  except ValueError:
+    print "Wrong translate parameter: %s" % options.translate[i]
+    exit()
+  try:
+    gScale[i] = float(options.scale[i])
+  except ValueError:
+    print "Wrong scale parameter: %s" % options.scale[i]
+    exit()
+for i in range(0, 4):
+  try:
+    gRotate[i] = float(options.rotate[i])
+  except ValueError:
+    print "Wrong rotate parameter: %s" % options.rotate[i]
+    exit()
 
-  sc = scene()
-  sc.setTransform(gTranslate, gRotate, gScale)
-  for fname in args:
-    sc.loadFile(fname)
-    if options.view == False:
-      sc.saveFile(fname + "~")
-      sc.clear()
-  if options.view == True:
-    rend = render(sc)
+gRotate[3] *= (180 / math.pi)
+sc = vrmlScene()
+sc.setTransform(gTranslate, gRotate, gScale)
+
+for fname in args:
+  sc.loadFile(fname)
+  if options.rebuild == True:
+    sc.saveFile(fname + "~")
+
+if options.view == True:
+  rend = render(sc)
