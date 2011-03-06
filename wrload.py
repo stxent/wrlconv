@@ -73,13 +73,6 @@ def calcBalance(string, delta = None, openset = ('[', '{'), closeset = (']', '}'
       update = False
   return (balance, offset)
 
-def fillString(length):
-  res = ""
-  while length > 0:
-    res += " "
-    length -= 1
-  return res
-
 class vrmlEntry:
   def __init__(self, parent = None):
     self.parent = parent
@@ -105,16 +98,16 @@ class vrmlEntry:
         initialPos = fd.tell()
         self.readSpecific(fd, data[:regexp.start()]) #FIXME added
         if initialPos != fd.tell():
-          print "%sRead error" % fillString(self._level)
+          print "%sRead error" % (' ' * self._level)
           break
         if balance < 0:
-          print "%sWrong balance: %d" % (fillString(self._level), balance)
+          print "%sWrong balance: %d" % (' ' * self._level, balance)
           fd.seek(-(len(data) - regexp.start() + offset), os.SEEK_CUR)
           break
         fd.seek(-(len(data) - regexp.end()), os.SEEK_CUR)
         entry = None
-        #print "%sBalstring: '%s'" % (fillString(self._level), data[:regexp.start()])
-        print "%sEntry: '%s' '%s' '%s' Balance: %d" % (fillString(self._level), regexp.group(1), regexp.group(2), regexp.group(3), balance)
+        #print "%sBalstring: '%s'" % (' ' * self._level, data[:regexp.start()])
+        print "%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance)
         try:
           if regexp.group(3) == "Transform" or regexp.group(3) == "Group":
             entry = vrmlTransform(self)
@@ -136,21 +129,32 @@ class vrmlEntry:
             entry = vrmlCoordinates(self, 'texture')
           elif regexp.group(3) == "Inline":
             entry = vrmlInline(self)
+          elif regexp.group(3) == "Sphere":
+            entry = vrml3DSphere(self)
+          elif regexp.group(3) == "Cylinder":
+            entry = vrml3DCylinder(self)
           else:
             offset = skipChunk(fd)
             fd.seek(-offset, os.SEEK_CUR)
         except:
-          print "%sChunk sequence error" % fillString(self._level)
+          print "%sChunk sequence error" % (' ' * self._level)
           pass
         if entry != None:
           if regexp.group(1) == "DEF" and len(regexp.group(2)) > 0:
             entry.name = regexp.group(2)
           entry.read(fd)
-          self.objects.append(entry)
           ptr = self
           while isinstance(ptr, vrmlScene) == False:
             ptr = ptr.parent
-          ptr.entries.append(entry)
+          duplicate = False
+          for current in ptr.entries: #Search for duplicates
+            if entry == current:
+              entry = current
+              duplicate = True
+              break
+          self.objects.append(entry)
+          if not duplicate:
+            ptr.entries.append(entry)
         #balance -= delta
       else:
         (delta, offset) = calcBalance(data, -(balance + 1), ('{'), ('}'))
@@ -161,16 +165,16 @@ class vrmlEntry:
         self.readSpecific(fd, data)
         using = re.search("USE\s+([\w\-]+)", data, re.I | re.S)
         if using != None and using.start() < len(data) - offset:
-          print "%sUsing entry %s" % (fillString(self._level), using.group(1))
+          print "%sUsing entry %s" % (' ' * self._level, using.group(1))
           ptr = self
           while not isinstance(ptr, vrmlScene) and not isinstance(ptr, vrmlInline):
             ptr = ptr.parent
           for obj in ptr.entries:
             if obj.name == using.group(1):
-              print "%sFound entry %s" % (fillString(self._level), using.group(1))
+              print "%sFound entry %s" % (' ' * self._level, using.group(1))
               self.objects.append(obj)
         if balance < 0:
-          print "%sBalance error: %d" % (fillString(self._level), balance)
+          print "%sBalance error: %d" % (' ' * self._level, balance)
           if initialPos == fd.tell():
             fd.seek(-offset, os.SEEK_CUR) #FIXME HIGH PRIORITY
           break
@@ -229,7 +233,7 @@ class vrmlInline(vrmlEntry): #FIXME ALL
     if urlSearch != None:
       oldDir = os.getcwd()
       if os.path.isfile(urlSearch.group(1)):
-        #print "%sLoading file: %s" % (fillString(self._level), urlSearch.group(1))
+        #print "%sLoading file: %s" % (' ' * self._level, urlSearch.group(1))
         #self.name = urlSearch.group(1)
         wrlFile = open(urlSearch.group(1), "r")
         if len(os.path.dirname(urlSearch.group(1))) > 0:
@@ -237,13 +241,13 @@ class vrmlInline(vrmlEntry): #FIXME ALL
         self.read(wrlFile)
         wrlFile.close()
       else:
-        print "%sFile not found: %s" % (fillString(self._level), urlSearch.group(1))
+        print "%sFile not found: %s" % (' ' * self._level, urlSearch.group(1))
       os.chdir(oldDir)
   def mesh(self, transform, _offset = 0):
-    print "%sDraw inline: %s" % (fillString(_offset), self.name)
+    print "%sDraw inline: %s" % (' ' * _offset, self.name)
     res = []
     for obj in self.objects:
-      #print "%sSubobject: %s (%s)" % (fillString(_offset), obj.name, obj.__class__.__name__)
+      #print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
       if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
         res.extend(obj.mesh(transform, _offset + 2))
     return res
@@ -285,11 +289,11 @@ class vrmlTransform(vrmlEntry):
                             [0., 0., 0., 1.]])
       self.transform = self.transform * tform
   def mesh(self, transform, _offset = 0):
-    print "%sDrawing transform: %s" % (fillString(_offset), self.name)
+    print "%sDrawing transform: %s" % (' ' * _offset, self.name)
     res = []
     tform = transform * self.transform
     for obj in self.objects:
-      #print "%sSubobject: %s (%s)" % (fillString(_offset), obj.name, obj.__class__.__name__)
+      #print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
       if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
         res.extend(obj.mesh(tform, _offset + 2))
     return res
@@ -305,16 +309,18 @@ class vrmlShape(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
   def mesh(self, transform, _offset = 0):
-    print "%sDraw shape %s" % (fillString(_offset), self.name)
+    print "%sDraw shape %s" % (' ' * _offset, self.name)
     newMesh = mesh()
     for obj in self.objects:
       if isinstance(obj, vrmlAppearance):
         for app in obj.objects:
           if isinstance(app, vrmlMaterial) or isinstance(app, vrmlTexture):
             newMesh.materials.append(app)
+      #elif isinstance(obj, vrmlGeometry) or isinstance(obj, vrml3DSphere): #FIXME
       elif isinstance(obj, vrmlGeometry):
+        #print obj.__class__.__name__
         _tsa = time.time()
-        print "%sDraw geometry %s" % (fillString(_offset + 2), obj.name)
+        print "%sDraw geometry %s" % (' ' * (_offset + 2), obj.name)
         newMesh.solid = obj.solid
         if obj.polygonsUV != None and len(obj.polygons) == len(obj.polygonsUV):
           genTex = True
@@ -337,7 +343,7 @@ class vrmlShape(vrmlEntry):
           newMesh.objects.append(fsTri)
         if obj.quadCount > 0:
           fsQuad = faceset(GL_QUADS)
-          fsQuad.append(0, obj.quadCount)
+          fsQuad.append(obj.triCount, obj.quadCount)
           newMesh.objects.append(fsQuad)
         if obj.polyCount > 0:
           fsPoly = faceset(GL_POLYGON)
@@ -457,7 +463,7 @@ class vrmlShape(vrmlEntry):
           newMesh.objects.append(fsPoly)
         vrmlShape._vcount += len(newMesh.vertexList) / 3
         vrmlShape._pcount += len(obj.polygons)
-        print "%sCreated in: %f, vertices: %d, polygons: %d" % (fillString(_offset + 2), _tsb - _tsa, len(newMesh.vertexList) / 3, len(obj.polygons))
+        print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * (_offset + 2), _tsb - _tsa, len(newMesh.vertexList) / 3, len(obj.polygons))
     return [newMesh]
   def write(self, fd, compList, transform):
     print "Write object %s" % self.name
@@ -506,7 +512,7 @@ class vrmlGeometry(vrmlEntry):
     self.polyCount  = 0
     self.polygonsUV = None
   def readSpecific(self, fd, string):
-    #print "%sTry geo read: %s" % (fillString(self._level), string.replace("\n", "").replace("\t", ""))
+    #print "%sTry geo read: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
     #deltaMain = 0
     initialPos = fd.tell()
     paramSearch = re.search("solid\s+(TRUE|FALSE)", string, re.S)
@@ -523,7 +529,7 @@ class vrmlGeometry(vrmlEntry):
         #fd.seek(-(len(string) - coordSearch.end()), os.SEEK_CUR) #FIXME
       #elif texSearch != None:
         #fd.seek(-(len(string) - texSearch.end()), os.SEEK_CUR) #FIXME
-      print "%sStart polygon read" % fillString(self._level)
+      print "%sStart polygon read" % (' ' * self._level)
       polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
       indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
       tmpPolygons = []
@@ -547,7 +553,7 @@ class vrmlGeometry(vrmlEntry):
             balance += delta
             offset = len(data) - regexp.start() + offset
             if balance != 0:
-              print "%sWrong balance: %d, offset: %d" % (fillString(self._level), balance, offset)
+              print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
               break
             polyData = []
             indPos = 0
@@ -574,7 +580,7 @@ class vrmlGeometry(vrmlEntry):
         if balance != 0:
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
-          print "%sBalance error: %d, offset: %d" % (fillString(self._level), balance, offset)
+          print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
         #deltaMain = 1
@@ -583,12 +589,12 @@ class vrmlGeometry(vrmlEntry):
         pPos = 0
       if coordSearch != None:
         self.polygons = tmpPolygons
-        print "%sRead poly done, %d tri, %d quad, %d poly, %d vertices" % (fillString(self._level), self.triCount / 3, self.quadCount / 4, 
+        print "%sRead poly done, %d tri, %d quad, %d poly, %d vertices" % (' ' * self._level, self.triCount / 3, self.quadCount / 4, 
                                                                            len(self.polygons) - self.triCount / 3 - self.quadCount / 4,
                                                                            self.polyCount + self.triCount + self.quadCount)
       elif texSearch != None:
         self.polygonsUV = tmpPolygons
-        print "%sRead UV poly done, %d poly, %d vertices" % (fillString(self._level), len(self.polygonsUV), 0)
+        print "%sRead UV poly done, %d poly, %d vertices" % (' ' * self._level, len(self.polygonsUV), 0)
 
 class vrmlCoordinates(vrmlEntry):
   TYPE = {'model' : 0, 'texture' : 1}
@@ -601,11 +607,11 @@ class vrmlCoordinates(vrmlEntry):
   def readSpecific(self, fd, string):
     #deltaMain = 0
     initialPos = fd.tell()
-    #print "%sTry coord read: %s, type: %d" % (fillString(self._level), string.replace("\n", "").replace("\t", ""), self.cType)
+    #print "%sTry coord read: %s, type: %d" % (' ' * self._level, string.replace("\n", "").replace("\t", ""), self.cType)
     indexSearch = re.search("point\s*\[", string, re.S)
     if indexSearch != None:
       #fd.seek(-(len(string) - indexSearch.end()), os.SEEK_CUR) #FIXME
-      print "%sStart vertex read, type: %s" % (fillString(self._level), vrmlCoordinates.TYPE.keys()[self.cType])
+      print "%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType])
       if self.cType == vrmlCoordinates.TYPE['model']:
         vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
       elif self.cType == vrmlCoordinates.TYPE['texture']:
@@ -631,7 +637,7 @@ class vrmlCoordinates(vrmlEntry):
             #print "%s %s %s" % (regexp.group(1), regexp.group(2), regexp.group(3))
             if balance != 0:
               #offset += 1
-              print "%sWrong balance: %d, offset: %d" % (fillString(self._level), balance, offset)
+              print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
               break
             if self.cType == vrmlCoordinates.TYPE['model']:
               self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2)), float(regexp.group(3))]))
@@ -651,14 +657,131 @@ class vrmlCoordinates(vrmlEntry):
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
           #print "STR: str: '%s'" % (data[len(data) - offset:].replace("\n", ""))
-          print "%sBalance error: %d, offset: %d" % (fillString(self._level), balance, offset)
+          print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
         #deltaMain = 1
         if len(data) == 0:
           break
         vPos = 0
-      print "%sEnd vertex read, count: %d" % (fillString(self._level), len(self.vertices))
+      print "%sEnd vertex read, count: %d" % (' ' * self._level, len(self.vertices))
+
+class vrml3DSphere(vrmlGeometry): #TODO move
+  def __init__(self, parent):
+    vrmlGeometry.__init__(self, parent)
+    #self.solid = True
+    r = (1. + math.sqrt(5.)) / 4.
+    vertList = []
+    vertList.append(numpy.array([-.5,   r,  0.]))
+    vertList.append(numpy.array([ .5,   r,  0.]))
+    vertList.append(numpy.array([-.5,  -r,  0.]))
+    vertList.append(numpy.array([ .5,  -r,  0.]))
+    vertList.append(numpy.array([ 0., -.5,   r]))
+    vertList.append(numpy.array([ 0.,  .5,   r]))
+    vertList.append(numpy.array([ 0., -.5,  -r]))
+    vertList.append(numpy.array([ 0.,  .5,  -r]))
+    vertList.append(numpy.array([  r,  0., -.5]))
+    vertList.append(numpy.array([  r,  0.,  .5]))
+    vertList.append(numpy.array([ -r,  0., -.5]))
+    vertList.append(numpy.array([ -r,  0.,  .5]))
+    triList = []
+    triList.extend([[ 0, 11,  5], [ 0,  5,  1], [ 0,  1,  7], [ 0,  7, 10], [ 0, 10, 11]])
+    triList.extend([[ 1,  5,  9], [ 5, 11,  4], [11, 10,  2], [10,  7,  6], [ 7,  1,  8]])
+    triList.extend([[ 3,  9,  4], [ 3,  4,  2], [ 3,  2,  6], [ 3,  6,  8], [ 3,  8,  9]])
+    triList.extend([[ 4,  9,  5], [ 2,  4, 11], [ 6,  2, 10], [ 8,  6,  7], [ 9,  8,  1]])
+    #for i in range(0, 2):
+      #triList
+#for (int i = 0; i < recursionLevel; i++)
+#{
+  #var faces2 = new List<TriangleIndices>();
+  #foreach (var tri in faces)
+  #{
+      #// replace triangle by 4 triangles
+      #int a = getMiddlePoint(tri.v1, tri.v2);
+      #int b = getMiddlePoint(tri.v2, tri.v3);
+      #int c = getMiddlePoint(tri.v3, tri.v1);
+
+      #faces2.Add(new TriangleIndices(tri.v1, a, c));
+      #faces2.Add(new TriangleIndices(tri.v2, b, a));
+      #faces2.Add(new TriangleIndices(tri.v3, c, b));
+      #faces2.Add(new TriangleIndices(a, b, c));
+  #}
+  #faces = faces2;
+#}
+    coords = vrmlCoordinates(self, 'model')
+    coords.vertices = vertList
+    self.objects.append(coords)
+    self.triCount = 60
+    self.polygons = triList
+  def readSpecific(self, fd, string):
+    radius = re.search("radius\s+([+e\d\-\.]+)", string, re.I | re.S)
+    if radius != None:
+      r = float(radius.group(1))
+      transform = numpy.matrix([[ r, 0., 0., 0.],
+                                [0.,  r, 0., 0.],
+                                [0., 0.,  r, 0.],
+                                [0., 0., 0., 1.]])
+      for obj in self.objects:
+        if isinstance(obj, vrmlCoordinates) and obj.cType == vrmlCoordinates.TYPE['model']:
+          for i in range(0, len(obj.vertices)):
+            tmp = numpy.matrix([[obj.vertices[i][0]], [obj.vertices[i][1]], [obj.vertices[i][2]], [1.]])
+            tmp = transform * tmp
+            obj.vertices[i] = numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])])
+
+class vrml3DCylinder(vrmlGeometry): #TODO move
+  def __init__(self, parent, points = 128):
+    vrmlGeometry.__init__(self, parent)
+    #self.solid = True
+    self.smooth = True
+    vertList = []
+    triList = []
+    vertList.append(numpy.array([0., -.5, 0]))
+    vertList.append(numpy.array([0.,  .5, 0]))
+    for i in range(0, points):
+      x = math.cos(i * (math.pi * 2) / points)
+      y = math.sin(i * (math.pi * 2) / points)
+      vertList.append(numpy.array([x, -.5, y]))
+      vertList.append(numpy.array([x, -.5, y]))
+      vertList.append(numpy.array([x,  .5, y]))
+      vertList.append(numpy.array([x,  .5, y]))
+    triList.append([2, 2 + (points - 1) * 4, 0])
+    for i in range(0, points - 1):
+      triList.append([2 + (i + 1) * 4, 2 + i * 4, 0])
+    self.triCount += points * 3
+    triList.append([1, 4 + (points - 1) * 4, 4])
+    for i in range(0, points - 1):
+      triList.append([1, 4 + i * 4, 4 + (i + 1) * 4])
+    self.triCount += points * 3
+    triList.append([3, 3 + (points - 1) * 4, 5 + (points - 1) * 4, 5])
+    for i in range(0, points - 1):
+      triList.append([3 + (i + 1) * 4, 3 + i * 4, 5 + i * 4, 5 + (i + 1) * 4])
+    self.quadCount += points * 4
+    coords = vrmlCoordinates(self, 'model')
+    coords.vertices = vertList
+    self.objects.append(coords)
+    self.polygons = triList
+  def readSpecific(self, fd, string):
+    height = re.search("height\s+([+e\d\-\.]+)", string, re.I | re.S)
+    radius = re.search("radius\s+([+e\d\-\.]+)", string, re.I | re.S)
+    if height != None or radius != None:
+      if height != None:
+        h = float(height.group(1))
+      else:
+        h = 1.
+      if radius != None:
+        r = float(radius.group(1))
+      else:
+        r = 1.
+      transform = numpy.matrix([[ r, 0., 0., 0.],
+                                [0.,  h, 0., 0.],
+                                [0., 0.,  r, 0.],
+                                [0., 0., 0., 1.]])
+      for obj in self.objects:
+        if isinstance(obj, vrmlCoordinates) and obj.cType == vrmlCoordinates.TYPE['model']:
+          for i in range(0, len(obj.vertices)):
+            tmp = numpy.matrix([[obj.vertices[i][0]], [obj.vertices[i][1]], [obj.vertices[i][2]], [1.]])
+            tmp = transform * tmp
+            obj.vertices[i] = numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])])
 
 class vrmlAppearance(vrmlEntry):
   def __init__(self, parent = None):
@@ -675,9 +798,22 @@ class vrmlMaterial(vrmlEntry):
     self.emissiveColor    = [0., 0., 0., 1.]
     self.ambientIntensity = 1.
     self.shininess        = 0.
-    self.transparency     = 1.
+    self.transparency     = 0.
+  def __eq__(self, other): #TODO remove in wrlconv
+    if not isinstance(other, vrmlMaterial):
+      return False
+    if self.diffuseColor  == other.diffuseColor and \
+       self.ambientColor  == other.ambientColor and \
+       self.specularColor == other.specularColor and \
+       self.emissiveColor == other.emissiveColor and \
+       self.shininess     == other.shininess:
+      return True
+    else:
+      return False
+  def __ne__(self, other):
+    return not self == other
   def readSpecific(self, fd, string): #FIXME
-    #print "%sReading material: %s" % (fillString(self._level), string.replace("\n", "").replace("\t", ""))
+    #print "%sReading material: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
     tmp = re.search("transparency\s+([+e\d\.]+)", string, re.I | re.S)
     if tmp != None:
       self.transparency = float(tmp.group(1))
@@ -865,7 +1001,31 @@ class render:
     for entry in aScene.objects:
       if isinstance(entry, vrmlShape) or isinstance(entry, vrmlTransform) or isinstance(entry, vrmlInline):
         self.data.extend(entry.mesh(aScene.transform))
-    print "Vertex total count: %d, polygon total count: %d" % (vrmlShape._vcount, vrmlShape._pcount)
+    #Geometry optimization
+    #rebuilded = []
+    #for mat in aScene.entries:
+      #if isinstance(mat, vrmlMaterial):
+        #metamesh = mesh()
+        #vertexCount = 0
+        #for entry in self.data:
+          #if mat in entry.materials:
+            #vertexCount += len(entry.vertexList)
+        #metamesh.vertexList = numpy.zeros(vertexCount, dtype = numpy.float32)
+        #metamesh.normalList = numpy.zeros(vertexCount, dtype = numpy.float32)
+        #offset = 0
+        #for entry in self.data:
+          #if mat in entry.materials:
+            #for i in range(0, len(entry.vertexList)):
+              #metamesh.vertexList[offset + i] = entry.vertexList[i]
+              #metamesh.normalList[offset + i] = entry.normalList[i]
+            #offset += len(entry.vertexList)
+        #fs = faceset(GL_TRIANGLES)
+        #fs.append(0, vertexCount / 3)
+        #metamesh.objects.append(fs)
+        #metamesh.materials.append(mat)
+        #rebuilded.append(metamesh)
+    #self.data = rebuilded
+    print "Total vertex count: %d, polygon count: %d, mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
     for meshEntry in self.data:
       meshEntry.vertexVBO = glGenBuffers(1)
       #if glIsBuffer(meshEntry.vertexVBO) == GL_FALSE:
@@ -1122,7 +1282,7 @@ for fileName in args:
 
 def hprint(obj, level = 0):
   for i in obj.objects:
-    print "%s%s - %s" % (fillString(level), i.__class__.__name__, i.name)
+    print "%s%s - %s" % (' ' * level, i.__class__.__name__, i.name)
     hprint(i, level + 2)
 
 print "----------------STRUCTURE---------------"
