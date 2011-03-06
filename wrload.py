@@ -8,7 +8,6 @@ import numpy
 import sys
 import time
 import optparse
-import copy
 import Image
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -57,19 +56,12 @@ def calcBalance(string, delta = None, openset = ('[', '{'), closeset = (']', '}'
   for i in range(0, len(string)):
     if string[i] in openset:
       balance += 1
-      #update = True
       update = False
-      #if delta == None:
-        #offset = len(string) - i - 1
     if string[i] in closeset:
       balance -= 1
       update = True
-      #if delta == None:
-        #offset = len(string) - i - 1
-    #if delta != None and offset == 0 and balance >= delta:
     if update == True and delta != None and balance >= delta:
       offset = len(string) - i - 1
-      #print "Offset: %d Index: %d" % (offset, i)
       update = False
   return (balance, offset)
 
@@ -106,13 +98,10 @@ class vrmlEntry:
           break
         fd.seek(-(len(data) - regexp.end()), os.SEEK_CUR)
         entry = None
-        #print "%sBalstring: '%s'" % (' ' * self._level, data[:regexp.start()])
         print "%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance)
         try:
           if regexp.group(3) == "Transform" or regexp.group(3) == "Group":
             entry = vrmlTransform(self)
-          #elif regexp.group(3) == "Group":
-            #self.read(fd)
           elif regexp.group(3) == "Appearance":
             entry = vrmlAppearance(self)
           elif regexp.group(3) == "Shape":
@@ -155,12 +144,9 @@ class vrmlEntry:
           self.objects.append(entry)
           if not duplicate:
             ptr.entries.append(entry)
-        #balance -= delta
       else:
         (delta, offset) = calcBalance(data, -(balance + 1), ('{'), ('}'))
-        #print "B: %d B+: %d Off: %d Left: '%s' from '%s'" % (balance, -(balance + 1), offset, data[:len(data) - offset].replace("\n", "").replace("\r", "").replace("\t", " "), data.replace("\n", "").replace("\r", "").replace("\t", " "))
         balance += delta
-        #print "SEARCH: '%s'" % data[:len(data) - offset].replace("\n", "").replace("\r", "")
         initialPos = fd.tell()
         self.readSpecific(fd, data)
         using = re.search("USE\s+([\w\-]+)", data, re.I | re.S)
@@ -176,11 +162,9 @@ class vrmlEntry:
         if balance < 0:
           print "%sBalance error: %d" % (' ' * self._level, balance)
           if initialPos == fd.tell():
-            fd.seek(-offset, os.SEEK_CUR) #FIXME HIGH PRIORITY
+            fd.seek(-offset, os.SEEK_CUR)
           break
   def readSpecific(self, fd, string):
-    #print "Class: %s" % self.__class__.__name__
-    #print "Reading spec: %s" % string.replace("\n", "").replace("\t", "")
     pass
 
 class vrmlScene(vrmlEntry):
@@ -316,7 +300,6 @@ class vrmlShape(vrmlEntry):
         for app in obj.objects:
           if isinstance(app, vrmlMaterial) or isinstance(app, vrmlTexture):
             newMesh.materials.append(app)
-      #elif isinstance(obj, vrmlGeometry) or isinstance(obj, vrml3DSphere): #FIXME
       elif isinstance(obj, vrmlGeometry):
         #print obj.__class__.__name__
         _tsa = time.time()
@@ -513,11 +496,9 @@ class vrmlGeometry(vrmlEntry):
     self.polygonsUV = None
   def readSpecific(self, fd, string):
     #print "%sTry geo read: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
-    #deltaMain = 0
     initialPos = fd.tell()
     paramSearch = re.search("solid\s+(TRUE|FALSE)", string, re.S)
     if paramSearch != None:
-      #print "SOLIDITY: %s" % paramSearch.group(1)
       if paramSearch.group(1) == "TRUE":
         self.solid = True
       #else:
@@ -525,10 +506,6 @@ class vrmlGeometry(vrmlEntry):
     coordSearch = re.search("coordIndex\s*\[", string, re.S)
     texSearch = re.search("texCoordIndex\s*\[", string, re.S)
     if coordSearch != None or texSearch != None:
-      #if coordSearch != None:
-        #fd.seek(-(len(string) - coordSearch.end()), os.SEEK_CUR) #FIXME
-      #elif texSearch != None:
-        #fd.seek(-(len(string) - texSearch.end()), os.SEEK_CUR) #FIXME
       print "%sStart polygon read" % (' ' * self._level)
       polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
       indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
@@ -539,13 +516,7 @@ class vrmlGeometry(vrmlEntry):
         pPos = coordSearch.end()
       elif texSearch != None:
         pPos = texSearch.end()
-      #pPos = indexSearch.end()
       while 1:
-        #data = fd.readline()
-        #print data
-        #if len(data) == 0:
-          #break
-        #pPos = 0
         while 1:
           regexp = polyPattern.search(data, pPos)
           if regexp != None:
@@ -583,7 +554,6 @@ class vrmlGeometry(vrmlEntry):
           print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
-        #deltaMain = 1
         if len(data) == 0:
           break
         pPos = 0
@@ -605,12 +575,10 @@ class vrmlCoordinates(vrmlEntry):
     self.cType = vrmlCoordinates.TYPE[cType]
     self.vertices = None
   def readSpecific(self, fd, string):
-    #deltaMain = 0
     initialPos = fd.tell()
     #print "%sTry coord read: %s, type: %d" % (' ' * self._level, string.replace("\n", "").replace("\t", ""), self.cType)
     indexSearch = re.search("point\s*\[", string, re.S)
     if indexSearch != None:
-      #fd.seek(-(len(string) - indexSearch.end()), os.SEEK_CUR) #FIXME
       print "%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType])
       if self.cType == vrmlCoordinates.TYPE['model']:
         vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
@@ -625,18 +593,12 @@ class vrmlCoordinates(vrmlEntry):
         while 1:
           regexp = vertexPattern.search(data, vPos)
           if regexp != None:
-            #print "SAGA: '%s'" % data[vPos:regexp.start()].replace("\n", "").replace("\t", "")
-            #(delta, offset) = calcBalance(data[vPos:regexp.start()], -1, (), (']', '}'))
             (delta, offset) = calcBalance(data[vPos:regexp.start()], -1, (), ('}'))
             balance += delta
             offset = len(data) - regexp.start() + offset
-            #if deltaMain:
             if initialPos != fd.tell():
               offset += 1
-            #print "LEFT: %s" % data[len(data) - offset:]
-            #print "%s %s %s" % (regexp.group(1), regexp.group(2), regexp.group(3))
             if balance != 0:
-              #offset += 1
               print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
               break
             if self.cType == vrmlCoordinates.TYPE['model']:
@@ -645,13 +607,10 @@ class vrmlCoordinates(vrmlEntry):
               self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2))]))
             vPos = regexp.end()
           else:
-            #(delta, offset) = calcBalance(data[vPos:], -1, (), (']', '}'))
             (delta, offset) = calcBalance(data[vPos:], -1, (), ('}'))
             balance += delta
-            #if deltaMain:
             if initialPos != fd.tell():
               offset += 1
-            #offset += 1
             break
         if balance != 0:
           if initialPos != fd.tell():
@@ -660,7 +619,6 @@ class vrmlCoordinates(vrmlEntry):
           print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
-        #deltaMain = 1
         if len(data) == 0:
           break
         vPos = 0
@@ -669,7 +627,7 @@ class vrmlCoordinates(vrmlEntry):
 class vrml3DSphere(vrmlGeometry): #TODO move
   def __init__(self, parent):
     vrmlGeometry.__init__(self, parent)
-    #self.solid = True
+    self.solid = True
     r = (1. + math.sqrt(5.)) / 4.
     vertList = []
     vertList.append(numpy.array([-.5,   r,  0.]))
@@ -731,7 +689,7 @@ class vrml3DSphere(vrmlGeometry): #TODO move
 class vrml3DCylinder(vrmlGeometry): #TODO move
   def __init__(self, parent, points = 128):
     vrmlGeometry.__init__(self, parent)
-    #self.solid = True
+    self.solid = True
     self.smooth = True
     vertList = []
     triList = []
@@ -1270,7 +1228,7 @@ for i in range(0, 4):
     print "Wrong rotate parameter: %s" % options.rotate[i]
     exit()
 
-gRotate[3] *= (180 / math.pi)
+gRotate[3] *= (math.pi / 180)
 sc = vrmlScene()
 sc.setTransform(gTranslate, gRotate, gScale)
 
