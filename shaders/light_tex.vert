@@ -6,6 +6,8 @@ void main()
 {
   normal = normalize(gl_NormalMatrix * gl_Normal);
   pos = vec3(gl_ModelViewMatrix * gl_Vertex);
+  //gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;
+  gl_TexCoord[0] = gl_MultiTexCoord0;
   /* Compute the diffuse, ambient and globalAmbient terms */
   diffuse = gl_FrontMaterial.diffuse * gl_LightSource[0].diffuse;
   ambient = vec3(gl_FrontMaterial.ambient * gl_LightSource[0].ambient);

@@ -12,6 +12,7 @@ import Image
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
+from OpenGL.GL.shaders import *
 
 def getAngle(v1, v2):
   mag1 = math.sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2])
@@ -65,82 +66,18 @@ def calcBalance(string, delta = None, openset = ('[', '{'), closeset = (']', '}'
       update = False
   return (balance, offset)
 
-from ctypes import *
-
-try:
-    # For OpenGL-ctypes
-    from OpenGL import platform
-    gl = platform.OpenGL
-except ImportError:
-    try:
-        # For PyOpenGL
-        gl = cdll.LoadLibrary('libGL.so')
-    except OSError:
-        # Load for Mac
-        from ctypes.util import find_library
-        # finds the absolute path to the framework
-        path = find_library('OpenGL')
-        gl = cdll.LoadLibrary(path)
-
-glCreateShader = gl.glCreateShader
-glShaderSource = gl.glShaderSource
-glShaderSource.argtypes = [c_int, c_int, POINTER(c_char_p), POINTER(c_int)]
-glCompileShader = gl.glCompileShader
-glGetShaderiv = gl.glGetShaderiv
-glGetShaderiv.argtypes = [c_int, c_int, POINTER(c_int)]
-glGetShaderInfoLog = gl.glGetShaderInfoLog
-glGetShaderInfoLog.argtypes = [c_int, c_int, POINTER(c_int), c_char_p]
-glDeleteShader = gl.glDeleteShader
-glCreateProgram = gl.glCreateProgram
-glAttachShader = gl.glAttachShader
-glLinkProgram = gl.glLinkProgram
-glGetError = gl.glGetError
-glUseProgram = gl.glUseProgram
-
-def compile_shader(source, shader_type): #TODO check
-    shader = glCreateShader(shader_type)
-    source = c_char_p(source)
-    length = c_int(-1)
-    glShaderSource(shader, 1, byref(source), byref(length))
-    glCompileShader(shader)
-    
-    status = c_int()
-    glGetShaderiv(shader, GL_COMPILE_STATUS, byref(status))
-    if not status.value:
-        print_log(shader)
-        glDeleteShader(shader)
-        raise ValueError, 'Shader compilation failed'
-    return shader
- 
-def compile_program(vertex_source, fragment_source): #TODO check
-    vertex_shader = None
-    fragment_shader = None
-    program = glCreateProgram()
- 
-    if vertex_source:
-        vertex_shader = compile_shader(vertex_source, GL_VERTEX_SHADER)
-        glAttachShader(program, vertex_shader)
-    if fragment_source:
-        fragment_shader = compile_shader(fragment_source, GL_FRAGMENT_SHADER)
-        glAttachShader(program, fragment_shader)
- 
-    glLinkProgram(program)
- 
-    if vertex_shader:
-        glDeleteShader(vertex_shader)
-    if fragment_shader:
-        glDeleteShader(fragment_shader)
- 
-    return program
-
-def print_log(shader): #TODO check
-    length = c_int()
-    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, byref(length))
- 
-    if length.value > 0:
-        log = create_string_buffer(length.value)
-        glGetShaderInfoLog(shader, length, byref(length), log)
-        print >> sys.stdout, log.value
+def createShader(vertSource, fragSource):
+  try:
+    program = compileProgram(compileShader(vertSource, GL_VERTEX_SHADER), 
+                             compileShader(fragSource, GL_FRAGMENT_SHADER))
+  except RuntimeError as runError:
+    print runError.args[0] #Print error log
+    print "Shader compilation failed"
+    exit()
+  except:
+    print "Unknowm shader error"
+    exit()
+  return program
 
 class vrmlEntry:
   def __init__(self, parent = None):
@@ -915,12 +852,7 @@ class mesh:
     self.materials   = []
     self.objects     = []
     self.solid       = False
-  def draw(self, rend):
-    for mat in self.materials:
-      if isinstance(mat, vrmlMaterial):
-        rend.setMaterial(mat)
-      elif isinstance(mat, vrmlTexture):
-        rend.setTexture(mat)
+  def draw(self):
     #glCullFace(GL_BACK)
     if self.solid:
       glEnable(GL_CULL_FACE)
@@ -986,6 +918,7 @@ class render:
     self.cntr = time.time()
     self.fps = 0
     self.data = []
+    self.shaders = []
     glutInit(sys.argv)
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH)
     glutInitWindowSize(self.width, self.height)
@@ -1027,8 +960,8 @@ class render:
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     #glEnable(GL_CULL_FACE)
     glCullFace(GL_BACK)
-    #Read shaders
     oldDir = os.getcwd()
+    #Read color shader
     scriptDir = os.path.dirname(os.path.realpath(__file__))
     if len(scriptDir) > 0:
       os.chdir(scriptDir)
@@ -1038,9 +971,22 @@ class render:
     fd = open("./shaders/light.frag", "rb")
     fragShader = fd.read()
     fd.close()
+    #Create color shader
+    self.shaders.append(createShader(vertShader, fragShader))
+    #Read texture shader
+    oldDir = os.getcwd()
+    scriptDir = os.path.dirname(os.path.realpath(__file__))
+    if len(scriptDir) > 0:
+      os.chdir(scriptDir)
+    fd = open("./shaders/light_tex.vert", "rb")
+    vertShader = fd.read()
+    fd.close()
+    fd = open("./shaders/light_tex.frag", "rb")
+    fragShader = fd.read()
+    fd.close()
+    #Create texture shader
+    self.shaders.append(createShader(vertShader, fragShader))
     os.chdir(oldDir)
-    #Create shaders
-    self.program = compile_program(vertShader, fragShader)
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluPerspective(45.0, float(self.width)/float(self.height), 0.1, 1000.0)
@@ -1183,9 +1129,19 @@ class render:
       glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
       glUseProgram(0)
       self.drawAxis()
-      glUseProgram(self.program)
       for current in self.data:
-        current.draw(self)
+        textured = False
+        for mat in current.materials:
+          if isinstance(mat, vrmlMaterial):
+            self.setMaterial(mat)
+          elif isinstance(mat, vrmlTexture):
+            textured = True
+            self.setTexture(mat)
+        if textured == False:
+          glUseProgram(self.shaders[0])
+        else:
+          glUseProgram(self.shaders[1])
+        current.draw()
       glutSwapBuffers()
       self.fps += 1
       if time.time() - self.cntr >= 1.:
