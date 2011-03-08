@@ -65,6 +65,83 @@ def calcBalance(string, delta = None, openset = ('[', '{'), closeset = (']', '}'
       update = False
   return (balance, offset)
 
+from ctypes import *
+
+try:
+    # For OpenGL-ctypes
+    from OpenGL import platform
+    gl = platform.OpenGL
+except ImportError:
+    try:
+        # For PyOpenGL
+        gl = cdll.LoadLibrary('libGL.so')
+    except OSError:
+        # Load for Mac
+        from ctypes.util import find_library
+        # finds the absolute path to the framework
+        path = find_library('OpenGL')
+        gl = cdll.LoadLibrary(path)
+
+glCreateShader = gl.glCreateShader
+glShaderSource = gl.glShaderSource
+glShaderSource.argtypes = [c_int, c_int, POINTER(c_char_p), POINTER(c_int)]
+glCompileShader = gl.glCompileShader
+glGetShaderiv = gl.glGetShaderiv
+glGetShaderiv.argtypes = [c_int, c_int, POINTER(c_int)]
+glGetShaderInfoLog = gl.glGetShaderInfoLog
+glGetShaderInfoLog.argtypes = [c_int, c_int, POINTER(c_int), c_char_p]
+glDeleteShader = gl.glDeleteShader
+glCreateProgram = gl.glCreateProgram
+glAttachShader = gl.glAttachShader
+glLinkProgram = gl.glLinkProgram
+glGetError = gl.glGetError
+glUseProgram = gl.glUseProgram
+
+def compile_shader(source, shader_type): #TODO check
+    shader = glCreateShader(shader_type)
+    source = c_char_p(source)
+    length = c_int(-1)
+    glShaderSource(shader, 1, byref(source), byref(length))
+    glCompileShader(shader)
+    
+    status = c_int()
+    glGetShaderiv(shader, GL_COMPILE_STATUS, byref(status))
+    if not status.value:
+        print_log(shader)
+        glDeleteShader(shader)
+        raise ValueError, 'Shader compilation failed'
+    return shader
+ 
+def compile_program(vertex_source, fragment_source): #TODO check
+    vertex_shader = None
+    fragment_shader = None
+    program = glCreateProgram()
+ 
+    if vertex_source:
+        vertex_shader = compile_shader(vertex_source, GL_VERTEX_SHADER)
+        glAttachShader(program, vertex_shader)
+    if fragment_source:
+        fragment_shader = compile_shader(fragment_source, GL_FRAGMENT_SHADER)
+        glAttachShader(program, fragment_shader)
+ 
+    glLinkProgram(program)
+ 
+    if vertex_shader:
+        glDeleteShader(vertex_shader)
+    if fragment_shader:
+        glDeleteShader(fragment_shader)
+ 
+    return program
+
+def print_log(shader): #TODO check
+    length = c_int()
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, byref(length))
+ 
+    if length.value > 0:
+        log = create_string_buffer(length.value)
+        glGetShaderInfoLog(shader, length, byref(length), log)
+        print >> sys.stdout, log.value
+
 class vrmlEntry:
   def __init__(self, parent = None):
     self.parent = parent
@@ -189,10 +266,10 @@ class vrmlScene(vrmlEntry):
                           [0., aScale[1], 0., 0.],
                           [0., 0., aScale[2], 0.],
                           [0., 0., 0., 1.]])
-    #self.transform = translation + rotation * scale
+    #self.transform = translation * rotation * scale
     self.transform = translation + rotation * scale
   def loadFile(self, fileName):
-    wrlFile = open(fileName, "r")
+    wrlFile = open(fileName, "rb")
     oldDir = os.getcwd()
     if len(os.path.dirname(fileName)) > 0:
       os.chdir(os.path.dirname(fileName))
@@ -200,7 +277,7 @@ class vrmlScene(vrmlEntry):
     os.chdir(oldDir)
     wrlFile.close()
   def saveFile(self, fileName):
-    wrlFile = open(fileName, "w")
+    wrlFile = open(fileName, "wb")
     compList = []
     wrlFile.write("#VRML V2.0 utf8\n#Exported from Blender by wrlconv.py\n")
     for entry in self.objects:
@@ -487,7 +564,8 @@ class vrmlShape(vrmlEntry):
 class vrmlGeometry(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
-    self.smooth     = False
+    #self.smooth     = False
+    self.smooth     = True
     self.solid      = False
     self.polygons   = None
     self.triCount   = 0
@@ -939,7 +1017,7 @@ class render:
     glLightfv(GL_LIGHT0, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.])
     glLightfv(GL_LIGHT0, GL_SPECULAR, [0.5, 0.5, 0.5, 1.])
     #Setup light 1
-    glEnable(GL_LIGHT1)
+    #glEnable(GL_LIGHT1)
     glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
     glLightfv(GL_LIGHT1, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
     glLightfv(GL_LIGHT1, GL_DIFFUSE,  [0.6, 0.6, 0.6, 1.])
@@ -949,6 +1027,20 @@ class render:
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     #glEnable(GL_CULL_FACE)
     glCullFace(GL_BACK)
+    #Read shaders
+    oldDir = os.getcwd()
+    scriptDir = os.path.dirname(os.path.realpath(__file__))
+    if len(scriptDir) > 0:
+      os.chdir(scriptDir)
+    fd = open("./shaders/light.vert", "rb")
+    vertShader = fd.read()
+    fd.close()
+    fd = open("./shaders/light.frag", "rb")
+    fragShader = fd.read()
+    fd.close()
+    os.chdir(oldDir)
+    #Create shaders
+    self.program = compile_program(vertShader, fragShader)
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluPerspective(45.0, float(self.width)/float(self.height), 0.1, 1000.0)
@@ -1089,7 +1181,9 @@ class render:
                 float(self.axis[0]), float(self.axis[1]), float(self.axis[2]))
       glLightfv(GL_LIGHT0, GL_POSITION, self.lighta)
       glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
+      glUseProgram(0)
       self.drawAxis()
+      glUseProgram(self.program)
       for current in self.data:
         current.draw(self)
       glutSwapBuffers()
