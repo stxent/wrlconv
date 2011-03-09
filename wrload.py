@@ -1056,7 +1056,18 @@ class render:
     #gluBuild2DMipmaps(GL_TEXTURE_2D, GLU_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
     gluBuild2DMipmaps(GL_TEXTURE_2D, 4, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
     print "Loaded %s, width: %d, height: %d, id: %d" % (arg.name, width, height, arg.texID)
-  def setTexture(self, arg):
+  def setTexture(self, arg, layer = 0):
+    texLayer = None
+    if layer == 0:
+      texLayer = GL_TEXTURE0
+      tex0 = glGetUniformLocation(self.shaders[1], "tex0"); #TODO rewrite
+      glUniform1i(tex0, 0);
+    elif layer == 1:
+      tex1 = glGetUniformLocation(self.shaders[1], "tex1");
+      glUniform1i(tex1, 1);
+      texLayer = GL_TEXTURE1
+    glActiveTexture(texLayer)
+    #print glGetIntegerv(GL_ACTIVE_TEXTURE)
     glEnable(GL_TEXTURE_2D)
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
     #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
@@ -1131,16 +1142,20 @@ class render:
       self.drawAxis()
       for current in self.data:
         textured = False
+        texNum = 0
+        glUseProgram(self.shaders[1])
         for mat in current.materials:
           if isinstance(mat, vrmlMaterial):
             self.setMaterial(mat)
           elif isinstance(mat, vrmlTexture):
             textured = True
-            self.setTexture(mat)
-        if textured == False:
-          glUseProgram(self.shaders[0])
-        else:
-          glUseProgram(self.shaders[1])
+            self.setTexture(mat, texNum)
+            texNum += 1
+        #print "Done"
+        #if textured == False:
+          #glUseProgram(self.shaders[0])
+        #else:
+          #glUseProgram(self.shaders[1])
         current.draw()
       glutSwapBuffers()
       self.fps += 1
