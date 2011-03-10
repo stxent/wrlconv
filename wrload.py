@@ -28,6 +28,12 @@ def getNormal(v1, v2):
                        [float(v1[2] * v2[0] - v1[0] * v2[2])],
                        [float(v1[0] * v2[1] - v1[1] * v2[0])]])
 
+def getTangent(v1, v2, st1, st2):
+  coef = 1. / (st1[0] * st2[1] - st2[0] * st1[1])
+  return numpy.array([coef * ((v1[0] * st2[1]) + (v2[0] * -st1[1])), 
+                      coef * ((v1[1] * st2[1]) + (v2[1] * -st1[1])), 
+                      coef * ((v1[2] * st2[1]) + (v2[2] * -st1[1]))])
+
 def fillRotateMatrix(v, angle):
   cs = math.cos(angle)
   sn = math.sin(angle)
@@ -363,13 +369,22 @@ class vrmlShape(vrmlEntry):
         newMesh.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
         if genTex == True:
           newMesh.texList = numpy.zeros(length * 2, dtype = numpy.float32)
+          newMesh.tangentList = numpy.zeros(length * 3, dtype = numpy.float32)
         tPos = 0
         qPos = obj.triCount
         pPos = obj.triCount + obj.quadCount
-        ##Normal start index
+        #Normal start index
         #nPos = obj.triCount + obj.quadCount + obj.polyCount
-        if obj.smooth == False:
+        if obj.smooth == True:
           for poly in range(0, len(obj.polygons)):
+            if genTex == True:
+              tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
+                                   tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]], 
+                                   tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
+                                   tmpVerticesUV[obj.polygonsUV[poly][0]] - tmpVerticesUV[obj.polygonsUV[poly][2]])
+              det = numpy.linalg.norm(tangent)
+              if det != 0:
+                tangent /= det #TODO check -
             normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
                                tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]])
             det = numpy.linalg.norm(normal)
@@ -405,24 +420,59 @@ class vrmlShape(vrmlEntry):
               #newMesh.vertexList[3 * nPos + 5] = normVert[2]
               #nPos += 2
               if genTex == True:
-                newMesh.texList[2 * pos]     = tmpVerticesUV[obj.polygonsUV[poly][ind]][0]
-                newMesh.texList[2 * pos + 1] = tmpVerticesUV[obj.polygonsUV[poly][ind]][1]
+                newMesh.texList[2 * pos]         = tmpVerticesUV[obj.polygonsUV[poly][ind]][0]
+                newMesh.texList[2 * pos + 1]     = tmpVerticesUV[obj.polygonsUV[poly][ind]][1]
+                newMesh.tangentList[3 * pos]     = tangent[0]
+                newMesh.tangentList[3 * pos + 1] = tangent[1]
+                newMesh.tangentList[3 * pos + 2] = tangent[2]
+                ##Draw tangent
+                #normVert = numpy.array([tmpVertices[obj.polygons[poly][ind]][0] + tangent[0] / 4, 
+                                        #tmpVertices[obj.polygons[poly][ind]][1] + tangent[1] / 4, 
+                                        #tmpVertices[obj.polygons[poly][ind]][2] + tangent[2] / 4])
+                #newMesh.vertexList[3 * nPos]     = tmpVertices[obj.polygons[poly][ind]][0]
+                #newMesh.vertexList[3 * nPos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
+                #newMesh.vertexList[3 * nPos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
+                #newMesh.vertexList[3 * nPos + 3] = normVert[0]
+                #newMesh.vertexList[3 * nPos + 4] = normVert[1]
+                #newMesh.vertexList[3 * nPos + 5] = normVert[2]
+                #nPos += 2
               pos += 1
         else:
           tmpNormals = []
           for i in range(0, len(tmpVertices)):
             tmpNormals.append(numpy.array([0., 0., 0.,]))
-          for poly in obj.polygons:
-            normal = getNormal(tmpVertices[poly[1]] - tmpVertices[poly[0]], tmpVertices[poly[0]] - tmpVertices[poly[2]])
+          if genTex == True:
+            tmpTangents = []
+            for i in range(0, len(tmpVertices)):
+              tmpTangents.append(numpy.array([0., 0., 0.,]))
+          #for poly in obj.polygons:
+          for poly in range(0, len(obj.polygons)):
+            if genTex == True:
+              tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
+                                   tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]], 
+                                   tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
+                                   tmpVerticesUV[obj.polygonsUV[poly][0]] - tmpVerticesUV[obj.polygonsUV[poly][2]])
+              det = numpy.linalg.norm(tangent)
+              if det != 0:
+                tangent /= -det #TODO check -
+            #normal = getNormal(tmpVertices[poly[1]] - tmpVertices[poly[0]], tmpVertices[poly[0]] - tmpVertices[poly[2]])
+            normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
+                               tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]])
             det = numpy.linalg.norm(normal)
             if det != 0:
               normal /= -det
-            for ind in poly:
+            for ind in obj.polygons[poly]:
               tmpNormals[ind] += numpy.array([float(normal[0]), float(normal[1]), float(normal[2])])
-          for i in range(0, len(tmpNormals)):
+              if genTex == True:
+                tmpTangents[ind] += numpy.array([float(tangent[0]), float(tangent[1]), float(tangent[2])])
+          for i in range(0, len(tmpVertices)):
             det = numpy.linalg.norm(tmpNormals[i])
             if det != 0:
               tmpNormals[i] /= det
+            if genTex == True:
+              det = numpy.linalg.norm(tmpTangents[i])
+              if det != 0:
+                tmpTangents[i] /= det
             #normVert = tmpVertices[i] + tmpNormals[i] / 4
             ##Draw normal
             #newMesh.vertexList[3 * nPos]     = tmpVertices[i][0]
@@ -454,6 +504,20 @@ class vrmlShape(vrmlEntry):
               if genTex == True:
                 newMesh.texList[2 * pos]     = tmpVerticesUV[obj.polygonsUV[poly][ind]][0]
                 newMesh.texList[2 * pos + 1] = tmpVerticesUV[obj.polygonsUV[poly][ind]][1]
+                newMesh.tangentList[3 * pos]     = tmpTangents[obj.polygons[poly][ind]][0]
+                newMesh.tangentList[3 * pos + 1] = tmpTangents[obj.polygons[poly][ind]][1]
+                newMesh.tangentList[3 * pos + 2] = tmpTangents[obj.polygons[poly][ind]][2]
+                ##Draw tangent
+                #normVert = numpy.array([tmpVertices[obj.polygons[poly][ind]][0] + tangent[0] / 4, 
+                                        #tmpVertices[obj.polygons[poly][ind]][1] + tangent[1] / 4, 
+                                        #tmpVertices[obj.polygons[poly][ind]][2] + tangent[2] / 4])
+                #newMesh.vertexList[3 * nPos]     = tmpVertices[obj.polygons[poly][ind]][0]
+                #newMesh.vertexList[3 * nPos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
+                #newMesh.vertexList[3 * nPos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
+                #newMesh.vertexList[3 * nPos + 3] = normVert[0]
+                #newMesh.vertexList[3 * nPos + 4] = normVert[1]
+                #newMesh.vertexList[3 * nPos + 5] = normVert[2]
+                #nPos += 2
               pos += 1
         _tsb = time.time()
         if fsPoly:
@@ -501,8 +565,8 @@ class vrmlShape(vrmlEntry):
 class vrmlGeometry(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
-    #self.smooth     = False
-    self.smooth     = True
+    self.smooth     = False
+    #self.smooth     = True
     self.solid      = False
     self.polygons   = None
     self.triCount   = 0
@@ -849,6 +913,8 @@ class mesh:
     self.normalVBO   = 0
     self.texList     = None
     self.texVBO      = 0
+    self.tangentList = None
+    self.tangentVBO  = 0
     self.materials   = []
     self.objects     = []
     self.solid       = False
@@ -864,14 +930,18 @@ class mesh:
     glNormalPointer(GL_FLOAT, 0, None)
     if self.texList != None:
       glEnableClientState(GL_TEXTURE_COORD_ARRAY)
+      glEnableVertexAttribArray(1)
       glBindBuffer(GL_ARRAY_BUFFER, self.texVBO)
       glTexCoordPointer(2, GL_FLOAT, 0, None)
+      glBindBuffer(GL_ARRAY_BUFFER, self.tangentVBO)
+      glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
     for obj in self.objects:
       obj.draw()
     #if self.texList != None:
     glDisableClientState(GL_TEXTURE_COORD_ARRAY)
     glDisableClientState(GL_NORMAL_ARRAY)
     glDisableClientState(GL_VERTEX_ARRAY)
+    glDisableVertexAttribArray(1)
     glDisable(GL_CULL_FACE)
 
 class faceset:
@@ -886,6 +956,8 @@ class faceset:
     #glEnableClientState(GL_VERTEX_ARRAY)
     #if self.mode != GL_LINES:
       #glEnableClientState(GL_NORMAL_ARRAY)
+      #glEnableClientState(GL_TEXTURE_COORD_ARRAY)
+      #glEnableVertexAttribArray(1) #TODO check other vals
     #else:
       #glEnable(GL_COLOR_MATERIAL)
       #glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 0.)
@@ -898,8 +970,10 @@ class faceset:
       glDrawArrays(self.mode, self.index[0], self.length[0])
     elif len(self.index) > 1:
       glMultiDrawArrays(self.mode, self.index, self.length, len(self.index))
+    #glDisableClientState(GL_TEXTURE_COORD_ARRAY)
     #glDisableClientState(GL_NORMAL_ARRAY)
     #glDisableClientState(GL_VERTEX_ARRAY)
+    #glDisableVertexAttribArray(1)
 
 class render:
   def __init__(self, aScene):
@@ -986,6 +1060,21 @@ class render:
     fd.close()
     #Create texture shader
     self.shaders.append(createShader(vertShader, fragShader))
+    #Read texture shader
+    oldDir = os.getcwd()
+    scriptDir = os.path.dirname(os.path.realpath(__file__))
+    if len(scriptDir) > 0:
+      os.chdir(scriptDir)
+    fd = open("./shaders/light_nmap.vert", "rb")
+    vertShader = fd.read()
+    fd.close()
+    fd = open("./shaders/light_nmap.frag", "rb")
+    fragShader = fd.read()
+    fd.close()
+    #Create texture shader with normal mapping
+    self.shaders.append(createShader(vertShader, fragShader))
+    glBindAttribLocation(self.shaders[2], 1, "tangent")
+    glLinkProgram(self.shaders[2])
     os.chdir(oldDir)
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
@@ -1036,6 +1125,9 @@ class render:
         meshEntry.texVBO = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, meshEntry.texVBO)
         glBufferData(GL_ARRAY_BUFFER, meshEntry.texList, GL_STATIC_DRAW)
+        meshEntry.tangentVBO = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, meshEntry.tangentVBO)
+        glBufferData(GL_ARRAY_BUFFER, meshEntry.tangentList, GL_STATIC_DRAW)
         for mat in meshEntry.materials:
           if isinstance(mat, vrmlTexture):
             self.loadTexture(mat)
@@ -1060,11 +1152,7 @@ class render:
     texLayer = None
     if layer == 0:
       texLayer = GL_TEXTURE0
-      tex0 = glGetUniformLocation(self.shaders[1], "tex0"); #TODO rewrite
-      glUniform1i(tex0, 0);
     elif layer == 1:
-      tex1 = glGetUniformLocation(self.shaders[1], "tex1");
-      glUniform1i(tex1, 1);
       texLayer = GL_TEXTURE1
     glActiveTexture(texLayer)
     #print glGetIntegerv(GL_ACTIVE_TEXTURE)
@@ -1141,21 +1229,26 @@ class render:
       glUseProgram(0)
       self.drawAxis()
       for current in self.data:
-        textured = False
         texNum = 0
-        glUseProgram(self.shaders[1])
+        #glUseProgram(self.shaders[1])
         for mat in current.materials:
           if isinstance(mat, vrmlMaterial):
             self.setMaterial(mat)
           elif isinstance(mat, vrmlTexture):
-            textured = True
             self.setTexture(mat, texNum)
             texNum += 1
-        #print "Done"
-        #if textured == False:
-          #glUseProgram(self.shaders[0])
-        #else:
-          #glUseProgram(self.shaders[1])
+        if texNum == 0:
+          glUseProgram(self.shaders[0])
+        elif texNum == 1:
+          glUseProgram(self.shaders[1])
+          tex = glGetUniformLocation(self.shaders[1], "diffuseTexture");
+          glUniform1i(tex, 0);
+        elif texNum >= 2:
+          glUseProgram(self.shaders[2])
+          tex = glGetUniformLocation(self.shaders[2], "diffuseTexture");
+          glUniform1i(tex, 0);
+          tex = glGetUniformLocation(self.shaders[2], "normalTexture");
+          glUniform1i(tex, 1);
         current.draw()
       glutSwapBuffers()
       self.fps += 1
