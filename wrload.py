@@ -382,7 +382,6 @@ class vrmlShape(vrmlEntry):
         pPos = obj.triCount + obj.quadCount
         #Normal start index
         #nPos = obj.triCount + obj.quadCount + obj.polyCount
-        obj.smooth = False
         if obj.smooth == False:
           for poly in range(0, len(obj.polygons)):
             if genTex == True:

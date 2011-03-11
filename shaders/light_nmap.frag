@@ -10,18 +10,19 @@ void main()
   vec4 color = vec4(ambientGlobal, diffuse.a);
 
   vec3 bumpNormal = vec3(texture2D(normalTexture, gl_TexCoord[0].st));
-  bumpNormal = (bumpNormal - 0.5) * 2.0;
+  bumpNormal = normalize((bumpNormal) * 2.0 - 1.0);
   vec3 reflection = normalize(-reflect(light, bumpNormal));
 
+  float diffuseIntensity = max(0.0, dot(bumpNormal, light));
   color.rgb += ambient;
-  color.rgb += diffuse.rgb * max(0.0, dot(bumpNormal, light));
+  color.rgb += diffuse.rgb * diffuseIntensity;
   texel = texture2D(diffuseTexture, gl_TexCoord[0].st);
   color *= texel;
-//   if (dot(reflection, light) >= 0.0)
-//   {
-  if (gl_FrontMaterial.shininess != 0.0)
-    color.rgb += specular * pow(max(0.0, dot(reflection, view)), gl_FrontMaterial.shininess);
-//   }
+  if (diffuseIntensity > 0.0)
+  {
+    float specularModifier = max(0.0, dot(reflection, view));
+    color.rgb += specular * pow(specularModifier, gl_FrontMaterial.shininess);
+  }
 
   gl_FragColor = clamp(color, 0.0, 1.0);
 }
