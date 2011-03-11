@@ -23,16 +23,23 @@ def getAngle(v1, v2):
     ac *= -1
   return ac
 
+def normalize(vect):
+  val = numpy.linalg.norm(vect)
+  if val != 0:
+    return vect / val
+  else:
+    return vect
+
 def getNormal(v1, v2):
   return numpy.matrix([[float(v1[1] * v2[2] - v1[2] * v2[1])],
                        [float(v1[2] * v2[0] - v1[0] * v2[2])],
                        [float(v1[0] * v2[1] - v1[1] * v2[0])]])
 
 def getTangent(v1, v2, st1, st2):
-  coef = 1. / (st1[0] * st2[1] - st2[0] * st1[1])
-  return numpy.array([coef * ((v1[0] * st2[1]) + (v2[0] * -st1[1])), 
-                      coef * ((v1[1] * st2[1]) + (v2[1] * -st1[1])), 
-                      coef * ((v1[2] * st2[1]) + (v2[2] * -st1[1]))])
+  coef = 1. / (st1[1] * st2[0] - st1[0] * st2[1])
+  return numpy.array([coef * (v1[0] * -st2[1] + v2[0] * st1[1]), 
+                      coef * (v1[1] * -st2[1] + v2[1] * st1[1]), 
+                      coef * (v1[2] * -st2[1] + v2[2] * st1[1])])
 
 def fillRotateMatrix(v, angle):
   cs = math.cos(angle)
@@ -375,21 +382,18 @@ class vrmlShape(vrmlEntry):
         pPos = obj.triCount + obj.quadCount
         #Normal start index
         #nPos = obj.triCount + obj.quadCount + obj.polyCount
-        if obj.smooth == True:
+        obj.smooth = False
+        if obj.smooth == False:
           for poly in range(0, len(obj.polygons)):
             if genTex == True:
               tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
-                                   tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]], 
+                                   tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]], 
                                    tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
-                                   tmpVerticesUV[obj.polygonsUV[poly][0]] - tmpVerticesUV[obj.polygonsUV[poly][2]])
-              det = numpy.linalg.norm(tangent)
-              if det != 0:
-                tangent /= det #TODO check -
+                                   tmpVerticesUV[obj.polygonsUV[poly][2]] - tmpVerticesUV[obj.polygonsUV[poly][0]])
+              tangent = normalize(tangent) #TODO
             normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
-                               tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]])
-            det = numpy.linalg.norm(normal)
-            if det != 0:
-              normal /= -det
+                               tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]])
+            normal = normalize(normal) #TODO check
             pos = 0
             if len(obj.polygons[poly]) == 3:
               pos = tPos
@@ -449,30 +453,22 @@ class vrmlShape(vrmlEntry):
           for poly in range(0, len(obj.polygons)):
             if genTex == True:
               tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
-                                   tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]], 
+                                   tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]], 
                                    tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
-                                   tmpVerticesUV[obj.polygonsUV[poly][0]] - tmpVerticesUV[obj.polygonsUV[poly][2]])
-              det = numpy.linalg.norm(tangent)
-              if det != 0:
-                tangent /= -det #TODO check -
+                                   tmpVerticesUV[obj.polygonsUV[poly][2]] - tmpVerticesUV[obj.polygonsUV[poly][0]])
+              tangent = normalize(tangent) #TODO
             #normal = getNormal(tmpVertices[poly[1]] - tmpVertices[poly[0]], tmpVertices[poly[0]] - tmpVertices[poly[2]])
             normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
-                               tmpVertices[obj.polygons[poly][0]] - tmpVertices[obj.polygons[poly][2]])
-            det = numpy.linalg.norm(normal)
-            if det != 0:
-              normal /= -det
+                               tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]])
+            normal = normalize(normal)
             for ind in obj.polygons[poly]:
               tmpNormals[ind] += numpy.array([float(normal[0]), float(normal[1]), float(normal[2])])
               if genTex == True:
                 tmpTangents[ind] += numpy.array([float(tangent[0]), float(tangent[1]), float(tangent[2])])
           for i in range(0, len(tmpVertices)):
-            det = numpy.linalg.norm(tmpNormals[i])
-            if det != 0:
-              tmpNormals[i] /= det
+            tmpNormals[i] = normalize(tmpNormals[i])
             if genTex == True:
-              det = numpy.linalg.norm(tmpTangents[i])
-              if det != 0:
-                tmpTangents[i] /= det
+              tmpTangents[i] = normalize(tmpTangents[i])
             #normVert = tmpVertices[i] + tmpNormals[i] / 4
             ##Draw normal
             #newMesh.vertexList[3 * nPos]     = tmpVertices[i][0]
@@ -1317,8 +1313,7 @@ class render:
         self.camera = rotMatrixA * self.camera
       if nrot != 0.:
         #normal = getNormal(self.camera, [0., 0., 1.])
-        normal = getNormal(self.camera, self.axis)
-        normal /= numpy.linalg.norm(normal)
+        normal = normalize(getNormal(self.camera, self.axis))
         #angle = getAngle(self.camera, [0., 0., 1.])
         angle = getAngle(self.camera, self.axis)
         if (nrot > 0 and nrot > angle) or (nrot < 0 and -nrot > math.pi - angle):
@@ -1330,8 +1325,7 @@ class render:
     elif self.moveCamera == True:
       tlVector = numpy.matrix([[(xPos - self.mousePos[0]) / 50.], [(self.mousePos[1] - yPos) / 50.], [0.], [0.]])
       self.camera -= self.pov
-      normal = getNormal([0., 0., 1.], self.camera)
-      normal /= numpy.linalg.norm(normal)
+      normal = normalize(getNormal([0., 0., 1.], self.camera))
       angle = getAngle(self.camera, [0., 0., 1.])
       ah = getAngle(normal, [1., 0., 0.])
       rotZ = numpy.matrix([[math.cos(ah), -math.sin(ah), 0., 0.],

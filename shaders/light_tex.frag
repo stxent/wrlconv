@@ -6,13 +6,13 @@ uniform sampler2D diffuseTexture;
 void main()
 {
   vec4 texel;
-  vec4 color = vec4(ambientGlobal, 0.0);
+  vec4 color = vec4(ambientGlobal, diffuse.a);
   vec3 light = -normalize(pos - gl_LightSource[0].position.xyz);
   vec3 view = normalize(-pos.xyz);
   vec3 reflection = normalize(-reflect(light, normal));
 
   color.rgb += ambient;
-  color += vec4(diffuse.rgb * max(0.0, dot(normal, light)), diffuse.a);
+  color.rgb += (diffuse.rgb + color.rgb) * max(0.0, dot(normal, light));
 
   texel = texture2D(diffuseTexture, gl_TexCoord[0].st);
   color *= texel;

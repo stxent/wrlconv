@@ -19,7 +19,9 @@ void main()
   light = -normalize(pos - gl_LightSource[0].position.xyz);
   view = normalize(-pos.xyz);
   vec3 tang = normalize(gl_NormalMatrix * tangent);
-  vec3 binormal = cross(normal, tang);
+//   tang -= normal * dot(normal, tang);
+//   tang = normalize(tang);
+  vec3 binormal = cross(tang, normal);
 
   mat3 tbnMatrix = mat3(tang.x, binormal.x, normal.x,
                         tang.y, binormal.y, normal.y,
