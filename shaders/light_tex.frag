@@ -1,24 +1,27 @@
 // Fragment program
-varying vec3 normal, pos, ambientGlobal, ambient, specular;
-varying vec4 diffuse;
+#define LIGHTS 2
+varying vec3 normal, pos, ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
+varying vec3 light[LIGHTS];
 uniform sampler2D diffuseTexture;
 
 void main()
 {
+  vec4 color = vec4(ambientGlobal, gl_FrontMaterial.diffuse.a);
   vec4 texel;
-  vec4 color = vec4(ambientGlobal, diffuse.a);
-  vec3 light = -normalize(pos - gl_LightSource[0].position.xyz);
+  vec3 reflection;
   vec3 view = normalize(-pos.xyz);
-  vec3 reflection = normalize(-reflect(light, normal));
 
-  color.rgb += ambient;
-  color.rgb += (diffuse.rgb + color.rgb) * max(0.0, dot(normal, light));
+  for (int i = 0; i < LIGHTS; i++)
+  {
+    reflection = normalize(-reflect(light[i], normal));
+    color.rgb += ambient[i];
+    color.rgb += diffuse[i].rgb * max(0.0, dot(normal, light[i]));
+    if (gl_FrontMaterial.shininess != 0.0)
+      color.rgb += specular[i] * pow(max(0.0, dot(reflection, view)), gl_FrontMaterial.shininess);
+  }
 
   texel = texture2D(diffuseTexture, gl_TexCoord[0].st);
   color *= texel;
-
-  if (gl_FrontMaterial.shininess != 0.0)
-    color.rgb += specular * pow(max(0.0, dot(reflection, view)), gl_FrontMaterial.shininess);
 
   gl_FragColor = clamp(color, 0.0, 1.0);
 }

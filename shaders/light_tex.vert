@@ -1,17 +1,20 @@
 // Vertex program
-varying vec3 normal, pos, ambientGlobal, ambient, specular;
-varying vec4 diffuse;
+#define LIGHTS 2
+varying vec3 normal, pos, ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
+varying vec3 light[LIGHTS];
 
 void main()
 {
   normal = normalize(gl_NormalMatrix * gl_Normal);
   pos = vec3(gl_ModelViewMatrix * gl_Vertex);
-  //gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;
-  gl_TexCoord[0] = gl_MultiTexCoord0;
-  /* Compute the diffuse, ambient and globalAmbient terms */
-  diffuse = gl_FrontMaterial.diffuse * gl_LightSource[0].diffuse;
-  ambient = vec3(gl_FrontMaterial.ambient * gl_LightSource[0].ambient);
-  specular = vec3(gl_FrontMaterial.specular * gl_LightSource[0].specular);
   ambientGlobal = vec3(gl_FrontMaterial.ambient * gl_LightModel.ambient);
+  gl_TexCoord[0] = gl_MultiTexCoord0;
+  for (int i = 0; i < LIGHTS; i++)
+  {
+    light[i] = -normalize(pos - gl_LightSource[i].position.xyz);
+    diffuse[i] = vec3(gl_FrontMaterial.diffuse * gl_LightSource[i].diffuse);
+    ambient[i] = vec3(gl_FrontMaterial.ambient * gl_LightSource[i].ambient);
+    specular[i] = vec3(gl_FrontMaterial.specular * gl_LightSource[i].specular);
+  }
   gl_Position = ftransform();
 }

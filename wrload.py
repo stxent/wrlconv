@@ -1022,7 +1022,7 @@ class render:
     #glEnable(GL_LIGHT1)
     glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
     glLightfv(GL_LIGHT1, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
-    glLightfv(GL_LIGHT1, GL_DIFFUSE,  [0.6, 0.6, 0.6, 1.])
+    glLightfv(GL_LIGHT1, GL_DIFFUSE,  [0.5, 0.5, 0.5, 1.])
     glLightfv(GL_LIGHT1, GL_SPECULAR, [0.3, 0.3, 0.3, 1.])
     #glEnable(GL_COLOR_MATERIAL)
     glEnable(GL_BLEND)

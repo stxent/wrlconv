@@ -1,7 +1,7 @@
 // Vertex program
-varying vec3 normal, pos, ambientGlobal, ambient, specular;
-varying vec4 diffuse;
-varying vec3 light, view;
+#define LIGHTS 2
+varying vec3 normal, pos, ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
+varying vec3 light[LIGHTS], view;
 attribute vec3 tangent;
 
 void main()
@@ -10,13 +10,7 @@ void main()
   pos = vec3(gl_ModelViewMatrix * gl_Vertex);
   //gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;
   gl_TexCoord[0] = gl_MultiTexCoord0;
-  /* Compute the diffuse, ambient and globalAmbient terms */
-  diffuse = gl_FrontMaterial.diffuse * gl_LightSource[0].diffuse;
-  ambient = vec3(gl_FrontMaterial.ambient * gl_LightSource[0].ambient);
-  specular = vec3(gl_FrontMaterial.specular * gl_LightSource[0].specular);
-  ambientGlobal = vec3(gl_FrontMaterial.ambient * gl_LightModel.ambient);
 
-  light = -normalize(pos - gl_LightSource[0].position.xyz);
   view = normalize(-pos.xyz);
   vec3 tang = normalize(gl_NormalMatrix * tangent);
 //   tang -= normal * dot(normal, tang);
@@ -26,8 +20,18 @@ void main()
   mat3 tbnMatrix = mat3(tang.x, binormal.x, normal.x,
                         tang.y, binormal.y, normal.y,
                         tang.z, binormal.z, normal.z);
-  light = tbnMatrix * light;
+//   light = tbnMatrix * light;
   view = tbnMatrix * view;
+
+  ambientGlobal = vec3(gl_FrontMaterial.ambient * gl_LightModel.ambient);
+  for (int i = 0; i < LIGHTS; i++)
+  {
+    diffuse[i] = vec3(gl_FrontMaterial.diffuse * gl_LightSource[i].diffuse);
+    ambient[i] = vec3(gl_FrontMaterial.ambient * gl_LightSource[i].ambient);
+    specular[i] = vec3(gl_FrontMaterial.specular * gl_LightSource[i].specular);
+    light[i] = -normalize(pos - gl_LightSource[i].position.xyz);
+    light[i] = tbnMatrix * light[i];
+  }
 
   gl_Position = ftransform();
 }
