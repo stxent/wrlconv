@@ -909,6 +909,15 @@ class vrmlTexture(vrmlEntry):
     if tmp != None:
       self.fileName = tmp.group(1)
     self.fpath = os.getcwd()
+  def __eq__(self, other): #TODO remove in wrlconv
+    if not isinstance(other, vrmlTexture):
+      return False
+    if self.fileName == other.fileName:
+      return True
+    else:
+      return False
+  def __ne__(self, other):
+    return not self == other
 
 class mesh:
   def __init__(self):
@@ -1157,7 +1166,7 @@ class render:
         glBufferData(GL_ARRAY_BUFFER, meshEntry.tangentList, GL_STATIC_DRAW)
       if meshEntry.appearance != None:
         for mat in meshEntry.appearance.objects:
-          if isinstance(mat, vrmlTexture):
+          if isinstance(mat, vrmlTexture) and mat.texID == None:
             self.loadTexture(mat)
   def loadTexture(self, arg):
     im = Image.open(arg.fpath + "/" + arg.fileName)
