@@ -324,9 +324,10 @@ class vrmlShape(vrmlEntry):
     newMesh = mesh()
     for obj in self.objects:
       if isinstance(obj, vrmlAppearance):
-        for app in obj.objects:
-          if isinstance(app, vrmlMaterial) or isinstance(app, vrmlTexture):
-            newMesh.materials.append(app)
+        newMesh.appearance = obj
+        #for app in obj.objects:
+          #if isinstance(app, vrmlMaterial) or isinstance(app, vrmlTexture):
+            #newMesh.materials.append(app)
       elif isinstance(obj, vrmlGeometry):
         #print obj.__class__.__name__
         _tsa = time.time()
@@ -818,6 +819,15 @@ class vrml3DCylinder(vrmlGeometry): #TODO move
 class vrmlAppearance(vrmlEntry):
   def __init__(self, parent = None):
     vrmlEntry.__init__(self, parent)
+  def __eq__(self, other): #TODO remove in wrlconv
+    if not isinstance(other, vrmlAppearance):
+      return False
+    for mat in self.objects:
+      if mat not in other.objects:
+        return False
+    return True
+  def __ne__(self, other):
+    return not self == other
 
 class vrmlMaterial(vrmlEntry):
   def __init__(self, parent = None):
@@ -910,7 +920,8 @@ class mesh:
     self.texVBO      = 0
     self.tangentList = None
     self.tangentVBO  = 0
-    self.materials   = []
+    #self.materials   = []
+    self.appearance  = None
     self.objects     = []
     self.solid       = False
   def draw(self):
@@ -1029,6 +1040,12 @@ class render:
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     #glEnable(GL_CULL_FACE)
     glCullFace(GL_BACK)
+    self.loadShaders()
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(45.0, float(self.width)/float(self.height), 0.1, 1000.0)
+    glMatrixMode(GL_MODELVIEW)
+  def loadShaders(self):
     oldDir = os.getcwd()
     #Read color shader
     scriptDir = os.path.dirname(os.path.realpath(__file__))
@@ -1071,38 +1088,53 @@ class render:
     glBindAttribLocation(self.shaders[2], 1, "tangent")
     glLinkProgram(self.shaders[2])
     os.chdir(oldDir)
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-    gluPerspective(45.0, float(self.width)/float(self.height), 0.1, 1000.0)
-    glMatrixMode(GL_MODELVIEW)
   def initScene(self, aScene):
     vrmlShape._vcount = 0
     vrmlShape._pcount = 0
     for entry in aScene.objects:
       if isinstance(entry, vrmlShape) or isinstance(entry, vrmlTransform) or isinstance(entry, vrmlInline):
         self.data.extend(entry.mesh(aScene.transform))
-    #Geometry optimization
+    ##Geometry optimization
     #rebuilded = []
     #for mat in aScene.entries:
-      #if isinstance(mat, vrmlMaterial):
+      #if isinstance(mat, vrmlAppearance):
         #metamesh = mesh()
         #vertexCount = 0
+        #triCount = 0
+        #quadCount = 0
         #for entry in self.data:
-          #if mat in entry.materials:
+          #if mat == entry.appearance:
             #vertexCount += len(entry.vertexList)
+            #for fset in entry.objects:
+              #if fset.mode == GL_TRIANGLES:
+                #triCount += sum(fset.length)
+              #elif fset.mode == GL_QUADS:
+                #quadCount += sum(fset.length)
         #metamesh.vertexList = numpy.zeros(vertexCount, dtype = numpy.float32)
         #metamesh.normalList = numpy.zeros(vertexCount, dtype = numpy.float32)
-        #offset = 0
+        #triPos = 0
+        #quadPos = 0
         #for entry in self.data:
-          #if mat in entry.materials:
-            #for i in range(0, len(entry.vertexList)):
-              #metamesh.vertexList[offset + i] = entry.vertexList[i]
-              #metamesh.normalList[offset + i] = entry.normalList[i]
-            #offset += len(entry.vertexList)
+          #if mat == entry.appearance:
+            #for fset in entry.objects:
+              #for s in range(0, len(fset.index)):
+                #if fset.mode == GL_TRIANGLES:
+                  #pos = triPos
+                  #triPos += fset.length[s] * 3
+                #elif fset.mode == GL_QUADS:
+                  #pos = quadPos
+                  #quadPos += fset.length[s] * 3
+                #print pos
+                #for i in range(0, fset.length[s] * 3):
+                  #metamesh.vertexList[pos + i] = entry.vertexList[fset.index[s] * 3 + i]
+                  #metamesh.normalList[pos + i] = entry.normalList[fset.index[s] * 3 + i]
         #fs = faceset(GL_TRIANGLES)
-        #fs.append(0, vertexCount / 3)
+        #fs.append(0, triPos)
         #metamesh.objects.append(fs)
-        #metamesh.materials.append(mat)
+        #fs = faceset(GL_QUADS)
+        #fs.append(triPos, quadPos)
+        #metamesh.objects.append(fs)
+        #metamesh.appearance = mat
         #rebuilded.append(metamesh)
     #self.data = rebuilded
     print "Total vertex count: %d, polygon count: %d, mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
@@ -1123,7 +1155,8 @@ class render:
         meshEntry.tangentVBO = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, meshEntry.tangentVBO)
         glBufferData(GL_ARRAY_BUFFER, meshEntry.tangentList, GL_STATIC_DRAW)
-        for mat in meshEntry.materials:
+      if meshEntry.appearance != None:
+        for mat in meshEntry.appearance.objects:
           if isinstance(mat, vrmlTexture):
             self.loadTexture(mat)
   def loadTexture(self, arg):
@@ -1177,6 +1210,26 @@ class render:
     #glColor3f(arg.specularColor[0], arg.specularColor[1], arg.specularColor[2])
     #glEnable(GL_COLOR_MATERIAL)
     glDisable(GL_COLOR_MATERIAL)
+  def setAppearance(self, arg):
+    texNum = 0
+    for mat in arg.objects:
+      if isinstance(mat, vrmlMaterial):
+        self.setMaterial(mat)
+      elif isinstance(mat, vrmlTexture):
+        self.setTexture(mat, texNum)
+        texNum += 1
+    if texNum == 0:
+      glUseProgram(self.shaders[0])
+    elif texNum == 1:
+      glUseProgram(self.shaders[1])
+      tex = glGetUniformLocation(self.shaders[1], "diffuseTexture");
+      glUniform1i(tex, 0);
+    elif texNum >= 2:
+      glUseProgram(self.shaders[2])
+      tex = glGetUniformLocation(self.shaders[2], "diffuseTexture");
+      glUniform1i(tex, 0);
+      tex = glGetUniformLocation(self.shaders[2], "normalTexture");
+      glUniform1i(tex, 1);
   def drawAxis(self):
     glDisable(GL_TEXTURE_2D)
     glEnableClientState(GL_VERTEX_ARRAY)
@@ -1224,26 +1277,8 @@ class render:
       glUseProgram(0)
       self.drawAxis()
       for current in self.data:
-        texNum = 0
-        #glUseProgram(self.shaders[1])
-        for mat in current.materials:
-          if isinstance(mat, vrmlMaterial):
-            self.setMaterial(mat)
-          elif isinstance(mat, vrmlTexture):
-            self.setTexture(mat, texNum)
-            texNum += 1
-        if texNum == 0:
-          glUseProgram(self.shaders[0])
-        elif texNum == 1:
-          glUseProgram(self.shaders[1])
-          tex = glGetUniformLocation(self.shaders[1], "diffuseTexture");
-          glUniform1i(tex, 0);
-        elif texNum >= 2:
-          glUseProgram(self.shaders[2])
-          tex = glGetUniformLocation(self.shaders[2], "diffuseTexture");
-          glUniform1i(tex, 0);
-          tex = glGetUniformLocation(self.shaders[2], "normalTexture");
-          glUniform1i(tex, 1);
+        if current.appearance != None:
+          self.setAppearance(current.appearance)
         current.draw()
       glutSwapBuffers()
       self.fps += 1
