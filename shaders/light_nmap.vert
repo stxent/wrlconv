@@ -33,5 +33,5 @@ void main()
     light[i] = tbnMatrix * light[i];
   }
 
-  gl_Position = ftransform();
+  gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 }

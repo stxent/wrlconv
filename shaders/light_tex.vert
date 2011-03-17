@@ -16,5 +16,5 @@ void main()
     ambient[i] = vec3(gl_FrontMaterial.ambient * gl_LightSource[i].ambient);
     specular[i] = vec3(gl_FrontMaterial.specular * gl_LightSource[i].specular);
   }
-  gl_Position = ftransform();
+  gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 }

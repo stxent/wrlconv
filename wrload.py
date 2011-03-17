@@ -562,7 +562,7 @@ class vrmlGeometry(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
     self.smooth     = False
-    #self.smooth     = True
+    self.smooth     = True
     self.solid      = False
     self.polygons   = None
     self.triCount   = 0
@@ -901,14 +901,15 @@ class vrmlTexture(vrmlEntry):
     if not isinstance(parent, vrmlAppearance):
       raise Exception()
     vrmlEntry.__init__(self, parent)
-    self.texID = None
-    self.fname = ""
-    self.fpath = ""
+    self.texID    = None
+    self.fileName = ""
+    self.filePath = ""
+    self.texType  = None
   def readSpecific(self, fd, string):
-    tmp = re.search("url\s+\"([\w\-\.]+)\"", string, re.I | re.S)
+    tmp = re.search("url\s+\"([\w\-\.:]+)\"", string, re.I | re.S)
     if tmp != None:
       self.fileName = tmp.group(1)
-    self.fpath = os.getcwd()
+    self.filePath = os.getcwd()
   def __eq__(self, other): #TODO remove in wrlconv
     if not isinstance(other, vrmlTexture):
       return False
@@ -1096,6 +1097,19 @@ class render:
     self.shaders.append(createShader(vertShader, fragShader))
     glBindAttribLocation(self.shaders[2], 1, "tangent")
     glLinkProgram(self.shaders[2])
+    #Read cubemap shader
+    oldDir = os.getcwd()
+    scriptDir = os.path.dirname(os.path.realpath(__file__))
+    if len(scriptDir) > 0:
+      os.chdir(scriptDir)
+    fd = open("./shaders/cubemap.vert", "rb")
+    vertShader = fd.read()
+    fd.close()
+    fd = open("./shaders/cubemap.frag", "rb")
+    fragShader = fd.read()
+    fd.close()
+    #Create cubemap shader
+    self.shaders.append(createShader(vertShader, fragShader))
     os.chdir(oldDir)
   def initScene(self, aScene):
     vrmlShape._vcount = 0
@@ -1169,21 +1183,43 @@ class render:
           if isinstance(mat, vrmlTexture) and mat.texID == None:
             self.loadTexture(mat)
   def loadTexture(self, arg):
-    im = Image.open(arg.fpath + "/" + arg.fileName)
-    try:
-      #Get image dimensions and data
-      width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
-    except SystemError:
-      #Has no alpha channel, synthesize one, see the texture module for more realistic handling
-      width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBX", 0, -1)
-    arg.texID = glGenTextures(1)
-    #Make it current
-    glBindTexture(GL_TEXTURE_2D, arg.texID)
-    glPixelStorei(GL_UNPACK_ALIGNMENT,1)
-    #Copy the texture into the current texture ID
-    #glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
-    #gluBuild2DMipmaps(GL_TEXTURE_2D, GLU_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
-    gluBuild2DMipmaps(GL_TEXTURE_2D, 4, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
+    mapPath = re.search("cubemap:([^\.]*)(\..*)", arg.fileName, re.I)
+    if mapPath != None:
+      arg.texType = GL_TEXTURE_CUBE_MAP
+      arg.texID = glGenTextures(1)
+      glBindTexture(GL_TEXTURE_CUBE_MAP, arg.texID)
+      glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+      mapTarget = [GL_TEXTURE_CUBE_MAP_POSITIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, #FIXME order
+                   GL_TEXTURE_CUBE_MAP_POSITIVE_Y, GL_TEXTURE_CUBE_MAP_POSITIVE_Z, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z]
+      mapFile   = [arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_x" + mapPath.group(2), 
+                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_x" + mapPath.group(2), 
+                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_y" + mapPath.group(2), 
+                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_y" + mapPath.group(2), 
+                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_z" + mapPath.group(2), 
+                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_z" + mapPath.group(2)]
+      print mapFile
+      for i in range(0, 6):
+        im = Image.open(mapFile[i])
+        width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGB", 0, -1)
+        #gluBuild2DMipmaps(mapTarget[i], 4, width, height, GL_RGB, GL_UNSIGNED_BYTE, image)
+        glTexImage2D(mapTarget[i], 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image)
+    else:
+      im = Image.open(arg.filePath + "/" + arg.fileName)
+      try:
+        #Get image dimensions and data
+        width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
+      except SystemError:
+        #Has no alpha channel, synthesize one, see the texture module for more realistic handling
+        width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBX", 0, -1)
+      arg.texType = GL_TEXTURE_2D
+      arg.texID = glGenTextures(1)
+      #Make it current
+      glBindTexture(GL_TEXTURE_2D, arg.texID)
+      glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+      #Copy the texture into the current texture ID
+      #glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
+      #gluBuild2DMipmaps(GL_TEXTURE_2D, GLU_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
+      gluBuild2DMipmaps(GL_TEXTURE_2D, 4, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
     print "Loaded %s, width: %d, height: %d, id: %d" % (arg.name, width, height, arg.texID)
   def setTexture(self, arg, layer = 0):
     texLayer = None
@@ -1192,13 +1228,18 @@ class render:
     elif layer == 1:
       texLayer = GL_TEXTURE1
     glActiveTexture(texLayer)
-    #print glGetIntegerv(GL_ACTIVE_TEXTURE)
-    glEnable(GL_TEXTURE_2D)
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-    #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
-    #glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL)
-    glBindTexture(GL_TEXTURE_2D, arg.texID)
+    if arg.texType == GL_TEXTURE_2D:
+      glEnable(GL_TEXTURE_2D)
+      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+      #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+      glBindTexture(GL_TEXTURE_2D, arg.texID)
+    elif arg.texType == GL_TEXTURE_CUBE_MAP:
+      glEnable(GL_TEXTURE_CUBE_MAP)
+      glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+      glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+      #glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+      glBindTexture(GL_TEXTURE_CUBE_MAP, arg.texID)
   def setMaterial(self, arg):
     #glDisable(GL_TEXTURE_2D)
     #glDisable(GL_COLOR_MATERIAL)
@@ -1221,18 +1262,25 @@ class render:
     glDisable(GL_COLOR_MATERIAL)
   def setAppearance(self, arg):
     texNum = 0
+    texType = None
     for mat in arg.objects:
       if isinstance(mat, vrmlMaterial):
         self.setMaterial(mat)
       elif isinstance(mat, vrmlTexture):
         self.setTexture(mat, texNum)
+        texType = mat.texType
         texNum += 1
     if texNum == 0:
       glUseProgram(self.shaders[0])
     elif texNum == 1:
-      glUseProgram(self.shaders[1])
+      if texType == GL_TEXTURE_2D:
+        glUseProgram(self.shaders[1])
+      else:
+        glUseProgram(self.shaders[3])
       tex = glGetUniformLocation(self.shaders[1], "diffuseTexture");
-      glUniform1i(tex, 0);
+      #glUniform1i(tex, 0);
+      #cam = glGetUniformLocation(self.shaders[1], "cameraPosition");
+      #glUniform3f(cam, float(self.camera[0]), float(self.camera[1]), float(self.camera[2]));
     elif texNum >= 2:
       glUseProgram(self.shaders[2])
       tex = glGetUniformLocation(self.shaders[2], "diffuseTexture");
@@ -1240,7 +1288,6 @@ class render:
       tex = glGetUniformLocation(self.shaders[2], "normalTexture");
       glUniform1i(tex, 1);
   def drawAxis(self):
-    glDisable(GL_TEXTURE_2D)
     glEnableClientState(GL_VERTEX_ARRAY)
     glEnableClientState(GL_COLOR_ARRAY)
     #glDisable(GL_BLEND)
@@ -1289,6 +1336,8 @@ class render:
         if current.appearance != None:
           self.setAppearance(current.appearance)
         current.draw()
+        glDisable(GL_TEXTURE_2D)
+        glDisable(GL_TEXTURE_CUBE_MAP)
       glutSwapBuffers()
       self.fps += 1
       if time.time() - self.cntr >= 1.:
