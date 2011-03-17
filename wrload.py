@@ -1041,7 +1041,7 @@ class render:
     glLightfv(GL_LIGHT0, GL_SPECULAR, [0.5, 0.5, 0.5, 1.])
     glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 1.0)
     glLightf(GL_LIGHT0, GL_LINEAR_ATTENUATION, 0.0)
-    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 0.0005)
+    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 0.00005)
     #Setup light 1
     #glEnable(GL_LIGHT1)
     glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
@@ -1050,7 +1050,7 @@ class render:
     glLightfv(GL_LIGHT1, GL_SPECULAR, [0.3, 0.3, 0.3, 1.])
     glLightf(GL_LIGHT1, GL_CONSTANT_ATTENUATION, 1.0)
     glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.0)
-    glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.0005)
+    glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.00005)
     #glEnable(GL_COLOR_MATERIAL)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -1247,7 +1247,6 @@ class render:
       #glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
       glBindTexture(GL_TEXTURE_CUBE_MAP, arg.texID)
   def setMaterial(self, arg):
-    #glDisable(GL_TEXTURE_2D)
     #glDisable(GL_COLOR_MATERIAL)
     glEnable(GL_COLOR_MATERIAL)
 #    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, arg.diffuseColor)
