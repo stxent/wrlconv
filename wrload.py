@@ -562,7 +562,7 @@ class vrmlGeometry(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
     self.smooth     = False
-    self.smooth     = True
+    #self.smooth     = True
     self.solid      = False
     self.polygons   = None
     self.triCount   = 0
@@ -1039,12 +1039,18 @@ class render:
     glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
     glLightfv(GL_LIGHT0, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.])
     glLightfv(GL_LIGHT0, GL_SPECULAR, [0.5, 0.5, 0.5, 1.])
+    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 1.0)
+    glLightf(GL_LIGHT0, GL_LINEAR_ATTENUATION, 0.0)
+    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 0.0005)
     #Setup light 1
     #glEnable(GL_LIGHT1)
     glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
     glLightfv(GL_LIGHT1, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
     glLightfv(GL_LIGHT1, GL_DIFFUSE,  [0.5, 0.5, 0.5, 1.])
     glLightfv(GL_LIGHT1, GL_SPECULAR, [0.3, 0.3, 0.3, 1.])
+    glLightf(GL_LIGHT1, GL_CONSTANT_ATTENUATION, 1.0)
+    glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.0)
+    glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.0005)
     #glEnable(GL_COLOR_MATERIAL)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)

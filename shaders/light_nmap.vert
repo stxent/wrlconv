@@ -2,6 +2,7 @@
 #define LIGHTS 2
 varying vec3 normal, pos, ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
 varying vec3 light[LIGHTS], view;
+varying float attenuation[LIGHTS];
 attribute vec3 tangent;
 
 void main()
@@ -31,6 +32,10 @@ void main()
     specular[i] = vec3(gl_FrontMaterial.specular * gl_LightSource[i].specular);
     light[i] = -normalize(pos - gl_LightSource[i].position.xyz);
     light[i] = tbnMatrix * light[i];
+    float len = length(gl_LightSource[i].position.xyz - pos);
+    attenuation[i] = 1.0 / (gl_LightSource[i].constantAttenuation + 
+                            gl_LightSource[i].linearAttenuation * len + 
+                            gl_LightSource[i].quadraticAttenuation * len * len);
   }
 
   gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
