@@ -235,7 +235,7 @@ class vrmlScene(vrmlEntry):
         entry.write(wrlFile, compList, self.transform)
     wrlFile.close()
 
-class vrmlInline(vrmlEntry): #FIXME ALL
+class vrmlInline(vrmlEntry): #FIXME Rewrite
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
     self.entries = []
@@ -325,11 +325,7 @@ class vrmlShape(vrmlEntry):
     for obj in self.objects:
       if isinstance(obj, vrmlAppearance):
         newMesh.appearance = obj
-        #for app in obj.objects:
-          #if isinstance(app, vrmlMaterial) or isinstance(app, vrmlTexture):
-            #newMesh.materials.append(app)
       elif isinstance(obj, vrmlGeometry):
-        #print obj.__class__.__name__
         _tsa = time.time()
         print "%sDraw geometry %s" % (' ' * (_offset + 2), obj.name)
         newMesh.solid = obj.solid
@@ -361,18 +357,6 @@ class vrmlShape(vrmlEntry):
         else:
           fsPoly = None
         length = obj.triCount + obj.quadCount + obj.polyCount
-        #if obj.smooth == False:
-          ##Normal facesets
-          #fsNorm = faceset(GL_LINES)
-          #fsNorm.append(length, length * 2)
-          #newMesh.objects.append(fsNorm)
-          #length += length * 2
-        #else:
-          ##Normal facesets
-          #fsNorm = faceset(GL_LINES)
-          #fsNorm.append(length, len(tmpVertices) * 2)
-          #newMesh.objects.append(fsNorm)
-          #length += len(tmpVertices) * 2
         newMesh.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
         newMesh.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
         if genTex == True:
@@ -381,8 +365,6 @@ class vrmlShape(vrmlEntry):
         tPos = 0
         qPos = obj.triCount
         pPos = obj.triCount + obj.quadCount
-        #Normal start index
-        #nPos = obj.triCount + obj.quadCount + obj.polyCount
         if obj.smooth == False:
           for poly in range(0, len(obj.polygons)):
             if genTex == True:
@@ -412,34 +394,12 @@ class vrmlShape(vrmlEntry):
               newMesh.normalList[3 * pos + 1] = normal[1]
               newMesh.vertexList[3 * pos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
               newMesh.normalList[3 * pos + 2] = normal[2]
-              ##Draw normal
-              #normVert = numpy.array([tmpVertices[obj.polygons[poly][ind]][0] + normal[0] / 4, 
-                                      #tmpVertices[obj.polygons[poly][ind]][1] + normal[1] / 4, 
-                                      #tmpVertices[obj.polygons[poly][ind]][2] + normal[2] / 4])
-              #newMesh.vertexList[3 * nPos]     = tmpVertices[obj.polygons[poly][ind]][0]
-              #newMesh.vertexList[3 * nPos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
-              #newMesh.vertexList[3 * nPos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
-              #newMesh.vertexList[3 * nPos + 3] = normVert[0]
-              #newMesh.vertexList[3 * nPos + 4] = normVert[1]
-              #newMesh.vertexList[3 * nPos + 5] = normVert[2]
-              #nPos += 2
               if genTex == True:
                 newMesh.texList[2 * pos]         = tmpVerticesUV[obj.polygonsUV[poly][ind]][0]
                 newMesh.texList[2 * pos + 1]     = tmpVerticesUV[obj.polygonsUV[poly][ind]][1]
                 newMesh.tangentList[3 * pos]     = tangent[0]
                 newMesh.tangentList[3 * pos + 1] = tangent[1]
                 newMesh.tangentList[3 * pos + 2] = tangent[2]
-                ##Draw tangent
-                #normVert = numpy.array([tmpVertices[obj.polygons[poly][ind]][0] + tangent[0] / 4, 
-                                        #tmpVertices[obj.polygons[poly][ind]][1] + tangent[1] / 4, 
-                                        #tmpVertices[obj.polygons[poly][ind]][2] + tangent[2] / 4])
-                #newMesh.vertexList[3 * nPos]     = tmpVertices[obj.polygons[poly][ind]][0]
-                #newMesh.vertexList[3 * nPos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
-                #newMesh.vertexList[3 * nPos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
-                #newMesh.vertexList[3 * nPos + 3] = normVert[0]
-                #newMesh.vertexList[3 * nPos + 4] = normVert[1]
-                #newMesh.vertexList[3 * nPos + 5] = normVert[2]
-                #nPos += 2
               pos += 1
         else:
           tmpNormals = []
@@ -449,7 +409,6 @@ class vrmlShape(vrmlEntry):
             tmpTangents = []
             for i in range(0, len(tmpVertices)):
               tmpTangents.append(numpy.array([0., 0., 0.,]))
-          #for poly in obj.polygons:
           for poly in range(0, len(obj.polygons)):
             if genTex == True:
               tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
@@ -457,7 +416,6 @@ class vrmlShape(vrmlEntry):
                                    tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
                                    tmpVerticesUV[obj.polygonsUV[poly][2]] - tmpVerticesUV[obj.polygonsUV[poly][0]])
               tangent = normalize(tangent) #TODO
-            #normal = getNormal(tmpVertices[poly[1]] - tmpVertices[poly[0]], tmpVertices[poly[0]] - tmpVertices[poly[2]])
             normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
                                tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]])
             normal = normalize(normal)
@@ -469,15 +427,6 @@ class vrmlShape(vrmlEntry):
             tmpNormals[i] = normalize(tmpNormals[i])
             if genTex == True:
               tmpTangents[i] = normalize(tmpTangents[i])
-            #normVert = tmpVertices[i] + tmpNormals[i] / 4
-            ##Draw normal
-            #newMesh.vertexList[3 * nPos]     = tmpVertices[i][0]
-            #newMesh.vertexList[3 * nPos + 1] = tmpVertices[i][1]
-            #newMesh.vertexList[3 * nPos + 2] = tmpVertices[i][2]
-            #newMesh.vertexList[3 * nPos + 3] = normVert[0]
-            #newMesh.vertexList[3 * nPos + 4] = normVert[1]
-            #newMesh.vertexList[3 * nPos + 5] = normVert[2]
-            #nPos += 2
           for poly in range(0, len(obj.polygons)):
             pos = 0
             if len(obj.polygons[poly]) == 3:
@@ -503,17 +452,6 @@ class vrmlShape(vrmlEntry):
                 newMesh.tangentList[3 * pos]     = tmpTangents[obj.polygons[poly][ind]][0]
                 newMesh.tangentList[3 * pos + 1] = tmpTangents[obj.polygons[poly][ind]][1]
                 newMesh.tangentList[3 * pos + 2] = tmpTangents[obj.polygons[poly][ind]][2]
-                ##Draw tangent
-                #normVert = numpy.array([tmpVertices[obj.polygons[poly][ind]][0] + tangent[0] / 4, 
-                                        #tmpVertices[obj.polygons[poly][ind]][1] + tangent[1] / 4, 
-                                        #tmpVertices[obj.polygons[poly][ind]][2] + tangent[2] / 4])
-                #newMesh.vertexList[3 * nPos]     = tmpVertices[obj.polygons[poly][ind]][0]
-                #newMesh.vertexList[3 * nPos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
-                #newMesh.vertexList[3 * nPos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
-                #newMesh.vertexList[3 * nPos + 3] = normVert[0]
-                #newMesh.vertexList[3 * nPos + 4] = normVert[1]
-                #newMesh.vertexList[3 * nPos + 5] = normVert[2]
-                #nPos += 2
               pos += 1
         _tsb = time.time()
         if fsPoly:
@@ -854,7 +792,7 @@ class vrmlMaterial(vrmlEntry):
       return False
   def __ne__(self, other):
     return not self == other
-  def readSpecific(self, fd, string): #FIXME
+  def readSpecific(self, fd, string):
     #print "%sReading material: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
     tmp = re.search("transparency\s+([+e\d\.]+)", string, re.I | re.S)
     if tmp != None:
@@ -930,12 +868,10 @@ class mesh:
     self.texVBO      = 0
     self.tangentList = None
     self.tangentVBO  = 0
-    #self.materials   = []
     self.appearance  = None
     self.objects     = []
     self.solid       = False
   def draw(self):
-    #glCullFace(GL_BACK)
     if self.solid:
       glEnable(GL_CULL_FACE)
     glEnableClientState(GL_VERTEX_ARRAY)
@@ -953,7 +889,6 @@ class mesh:
       glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
     for obj in self.objects:
       obj.draw()
-    #if self.texList != None:
     glDisableClientState(GL_TEXTURE_COORD_ARRAY)
     glDisableClientState(GL_NORMAL_ARRAY)
     glDisableClientState(GL_VERTEX_ARRAY)
@@ -969,27 +904,10 @@ class faceset:
     self.index.append(ind)
     self.length.append(size)
   def draw(self):
-    #glEnableClientState(GL_VERTEX_ARRAY)
-    #if self.mode != GL_LINES:
-      #glEnableClientState(GL_NORMAL_ARRAY)
-      #glEnableClientState(GL_TEXTURE_COORD_ARRAY)
-      #glEnableVertexAttribArray(1) #TODO check other vals
-    #else:
-      #glEnable(GL_COLOR_MATERIAL)
-      #glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 0.)
-      #glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [0., 0., 0., 1.])
-      #glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, [0., 0., 0., 1.])
-      #glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
-      #glColor4f(0., 0., 1., 1.)
-      #glDisable(GL_COLOR_MATERIAL)
     if len(self.index) == 1:
       glDrawArrays(self.mode, self.index[0], self.length[0])
     elif len(self.index) > 1:
       glMultiDrawArrays(self.mode, self.index, self.length, len(self.index))
-    #glDisableClientState(GL_TEXTURE_COORD_ARRAY)
-    #glDisableClientState(GL_NORMAL_ARRAY)
-    #glDisableClientState(GL_VERTEX_ARRAY)
-    #glDisableVertexAttribArray(1)
 
 class render:
   def __init__(self, aScene):
@@ -1043,7 +961,7 @@ class render:
     glLightf(GL_LIGHT0, GL_LINEAR_ATTENUATION, 0.0)
     glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 0.00005)
     #Setup light 1
-    #glEnable(GL_LIGHT1)
+    glEnable(GL_LIGHT1)
     glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
     glLightfv(GL_LIGHT1, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
     glLightfv(GL_LIGHT1, GL_DIFFUSE,  [0.5, 0.5, 0.5, 1.])
@@ -1054,7 +972,6 @@ class render:
     #glEnable(GL_COLOR_MATERIAL)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-    #glEnable(GL_CULL_FACE)
     glCullFace(GL_BACK)
     self.loadShaders()
     glMatrixMode(GL_PROJECTION)
@@ -1280,18 +1197,17 @@ class render:
     elif texNum == 1:
       if texType == GL_TEXTURE_2D:
         glUseProgram(self.shaders[1])
+        tex = glGetUniformLocation(self.shaders[1], "diffuseTexture")
       else:
         glUseProgram(self.shaders[3])
-      tex = glGetUniformLocation(self.shaders[1], "diffuseTexture");
-      #glUniform1i(tex, 0);
-      #cam = glGetUniformLocation(self.shaders[1], "cameraPosition");
-      #glUniform3f(cam, float(self.camera[0]), float(self.camera[1]), float(self.camera[2]));
+        tex = glGetUniformLocation(self.shaders[3], "diffuseTexture")
+      glUniform1i(tex, 0)
     elif texNum >= 2:
       glUseProgram(self.shaders[2])
-      tex = glGetUniformLocation(self.shaders[2], "diffuseTexture");
-      glUniform1i(tex, 0);
-      tex = glGetUniformLocation(self.shaders[2], "normalTexture");
-      glUniform1i(tex, 1);
+      tex = glGetUniformLocation(self.shaders[2], "diffuseTexture")
+      glUniform1i(tex, 0)
+      tex = glGetUniformLocation(self.shaders[2], "normalTexture")
+      glUniform1i(tex, 1)
   def drawAxis(self):
     glEnableClientState(GL_VERTEX_ARRAY)
     glEnableClientState(GL_COLOR_ARRAY)
@@ -1347,7 +1263,6 @@ class render:
       self.fps += 1
       if time.time() - self.cntr >= 1.:
         glutSetWindowTitle("VRML viewer: %d vertices, %d polygons, %d FPS" % (vrmlShape._vcount, vrmlShape._pcount, self.fps / (time.time() - self.cntr)))
-        #print "FPS: %d" % (self.fps / (time.time() - self.cntr))
         self.cntr = time.time()
         self.fps = 0
     else:
@@ -1401,17 +1316,13 @@ class render:
       zrot = (self.mousePos[0] - xPos) / 100.
       nrot = (yPos - self.mousePos[1]) / 100.
       if zrot != 0.:
-        #if self.axis[2] < 0:
-          #zrot = -zrot;
         rotMatrixA = numpy.matrix([[math.cos(zrot), -math.sin(zrot), 0., 0.],
                                    [math.sin(zrot),  math.cos(zrot), 0., 0.],
                                    [            0.,              0., 1., 0.],
                                    [            0.,              0., 0., 1.]])
         self.camera = rotMatrixA * self.camera
       if nrot != 0.:
-        #normal = getNormal(self.camera, [0., 0., 1.])
         normal = normalize(getNormal(self.camera, self.axis))
-        #angle = getAngle(self.camera, [0., 0., 1.])
         angle = getAngle(self.camera, self.axis)
         if (nrot > 0 and nrot > angle) or (nrot < 0 and -nrot > math.pi - angle):
           self.axis = -self.axis
