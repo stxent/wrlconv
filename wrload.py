@@ -126,35 +126,48 @@ class vrmlEntry:
         fd.seek(-(len(data) - regexp.end()), os.SEEK_CUR)
         entry = None
         print "%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance)
+        entryType = regexp.group(3)
         try:
-          if regexp.group(3) == "Transform" or regexp.group(3) == "Group":
-            entry = vrmlTransform(self)
-          elif regexp.group(3) == "Appearance":
-            entry = vrmlAppearance(self)
-          elif regexp.group(3) == "Shape":
-            entry = vrmlShape(self)
-          elif regexp.group(3) == "Material":
-            entry = vrmlMaterial(self)
-          elif regexp.group(3) == "ImageTexture":
-            entry = vrmlTexture(self)
-          elif regexp.group(3) == "IndexedFaceSet":
-            entry = vrmlGeometry(self)
-          elif regexp.group(3) == "Coordinate":
-            entry = vrmlCoordinates(self, 'model')
-          elif regexp.group(3) == "TextureCoordinate":
-            entry = vrmlCoordinates(self, 'texture')
-          elif regexp.group(3) == "Inline":
-            entry = vrmlInline(self)
-          elif regexp.group(3) == "Sphere":
-            entry = vrml3DSphere(self)
-          elif regexp.group(3) == "Cylinder":
-            entry = vrml3DCylinder(self)
+          if isinstance(self, vrmlScene) or isinstance(self, vrmlTransform) or isinstance(self, vrmlInline):
+            if entryType == "Transform" or entryType == "Group":
+              entry = vrmlTransform(self)
+            elif entryType == "Inline":
+              entry = vrmlInline(self)
+            elif entryType == "Shape":
+              entry = vrmlShape(self)
+            else:
+              raise Exception()
+          elif isinstance(self, vrmlShape):
+            if entryType == "Appearance":
+              entry = vrmlAppearance(self)
+            elif entryType == "IndexedFaceSet":
+              entry = vrmlGeometry(self)
+            elif entryType == "Sphere":
+              entry = vrml3DSphere(self)
+            elif entryType == "Cylinder":
+              entry = vrml3DCylinder(self)
+            else:
+              raise Exception()
+          elif isinstance(self, vrmlAppearance):
+            if entryType == "Material":
+              entry = vrmlMaterial(self)
+            elif entryType == "ImageTexture":
+              entry = vrmlTexture(self)
+            else:
+              raise Exception()
+          elif isinstance(self, vrmlGeometry):
+            if entryType == "Coordinate":
+              entry = vrmlCoordinates(self, 'model')
+            elif entryType == "TextureCoordinate":
+              entry = vrmlCoordinates(self, 'texture')
+            else:
+              raise Exception()
           else:
-            offset = skipChunk(fd)
-            fd.seek(-offset, os.SEEK_CUR)
+            raise Exception()
         except:
-          print "%sChunk sequence error" % (' ' * self._level)
-          pass
+          print "%sUnsopported chunk sequence: %s > %s" % (' ' * self._level, self.__class__.__name__, entryType)
+          offset = skipChunk(fd)
+          fd.seek(-offset, os.SEEK_CUR)
         if entry != None:
           if regexp.group(1) == "DEF" and len(regexp.group(2)) > 0:
             entry.name = regexp.group(2)
@@ -231,8 +244,8 @@ class vrmlScene(vrmlEntry):
     compList = []
     wrlFile.write("#VRML V2.0 utf8\n#Exported from Blender by wrlconv.py\n")
     for entry in self.objects:
-      if isinstance(entry, vrmlShape) or isinstance(entry, vrmlTransform):
-        entry.write(wrlFile, compList, self.transform)
+      #if isinstance(entry, vrmlShape) or isinstance(entry, vrmlTransform):
+      entry.write(wrlFile, compList, self.transform)
     wrlFile.close()
 
 class vrmlInline(vrmlEntry): #FIXME Rewrite
@@ -255,17 +268,17 @@ class vrmlInline(vrmlEntry): #FIXME Rewrite
         print "%sFile not found: %s" % (' ' * self._level, urlSearch.group(1))
       os.chdir(oldDir)
   def mesh(self, transform, _offset = 0):
-    print "%sDraw inline: %s" % (' ' * _offset, self.name)
+    print "%sDrawing inline: %s" % (' ' * _offset, self.name)
     res = []
     for obj in self.objects:
       #print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
-      if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
-        res.extend(obj.mesh(transform, _offset + 2))
+      #if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
+      res.extend(obj.mesh(transform, _offset + 2))
     return res
   def write(self, fd, compList, transform):
     for obj in self.objects:
-      if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
-        obj.write(fd, compList, transform)
+      #if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
+      obj.write(fd, compList, transform)
 
 class vrmlTransform(vrmlEntry):
   def __init__(self, parent):
@@ -305,14 +318,14 @@ class vrmlTransform(vrmlEntry):
     tform = transform * self.transform
     for obj in self.objects:
       #print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
-      if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
-        res.extend(obj.mesh(tform, _offset + 2))
+      #if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
+      res.extend(obj.mesh(tform, _offset + 2))
     return res
   def write(self, fd, compList, transform):
     tform = transform * self.transform
     for obj in self.objects:
-      if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
-        obj.write(fd, compList, tform)
+      #if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
+      obj.write(fd, compList, tform)
 
 class vrmlShape(vrmlEntry):
   _vcount = 0
@@ -372,10 +385,10 @@ class vrmlShape(vrmlEntry):
                                    tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]], 
                                    tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
                                    tmpVerticesUV[obj.polygonsUV[poly][2]] - tmpVerticesUV[obj.polygonsUV[poly][0]])
-              tangent = normalize(tangent) #TODO
+              tangent = normalize(tangent)
             normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
                                tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]])
-            normal = normalize(normal) #TODO check
+            normal = normalize(normal)
             pos = 0
             if len(obj.polygons[poly]) == 3:
               pos = tPos
@@ -582,8 +595,8 @@ class vrmlGeometry(vrmlEntry):
 class vrmlCoordinates(vrmlEntry):
   TYPE = {'model' : 0, 'texture' : 1}
   def __init__(self, parent, cType):
-    if not isinstance(parent, vrmlGeometry):
-      raise Exception()
+    #if not isinstance(parent, vrmlGeometry):
+      #raise Exception()
     vrmlEntry.__init__(self, parent)
     self.cType = vrmlCoordinates.TYPE[cType]
     self.vertices = None
@@ -700,7 +713,7 @@ class vrml3DSphere(vrmlGeometry): #TODO move
             obj.vertices[i] = numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])])
 
 class vrml3DCylinder(vrmlGeometry): #TODO move
-  def __init__(self, parent, points = 128):
+  def __init__(self, parent, points = 24):
     vrmlGeometry.__init__(self, parent)
     self.solid = True
     self.smooth = True
@@ -836,8 +849,8 @@ class vrmlMaterial(vrmlEntry):
 
 class vrmlTexture(vrmlEntry):
   def __init__(self, parent = None):
-    if not isinstance(parent, vrmlAppearance):
-      raise Exception()
+    #if not isinstance(parent, vrmlAppearance):
+      #raise Exception()
     vrmlEntry.__init__(self, parent)
     self.texID    = None
     self.fileName = ""
@@ -980,10 +993,10 @@ class render:
     glMatrixMode(GL_MODELVIEW)
   def loadShaders(self):
     oldDir = os.getcwd()
-    #Read color shader
     scriptDir = os.path.dirname(os.path.realpath(__file__))
     if len(scriptDir) > 0:
       os.chdir(scriptDir)
+    #Read color shader
     fd = open("./shaders/light.vert", "rb")
     vertShader = fd.read()
     fd.close()
@@ -993,10 +1006,6 @@ class render:
     #Create color shader
     self.shaders.append(createShader(vertShader, fragShader))
     #Read texture shader
-    oldDir = os.getcwd()
-    scriptDir = os.path.dirname(os.path.realpath(__file__))
-    if len(scriptDir) > 0:
-      os.chdir(scriptDir)
     fd = open("./shaders/light_tex.vert", "rb")
     vertShader = fd.read()
     fd.close()
@@ -1005,41 +1014,43 @@ class render:
     fd.close()
     #Create texture shader
     self.shaders.append(createShader(vertShader, fragShader))
-    #Read texture shader
-    oldDir = os.getcwd()
-    scriptDir = os.path.dirname(os.path.realpath(__file__))
-    if len(scriptDir) > 0:
-      os.chdir(scriptDir)
-    fd = open("./shaders/light_nmap.vert", "rb")
-    vertShader = fd.read()
-    fd.close()
-    fd = open("./shaders/light_nmap.frag", "rb")
-    fragShader = fd.read()
-    fd.close()
-    #Create texture shader with normal mapping
-    self.shaders.append(createShader(vertShader, fragShader))
-    glBindAttribLocation(self.shaders[2], 1, "tangent")
-    glLinkProgram(self.shaders[2])
-    #Read cubemap shader
-    oldDir = os.getcwd()
-    scriptDir = os.path.dirname(os.path.realpath(__file__))
-    if len(scriptDir) > 0:
-      os.chdir(scriptDir)
-    fd = open("./shaders/cubemap.vert", "rb")
-    vertShader = fd.read()
-    fd.close()
-    fd = open("./shaders/cubemap.frag", "rb")
-    fragShader = fd.read()
-    fd.close()
-    #Create cubemap shader
-    self.shaders.append(createShader(vertShader, fragShader))
+
+    ##Read texture shader
+    #if len(scriptDir) > 0:
+      #os.chdir(scriptDir)
+    #fd = open("./shaders/light_nmap.vert", "rb")
+    #vertShader = fd.read()
+    #fd.close()
+    #fd = open("./shaders/light_nmap.frag", "rb")
+    #fragShader = fd.read()
+    #fd.close()
+    ##Create texture shader with normal mapping
+    #self.shaders.append(createShader(vertShader, fragShader))
+    #glBindAttribLocation(self.shaders[2], 1, "tangent")
+    #glLinkProgram(self.shaders[2])
+
+    ##Read cubemap shader
+    #oldDir = os.getcwd()
+    #if len(scriptDir) > 0:
+      #os.chdir(scriptDir)
+    #fd = open("./shaders/cubemap.vert", "rb")
+    #vertShader = fd.read()
+    #fd.close()
+    #fd = open("./shaders/cubemap.frag", "rb")
+    #fragShader = fd.read()
+    #fd.close()
+    ##Create cubemap shader
+    #self.shaders.append(createShader(vertShader, fragShader))
     os.chdir(oldDir)
   def initScene(self, aScene):
     vrmlShape._vcount = 0
     vrmlShape._pcount = 0
     for entry in aScene.objects:
-      if isinstance(entry, vrmlShape) or isinstance(entry, vrmlTransform) or isinstance(entry, vrmlInline):
-        self.data.extend(entry.mesh(aScene.transform))
+      #if isinstance(entry, vrmlShape) or isinstance(entry, vrmlTransform) or isinstance(entry, vrmlInline):
+      self.data.extend(entry.mesh(aScene.transform))
+    #for mat in aScene.entries:
+      #if isinstance(mat, vrmlAppearance):
+        #print mat
     ##Geometry optimization
     #rebuilded = []
     #for mat in aScene.entries:
@@ -1106,63 +1117,25 @@ class render:
           if isinstance(mat, vrmlTexture) and mat.texID == None:
             self.loadTexture(mat)
   def loadTexture(self, arg):
-    mapPath = re.search("cubemap:([^\.]*)(\..*)", arg.fileName, re.I)
-    if mapPath != None:
-      arg.texType = GL_TEXTURE_CUBE_MAP
-      arg.texID = glGenTextures(1)
-      glBindTexture(GL_TEXTURE_CUBE_MAP, arg.texID)
-      glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-      mapTarget = [GL_TEXTURE_CUBE_MAP_POSITIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, #FIXME order
-                   GL_TEXTURE_CUBE_MAP_POSITIVE_Y, GL_TEXTURE_CUBE_MAP_POSITIVE_Z, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z]
-      mapFile   = [arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_x" + mapPath.group(2), 
-                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_x" + mapPath.group(2), 
-                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_y" + mapPath.group(2), 
-                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_y" + mapPath.group(2), 
-                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_z" + mapPath.group(2), 
-                   arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_z" + mapPath.group(2)]
-      print mapFile
-      for i in range(0, 6):
-        im = Image.open(mapFile[i])
-        width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGB", 0, -1)
-        #gluBuild2DMipmaps(mapTarget[i], 4, width, height, GL_RGB, GL_UNSIGNED_BYTE, image)
-        glTexImage2D(mapTarget[i], 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image)
-    else:
-      im = Image.open(arg.filePath + "/" + arg.fileName)
-      try:
-        #Get image dimensions and data
-        width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
-      except SystemError:
-        #Has no alpha channel, synthesize one, see the texture module for more realistic handling
-        width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBX", 0, -1)
-      arg.texType = GL_TEXTURE_2D
-      arg.texID = glGenTextures(1)
-      #Make it current
-      glBindTexture(GL_TEXTURE_2D, arg.texID)
-      glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-      #Copy the texture into the current texture ID
-      #glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
-      #gluBuild2DMipmaps(GL_TEXTURE_2D, GLU_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
-      gluBuild2DMipmaps(GL_TEXTURE_2D, 4, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
+    im = Image.open(arg.filePath + "/" + arg.fileName)
+    try:
+      width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
+    except SystemError:
+      width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBX", 0, -1)
+    #arg.texType = GL_TEXTURE_2D
+    arg.texID = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, arg.texID)
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+    #glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
+    gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
     print "Loaded %s, width: %d, height: %d, id: %d" % (arg.name, width, height, arg.texID)
   def setTexture(self, arg, layer = 0):
-    texLayer = None
-    if layer == 0:
-      texLayer = GL_TEXTURE0
-    elif layer == 1:
-      texLayer = GL_TEXTURE1
-    glActiveTexture(texLayer)
-    if arg.texType == GL_TEXTURE_2D:
-      glEnable(GL_TEXTURE_2D)
-      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-      #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-      glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
-      glBindTexture(GL_TEXTURE_2D, arg.texID)
-    elif arg.texType == GL_TEXTURE_CUBE_MAP:
-      glEnable(GL_TEXTURE_CUBE_MAP)
-      glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-      glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-      #glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
-      glBindTexture(GL_TEXTURE_CUBE_MAP, arg.texID)
+    glActiveTexture(GL_TEXTURE0 + layer)
+    glEnable(GL_TEXTURE_2D)
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+    glBindTexture(GL_TEXTURE_2D, arg.texID)
   def setMaterial(self, arg):
     #glDisable(GL_COLOR_MATERIAL)
     glEnable(GL_COLOR_MATERIAL)
@@ -1184,30 +1157,28 @@ class render:
     glDisable(GL_COLOR_MATERIAL)
   def setAppearance(self, arg):
     texNum = 0
-    texType = None
     for mat in arg.objects:
       if isinstance(mat, vrmlMaterial):
         self.setMaterial(mat)
       elif isinstance(mat, vrmlTexture):
         self.setTexture(mat, texNum)
-        texType = mat.texType
         texNum += 1
     if texNum == 0:
       glUseProgram(self.shaders[0])
-    elif texNum == 1:
-      if texType == GL_TEXTURE_2D:
-        glUseProgram(self.shaders[1])
-        tex = glGetUniformLocation(self.shaders[1], "diffuseTexture")
-      else:
-        glUseProgram(self.shaders[3])
-        tex = glGetUniformLocation(self.shaders[3], "diffuseTexture")
-      glUniform1i(tex, 0)
-    elif texNum >= 2:
-      glUseProgram(self.shaders[2])
-      tex = glGetUniformLocation(self.shaders[2], "diffuseTexture")
-      glUniform1i(tex, 0)
-      tex = glGetUniformLocation(self.shaders[2], "normalTexture")
-      glUniform1i(tex, 1)
+    elif texNum > 0:
+      #if texType == GL_TEXTURE_2D:
+      glUseProgram(self.shaders[1])
+        #tex = glGetUniformLocation(self.shaders[1], "diffuseTexture")
+      #else:
+        #glUseProgram(self.shaders[3])
+        #tex = glGetUniformLocation(self.shaders[3], "diffuseTexture")
+      #glUniform1i(tex, 0)
+    #elif texNum >= 2:
+      #glUseProgram(self.shaders[2])
+      #tex = glGetUniformLocation(self.shaders[2], "diffuseTexture")
+      #glUniform1i(tex, 0)
+      #tex = glGetUniformLocation(self.shaders[2], "normalTexture")
+      #glUniform1i(tex, 1)
   def drawAxis(self):
     glEnableClientState(GL_VERTEX_ARRAY)
     glEnableClientState(GL_COLOR_ARRAY)
@@ -1258,7 +1229,6 @@ class render:
           self.setAppearance(current.appearance)
         current.draw()
         glDisable(GL_TEXTURE_2D)
-        glDisable(GL_TEXTURE_CUBE_MAP)
       glutSwapBuffers()
       self.fps += 1
       if time.time() - self.cntr >= 1.:
