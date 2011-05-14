@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: xen (alexdmitv@gmail.com)
 # License: Public domain code
+# Version: 0.2b
 import re
 import math
 import numpy
@@ -115,7 +116,7 @@ class vrmlEntry:
         (delta, offset) = calcBalance(data[:regexp.start()], -1, ('{'), ('}'))
         balance += delta
         initialPos = fd.tell()
-        self.readSpecific(fd, data[:regexp.start()]) #FIXME added
+        self.readSpecific(fd, data[:regexp.start()])
         if initialPos != fd.tell():
           print "%sRead error" % (' ' * self._level)
           break
@@ -142,10 +143,6 @@ class vrmlEntry:
               entry = vrmlAppearance(self)
             elif entryType == "IndexedFaceSet":
               entry = vrmlGeometry(self)
-            elif entryType == "Sphere":
-              entry = vrml3DSphere(self)
-            elif entryType == "Cylinder":
-              entry = vrml3DCylinder(self)
             else:
               raise Exception()
           elif isinstance(self, vrmlAppearance):
@@ -244,7 +241,6 @@ class vrmlScene(vrmlEntry):
     compList = []
     wrlFile.write("#VRML V2.0 utf8\n#Exported from Blender by wrlconv.py\n")
     for entry in self.objects:
-      #if isinstance(entry, vrmlShape) or isinstance(entry, vrmlTransform):
       entry.write(wrlFile, compList, self.transform)
     wrlFile.close()
 
@@ -272,12 +268,10 @@ class vrmlInline(vrmlEntry): #FIXME Rewrite
     res = []
     for obj in self.objects:
       #print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
-      #if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
       res.extend(obj.mesh(transform, _offset + 2))
     return res
   def write(self, fd, compList, transform):
     for obj in self.objects:
-      #if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
       obj.write(fd, compList, transform)
 
 class vrmlTransform(vrmlEntry):
@@ -288,7 +282,6 @@ class vrmlTransform(vrmlEntry):
                                    [0., 0., 1., 0.],
                                    [0., 0., 0., 1.]])
   def readSpecific(self, fd, string):
-    #print "read trans: %s" % string
     tmp = re.search("translation\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", string, re.I | re.S)
     if tmp != None:
       #tform = numpy.matrix([[1., 0., 0., float(tmp.group(1))],
@@ -318,13 +311,11 @@ class vrmlTransform(vrmlEntry):
     tform = transform * self.transform
     for obj in self.objects:
       #print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
-      #if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
       res.extend(obj.mesh(tform, _offset + 2))
     return res
   def write(self, fd, compList, transform):
     tform = transform * self.transform
     for obj in self.objects:
-      #if isinstance(obj, vrmlShape) or isinstance(obj, vrmlTransform) or isinstance(obj, vrmlInline):
       obj.write(fd, compList, tform)
 
 class vrmlShape(vrmlEntry):
@@ -378,9 +369,9 @@ class vrmlShape(vrmlEntry):
         tPos = 0
         qPos = obj.triCount
         pPos = obj.triCount + obj.quadCount
-        if obj.smooth == False:
+        if obj.smooth == False: #Flat shading
           for poly in range(0, len(obj.polygons)):
-            if genTex == True:
+            if genTex == True: #Generate tangent coordinates
               tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
                                    tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]], 
                                    tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
@@ -414,7 +405,7 @@ class vrmlShape(vrmlEntry):
                 newMesh.tangentList[3 * pos + 1] = tangent[1]
                 newMesh.tangentList[3 * pos + 2] = tangent[2]
               pos += 1
-        else:
+        else: #Smooth shading
           tmpNormals = []
           for i in range(0, len(tmpVertices)):
             tmpNormals.append(numpy.array([0., 0., 0.,]))
@@ -423,12 +414,12 @@ class vrmlShape(vrmlEntry):
             for i in range(0, len(tmpVertices)):
               tmpTangents.append(numpy.array([0., 0., 0.,]))
           for poly in range(0, len(obj.polygons)):
-            if genTex == True:
+            if genTex == True: #Generate tangent coordinates
               tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
                                    tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]], 
                                    tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
                                    tmpVerticesUV[obj.polygonsUV[poly][2]] - tmpVerticesUV[obj.polygonsUV[poly][0]])
-              tangent = normalize(tangent) #TODO
+              tangent = normalize(tangent)
             normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
                                tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]])
             normal = normalize(normal)
@@ -527,8 +518,6 @@ class vrmlGeometry(vrmlEntry):
     if paramSearch != None:
       if paramSearch.group(1) == "TRUE":
         self.solid = True
-      #else:
-        #self.solid = False
     coordSearch = re.search("coordIndex\s*\[", string, re.S)
     texSearch = re.search("texCoordIndex\s*\[", string, re.S)
     if coordSearch != None or texSearch != None:
@@ -563,11 +552,16 @@ class vrmlGeometry(vrmlEntry):
             if coordSearch != None:
               if len(polyData) == 3:
                 self.triCount += 3
+                tmpPolygons.append(polyData)
               elif len(polyData) == 4:
                 self.quadCount += 4
+                tmpPolygons.append(polyData)
               else:
-                self.polyCount += len(polyData)
-            tmpPolygons.append(polyData)
+                for tpos in range(1, len(polyData) - 1):
+                  self.triCount += 3
+                  tmpPolygons.append([polyData[0], polyData[tpos], polyData[tpos + 1]])
+                #self.polyCount += len(polyData)
+            #tmpPolygons.append(polyData)
             pPos = regexp.end()
           else:
             (delta, offset) = calcBalance(data, None, (), (']'))
@@ -595,8 +589,6 @@ class vrmlGeometry(vrmlEntry):
 class vrmlCoordinates(vrmlEntry):
   TYPE = {'model' : 0, 'texture' : 1}
   def __init__(self, parent, cType):
-    #if not isinstance(parent, vrmlGeometry):
-      #raise Exception()
     vrmlEntry.__init__(self, parent)
     self.cType = vrmlCoordinates.TYPE[cType]
     self.vertices = None
@@ -641,7 +633,6 @@ class vrmlCoordinates(vrmlEntry):
         if balance != 0:
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
-          #print "STR: str: '%s'" % (data[len(data) - offset:].replace("\n", ""))
           print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
@@ -649,123 +640,6 @@ class vrmlCoordinates(vrmlEntry):
           break
         vPos = 0
       print "%sEnd vertex read, count: %d" % (' ' * self._level, len(self.vertices))
-
-class vrml3DSphere(vrmlGeometry): #TODO move
-  def __init__(self, parent):
-    vrmlGeometry.__init__(self, parent)
-    self.solid = True
-    r = (1. + math.sqrt(5.)) / 4.
-    vertList = []
-    vertList.append(numpy.array([-.5,   r,  0.]))
-    vertList.append(numpy.array([ .5,   r,  0.]))
-    vertList.append(numpy.array([-.5,  -r,  0.]))
-    vertList.append(numpy.array([ .5,  -r,  0.]))
-    vertList.append(numpy.array([ 0., -.5,   r]))
-    vertList.append(numpy.array([ 0.,  .5,   r]))
-    vertList.append(numpy.array([ 0., -.5,  -r]))
-    vertList.append(numpy.array([ 0.,  .5,  -r]))
-    vertList.append(numpy.array([  r,  0., -.5]))
-    vertList.append(numpy.array([  r,  0.,  .5]))
-    vertList.append(numpy.array([ -r,  0., -.5]))
-    vertList.append(numpy.array([ -r,  0.,  .5]))
-    triList = []
-    triList.extend([[ 0, 11,  5], [ 0,  5,  1], [ 0,  1,  7], [ 0,  7, 10], [ 0, 10, 11]])
-    triList.extend([[ 1,  5,  9], [ 5, 11,  4], [11, 10,  2], [10,  7,  6], [ 7,  1,  8]])
-    triList.extend([[ 3,  9,  4], [ 3,  4,  2], [ 3,  2,  6], [ 3,  6,  8], [ 3,  8,  9]])
-    triList.extend([[ 4,  9,  5], [ 2,  4, 11], [ 6,  2, 10], [ 8,  6,  7], [ 9,  8,  1]])
-    #for i in range(0, 2):
-      #triList
-#for (int i = 0; i < recursionLevel; i++)
-#{
-  #var faces2 = new List<TriangleIndices>();
-  #foreach (var tri in faces)
-  #{
-      #// replace triangle by 4 triangles
-      #int a = getMiddlePoint(tri.v1, tri.v2);
-      #int b = getMiddlePoint(tri.v2, tri.v3);
-      #int c = getMiddlePoint(tri.v3, tri.v1);
-
-      #faces2.Add(new TriangleIndices(tri.v1, a, c));
-      #faces2.Add(new TriangleIndices(tri.v2, b, a));
-      #faces2.Add(new TriangleIndices(tri.v3, c, b));
-      #faces2.Add(new TriangleIndices(a, b, c));
-  #}
-  #faces = faces2;
-#}
-    coords = vrmlCoordinates(self, 'model')
-    coords.vertices = vertList
-    self.objects.append(coords)
-    self.triCount = 60
-    self.polygons = triList
-  def readSpecific(self, fd, string):
-    radius = re.search("radius\s+([+e\d\-\.]+)", string, re.I | re.S)
-    if radius != None:
-      r = float(radius.group(1))
-      transform = numpy.matrix([[ r, 0., 0., 0.],
-                                [0.,  r, 0., 0.],
-                                [0., 0.,  r, 0.],
-                                [0., 0., 0., 1.]])
-      for obj in self.objects:
-        if isinstance(obj, vrmlCoordinates) and obj.cType == vrmlCoordinates.TYPE['model']:
-          for i in range(0, len(obj.vertices)):
-            tmp = numpy.matrix([[obj.vertices[i][0]], [obj.vertices[i][1]], [obj.vertices[i][2]], [1.]])
-            tmp = transform * tmp
-            obj.vertices[i] = numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])])
-
-class vrml3DCylinder(vrmlGeometry): #TODO move
-  def __init__(self, parent, points = 24):
-    vrmlGeometry.__init__(self, parent)
-    self.solid = True
-    self.smooth = True
-    vertList = []
-    triList = []
-    vertList.append(numpy.array([0., -.5, 0]))
-    vertList.append(numpy.array([0.,  .5, 0]))
-    for i in range(0, points):
-      x = math.cos(i * (math.pi * 2) / points)
-      y = math.sin(i * (math.pi * 2) / points)
-      vertList.append(numpy.array([x, -.5, y]))
-      vertList.append(numpy.array([x, -.5, y]))
-      vertList.append(numpy.array([x,  .5, y]))
-      vertList.append(numpy.array([x,  .5, y]))
-    triList.append([2, 2 + (points - 1) * 4, 0])
-    for i in range(0, points - 1):
-      triList.append([2 + (i + 1) * 4, 2 + i * 4, 0])
-    self.triCount += points * 3
-    triList.append([1, 4 + (points - 1) * 4, 4])
-    for i in range(0, points - 1):
-      triList.append([1, 4 + i * 4, 4 + (i + 1) * 4])
-    self.triCount += points * 3
-    triList.append([3, 3 + (points - 1) * 4, 5 + (points - 1) * 4, 5])
-    for i in range(0, points - 1):
-      triList.append([3 + (i + 1) * 4, 3 + i * 4, 5 + i * 4, 5 + (i + 1) * 4])
-    self.quadCount += points * 4
-    coords = vrmlCoordinates(self, 'model')
-    coords.vertices = vertList
-    self.objects.append(coords)
-    self.polygons = triList
-  def readSpecific(self, fd, string):
-    height = re.search("height\s+([+e\d\-\.]+)", string, re.I | re.S)
-    radius = re.search("radius\s+([+e\d\-\.]+)", string, re.I | re.S)
-    if height != None or radius != None:
-      if height != None:
-        h = float(height.group(1))
-      else:
-        h = 1.
-      if radius != None:
-        r = float(radius.group(1))
-      else:
-        r = 1.
-      transform = numpy.matrix([[ r, 0., 0., 0.],
-                                [0.,  h, 0., 0.],
-                                [0., 0.,  r, 0.],
-                                [0., 0., 0., 1.]])
-      for obj in self.objects:
-        if isinstance(obj, vrmlCoordinates) and obj.cType == vrmlCoordinates.TYPE['model']:
-          for i in range(0, len(obj.vertices)):
-            tmp = numpy.matrix([[obj.vertices[i][0]], [obj.vertices[i][1]], [obj.vertices[i][2]], [1.]])
-            tmp = transform * tmp
-            obj.vertices[i] = numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])])
 
 class vrmlAppearance(vrmlEntry):
   def __init__(self, parent = None):
@@ -849,8 +723,6 @@ class vrmlMaterial(vrmlEntry):
 
 class vrmlTexture(vrmlEntry):
   def __init__(self, parent = None):
-    #if not isinstance(parent, vrmlAppearance):
-      #raise Exception()
     vrmlEntry.__init__(self, parent)
     self.texID    = None
     self.fileName = ""
@@ -921,6 +793,15 @@ class faceset:
       glDrawArrays(self.mode, self.index[0], self.length[0])
     elif len(self.index) > 1:
       glMultiDrawArrays(self.mode, self.index, self.length, len(self.index))
+
+def loadShader(name):
+  fd = open("./shaders/%s.vert" % name, "rb")
+  vertShader = fd.read()
+  fd.close()
+  fd = open("./shaders/%s.frag" % name, "rb")
+  fragShader = fd.read()
+  fd.close()
+  return createShader(vertShader, fragShader)
 
 class render:
   def __init__(self, aScene):
@@ -996,57 +877,14 @@ class render:
     scriptDir = os.path.dirname(os.path.realpath(__file__))
     if len(scriptDir) > 0:
       os.chdir(scriptDir)
-    #Read color shader
-    fd = open("./shaders/light.vert", "rb")
-    vertShader = fd.read()
-    fd.close()
-    fd = open("./shaders/light.frag", "rb")
-    fragShader = fd.read()
-    fd.close()
-    #Create color shader
-    self.shaders.append(createShader(vertShader, fragShader))
-    #Read texture shader
-    fd = open("./shaders/light_tex.vert", "rb")
-    vertShader = fd.read()
-    fd.close()
-    fd = open("./shaders/light_tex.frag", "rb")
-    fragShader = fd.read()
-    fd.close()
-    #Create texture shader
-    self.shaders.append(createShader(vertShader, fragShader))
-
-    ##Read texture shader
-    #if len(scriptDir) > 0:
-      #os.chdir(scriptDir)
-    #fd = open("./shaders/light_nmap.vert", "rb")
-    #vertShader = fd.read()
-    #fd.close()
-    #fd = open("./shaders/light_nmap.frag", "rb")
-    #fragShader = fd.read()
-    #fd.close()
-    ##Create texture shader with normal mapping
-    #self.shaders.append(createShader(vertShader, fragShader))
-    #glBindAttribLocation(self.shaders[2], 1, "tangent")
-    #glLinkProgram(self.shaders[2])
-
-    ##Read cubemap shader
-    #oldDir = os.getcwd()
-    #if len(scriptDir) > 0:
-      #os.chdir(scriptDir)
-    #fd = open("./shaders/cubemap.vert", "rb")
-    #vertShader = fd.read()
-    #fd.close()
-    #fd = open("./shaders/cubemap.frag", "rb")
-    #fragShader = fd.read()
-    #fd.close()
-    ##Create cubemap shader
-    #self.shaders.append(createShader(vertShader, fragShader))
+    self.shaders = {}
+    self.shaders['colored'] = loadShader("light");
+    self.shaders['textured'] = loadShader("light_tex");
     os.chdir(oldDir)
   def initScene(self, aScene):
     vrmlShape._vcount = 0
     vrmlShape._pcount = 0
     for entry in aScene.objects:
-      #if isinstance(entry, vrmlShape) or isinstance(entry, vrmlTransform) or isinstance(entry, vrmlInline):
       self.data.extend(entry.mesh(aScene.transform))
     #for mat in aScene.entries:
       #if isinstance(mat, vrmlAppearance):
@@ -1122,37 +960,29 @@ class render:
       width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
     except SystemError:
       width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBX", 0, -1)
-    #arg.texType = GL_TEXTURE_2D
     arg.texID = glGenTextures(1)
     glBindTexture(GL_TEXTURE_2D, arg.texID)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-    #glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
     gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
     print "Loaded %s, width: %d, height: %d, id: %d" % (arg.name, width, height, arg.texID)
   def setTexture(self, arg, layer = 0):
     glActiveTexture(GL_TEXTURE0 + layer)
     glEnable(GL_TEXTURE_2D)
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-    #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
     glBindTexture(GL_TEXTURE_2D, arg.texID)
   def setMaterial(self, arg):
     #glDisable(GL_COLOR_MATERIAL)
     glEnable(GL_COLOR_MATERIAL)
-#    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, arg.diffuseColor)
     glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, arg.shininess * 128.)
     glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, arg.specularColor)
     glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, arg.emissiveColor)
     #glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, arg.ambientColor)
     #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, arg.diffuseColor)
-    #glColorMaterial(GL_FRONT_AND_BACK, GL_EMISSION)
-    #glColor3f(arg.emissiveColor[0], arg.emissiveColor[1], arg.emissiveColor[2])
-    #glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT)
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT)
     glColor4f(arg.ambientColor[0], arg.ambientColor[1], arg.ambientColor[2], arg.ambientColor[3])
     glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE)
     glColor4f(arg.diffuseColor[0], arg.diffuseColor[1], arg.diffuseColor[2], arg.diffuseColor[3])
-    #glColorMaterial(GL_FRONT_AND_BACK, GL_SPECULAR)
-    #glColor3f(arg.specularColor[0], arg.specularColor[1], arg.specularColor[2])
     #glEnable(GL_COLOR_MATERIAL)
     glDisable(GL_COLOR_MATERIAL)
   def setAppearance(self, arg):
@@ -1164,21 +994,9 @@ class render:
         self.setTexture(mat, texNum)
         texNum += 1
     if texNum == 0:
-      glUseProgram(self.shaders[0])
-    elif texNum > 0:
-      #if texType == GL_TEXTURE_2D:
-      glUseProgram(self.shaders[1])
-        #tex = glGetUniformLocation(self.shaders[1], "diffuseTexture")
-      #else:
-        #glUseProgram(self.shaders[3])
-        #tex = glGetUniformLocation(self.shaders[3], "diffuseTexture")
-      #glUniform1i(tex, 0)
-    #elif texNum >= 2:
-      #glUseProgram(self.shaders[2])
-      #tex = glGetUniformLocation(self.shaders[2], "diffuseTexture")
-      #glUniform1i(tex, 0)
-      #tex = glGetUniformLocation(self.shaders[2], "normalTexture")
-      #glUniform1i(tex, 1)
+      glUseProgram(self.shaders['colored'])
+    else:
+      glUseProgram(self.shaders['textured'])
   def drawAxis(self):
     glEnableClientState(GL_VERTEX_ARRAY)
     glEnableClientState(GL_COLOR_ARRAY)
