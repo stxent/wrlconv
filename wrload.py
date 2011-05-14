@@ -333,6 +333,8 @@ class vrmlShape(vrmlEntry):
         _tsa = time.time()
         print "%sDraw geometry %s" % (' ' * (_offset + 2), obj.name)
         newMesh.solid = obj.solid
+        print "obj.polygons   %d" % len(obj.polygons)
+        print "obj.polygonsUV %d" % len(obj.polygonsUV)
         if obj.polygonsUV != None and len(obj.polygons) == len(obj.polygonsUV):
           genTex = True
         else:
@@ -356,11 +358,7 @@ class vrmlShape(vrmlEntry):
           fsQuad = faceset(GL_QUADS)
           fsQuad.append(obj.triCount, obj.quadCount)
           newMesh.objects.append(fsQuad)
-        if obj.polyCount > 0:
-          fsPoly = faceset(GL_POLYGON)
-        else:
-          fsPoly = None
-        length = obj.triCount + obj.quadCount + obj.polyCount
+        length = obj.triCount + obj.quadCount
         newMesh.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
         newMesh.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
         if genTex == True:
@@ -368,7 +366,7 @@ class vrmlShape(vrmlEntry):
           newMesh.tangentList = numpy.zeros(length * 3, dtype = numpy.float32)
         tPos = 0
         qPos = obj.triCount
-        pPos = obj.triCount + obj.quadCount
+        obj.smooth = True
         if obj.smooth == False: #Flat shading
           for poly in range(0, len(obj.polygons)):
             if genTex == True: #Generate tangent coordinates
@@ -387,23 +385,12 @@ class vrmlShape(vrmlEntry):
             elif len(obj.polygons[poly]) == 4:
               pos = qPos
               qPos += 4
-            else:
-              fsPoly.append(pPos, len(obj.polygons[poly]))
-              pos = pPos
-              pPos += len(obj.polygons[poly])
             for ind in range(0, len(obj.polygons[poly])):
-              newMesh.vertexList[3 * pos]     = tmpVertices[obj.polygons[poly][ind]][0]
-              newMesh.normalList[3 * pos]     = normal[0]
-              newMesh.vertexList[3 * pos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
-              newMesh.normalList[3 * pos + 1] = normal[1]
-              newMesh.vertexList[3 * pos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
-              newMesh.normalList[3 * pos + 2] = normal[2]
+              newMesh.vertexList[3 * pos:3 * pos + 3] = tmpVertices[obj.polygons[poly][ind]][0:3]
+              newMesh.normalList[3 * pos:3 * pos + 3] = [float(normal[0]), float(normal[1]), float(normal[2])]
               if genTex == True:
-                newMesh.texList[2 * pos]         = tmpVerticesUV[obj.polygonsUV[poly][ind]][0]
-                newMesh.texList[2 * pos + 1]     = tmpVerticesUV[obj.polygonsUV[poly][ind]][1]
-                newMesh.tangentList[3 * pos]     = tangent[0]
-                newMesh.tangentList[3 * pos + 1] = tangent[1]
-                newMesh.tangentList[3 * pos + 2] = tangent[2]
+                newMesh.texList[2 * pos:2 * pos + 2] = tmpVerticesUV[obj.polygonsUV[poly][ind]][0:2]
+                newMesh.normalList[3 * pos:3 * pos + 3] = [float(tangent[0]), float(tangent[1]), float(tangent[2])]
               pos += 1
         else: #Smooth shading
           tmpNormals = []
@@ -439,29 +426,14 @@ class vrmlShape(vrmlEntry):
             elif len(obj.polygons[poly]) == 4:
               pos = qPos
               qPos += 4
-            else:
-              fsPoly.append(pPos, len(obj.polygons[poly]))
-              pos = pPos
-              pPos += len(obj.polygons[poly])
             for ind in range(0, len(obj.polygons[poly])):
-              newMesh.vertexList[3 * pos]     = tmpVertices[obj.polygons[poly][ind]][0]
-              newMesh.normalList[3 * pos]     = tmpNormals[obj.polygons[poly][ind]][0]
-              newMesh.vertexList[3 * pos + 1] = tmpVertices[obj.polygons[poly][ind]][1]
-              newMesh.normalList[3 * pos + 1] = tmpNormals[obj.polygons[poly][ind]][1]
-              newMesh.vertexList[3 * pos + 2] = tmpVertices[obj.polygons[poly][ind]][2]
-              newMesh.normalList[3 * pos + 2] = tmpNormals[obj.polygons[poly][ind]][2]
+              newMesh.vertexList[3 * pos:3 * pos + 3] = tmpVertices[obj.polygons[poly][ind]][0:3]
+              newMesh.normalList[3 * pos:3 * pos + 3] = tmpNormals[obj.polygons[poly][ind]][0:3]
               if genTex == True:
-                newMesh.texList[2 * pos]     = tmpVerticesUV[obj.polygonsUV[poly][ind]][0]
-                newMesh.texList[2 * pos + 1] = tmpVerticesUV[obj.polygonsUV[poly][ind]][1]
-                newMesh.tangentList[3 * pos]     = tmpTangents[obj.polygons[poly][ind]][0]
-                newMesh.tangentList[3 * pos + 1] = tmpTangents[obj.polygons[poly][ind]][1]
-                newMesh.tangentList[3 * pos + 2] = tmpTangents[obj.polygons[poly][ind]][2]
+                newMesh.texList[2 * pos:2 * pos + 2] = tmpVerticesUV[obj.polygonsUV[poly][ind]][0:2]
+                newMesh.tangentList[3 * pos:3 * pos + 3] = tmpTangents[obj.polygons[poly][ind]][0:3]
               pos += 1
         _tsb = time.time()
-        if fsPoly:
-          newMesh.objects.append(fsPoly)
-        vrmlShape._vcount += len(newMesh.vertexList) / 3
-        vrmlShape._pcount += len(obj.polygons)
         print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * (_offset + 2), _tsb - _tsa, len(newMesh.vertexList) / 3, len(obj.polygons))
     return [newMesh]
   def write(self, fd, compList, transform):
@@ -509,7 +481,6 @@ class vrmlGeometry(vrmlEntry):
     self.polygons   = None
     self.triCount   = 0
     self.quadCount  = 0
-    self.polyCount  = 0
     self.polygonsUV = None
   def readSpecific(self, fd, string):
     #print "%sTry geo read: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
@@ -560,8 +531,12 @@ class vrmlGeometry(vrmlEntry):
                 for tpos in range(1, len(polyData) - 1):
                   self.triCount += 3
                   tmpPolygons.append([polyData[0], polyData[tpos], polyData[tpos + 1]])
-                #self.polyCount += len(polyData)
-            #tmpPolygons.append(polyData)
+            if texSearch != None:
+              if len(polyData) > 4:
+                for tpos in range(1, len(polyData) - 1):
+                  tmpPolygons.append([polyData[0], polyData[tpos], polyData[tpos + 1]])
+              else:
+                tmpPolygons.append(polyData)
             pPos = regexp.end()
           else:
             (delta, offset) = calcBalance(data, None, (), (']'))
@@ -579,9 +554,8 @@ class vrmlGeometry(vrmlEntry):
         pPos = 0
       if coordSearch != None:
         self.polygons = tmpPolygons
-        print "%sRead poly done, %d tri, %d quad, %d poly, %d vertices" % (' ' * self._level, self.triCount / 3, self.quadCount / 4, 
-                                                                           len(self.polygons) - self.triCount / 3 - self.quadCount / 4,
-                                                                           self.polyCount + self.triCount + self.quadCount)
+        print "%sRead poly done, %d tri, %d quad, %d vertices" % (' ' * self._level, self.triCount / 3, self.quadCount / 4, 
+                                                                  self.triCount + self.quadCount)
       elif texSearch != None:
         self.polygonsUV = tmpPolygons
         print "%sRead UV poly done, %d poly, %d vertices" % (' ' * self._level, len(self.polygonsUV), 0)
