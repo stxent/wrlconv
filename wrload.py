@@ -100,7 +100,7 @@ class vrmlEntry:
     self.parent = parent
     self.name = ""
     self.objects = []
-    if self.parent != None:
+    if self.parent:
       self._level = self.parent._level + 2
     else:
       self._level = 0
@@ -114,7 +114,7 @@ class vrmlEntry:
         break
       #print "%s - %d: '%s'" % (self.__class__.__name__, balance, data.replace("\n", "").replace("\r", ""))
       regexp = defPattern.search(data)
-      if regexp != None:
+      if regexp:
         (delta, offset) = calcBalance(data[:regexp.start()], -1, ('{'), ('}'))
         balance += delta
         initialPos = fd.tell()
@@ -167,7 +167,7 @@ class vrmlEntry:
           print "%sUnsopported chunk sequence: %s > %s" % (' ' * self._level, self.__class__.__name__, entryType)
           offset = skipChunk(fd)
           fd.seek(-offset, os.SEEK_CUR)
-        if entry != None:
+        if entry:
           if regexp.group(1) == "DEF" and len(regexp.group(2)) > 0:
             entry.name = regexp.group(2)
           entry.read(fd)
@@ -193,7 +193,7 @@ class vrmlEntry:
             entry.id = vrmlEntry.identifier #FIXME added
             vrmlEntry.identifier += 1
             ptr.entries.append(entry)
-            if inline != None:
+            if inline:
               inline.entries.append(entry)
       else:
         (delta, offset) = calcBalance(data, -(balance + 1), ('{'), ('}'))
@@ -201,7 +201,7 @@ class vrmlEntry:
         initialPos = fd.tell()
         self.readSpecific(fd, data)
         using = re.search("USE\s+([\w\-]+)", data, re.I | re.S)
-        if using != None and using.start() < len(data) - offset:
+        if using and using.start() < len(data) - offset:
           print "%sUsing entry %s" % (' ' * self._level, using.group(1))
           ptr = self
           while not isinstance(ptr, vrmlScene) and not isinstance(ptr, vrmlInline):
@@ -283,9 +283,9 @@ class vrmlScene(vrmlEntry):
       length = groups[i].count[0] + groups[i].count[1]
       meshobj.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
       meshobj.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
-      if groups[i].appearance.diffuse != None:
+      if groups[i].appearance.diffuse or groups[i].appearance.normal:
         meshobj.uvList = numpy.zeros(length * 2, dtype = numpy.float32)
-      if groups[i].appearance.normal != None:
+      if groups[i].appearance.normal:
         meshobj.tangentList = numpy.zeros(length * 3, dtype = numpy.float32)
       offsets = (0, groups[i].count[0]) #(Triangels, Quads)
       for shape in groups[i].objects:
@@ -300,34 +300,6 @@ class vrmlScene(vrmlEntry):
       res.append(meshobj)
     return res
 
-#class vrmlInline(vrmlEntry): #FIXME Rewrite
-  #def __init__(self, parent):
-    #vrmlEntry.__init__(self, parent)
-    #self.entries = []
-    ##FIXME added
-    #self.transform = numpy.matrix([[1., 0., 0., 0.],
-                                   #[0., 1., 0., 0.],
-                                   #[0., 0., 1., 0.],
-                                   #[0., 0., 0., 1.]])
-  #def readSpecific(self, fd, string):
-    #urlSearch = re.search("url\s+\"([\w\-\._\/]+)\"", string, re.S)
-    #if urlSearch != None:
-      #oldDir = os.getcwd()
-      #if os.path.isfile(urlSearch.group(1)):
-        ##print "%sLoading file: %s" % (' ' * self._level, urlSearch.group(1))
-        ##self.name = urlSearch.group(1)
-        #wrlFile = open(urlSearch.group(1), "r")
-        #if len(os.path.dirname(urlSearch.group(1))) > 0:
-          #os.chdir(os.path.dirname(urlSearch.group(1)))
-        #self.read(wrlFile)
-        #wrlFile.close()
-      #else:
-        #print "%sFile not found: %s" % (' ' * self._level, urlSearch.group(1))
-      #os.chdir(oldDir)
-  #def write(self, fd, compList, transform):
-    #for obj in self.objects:
-      #obj.write(fd, compList, transform)
-
 class vrmlTransform(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
@@ -337,7 +309,7 @@ class vrmlTransform(vrmlEntry):
                                    [0., 0., 0., 1.]])
   def readSpecific(self, fd, string):
     tmp = re.search("translation\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       #tform = numpy.matrix([[1., 0., 0., float(tmp.group(1))],
                             #[0., 1., 0., float(tmp.group(2))],
                             #[0., 0., 1., float(tmp.group(3))],
@@ -349,11 +321,11 @@ class vrmlTransform(vrmlEntry):
                             [0., 0., 0., 0.]])
       self.transform = self.transform + tform
     tmp = re.search("rotation\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       tform = fillRotateMatrix([float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3))], float(tmp.group(4)))
       self.transform = self.transform * tform
     tmp = re.search("scale\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)\s+([+e\d\.\-]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       tform = numpy.matrix([[float(tmp.group(1)), 0., 0., 0.],
                             [0., float(tmp.group(2)), 0., 0.],
                             [0., 0., float(tmp.group(3)), 0.],
@@ -370,7 +342,7 @@ class vrmlInline(vrmlTransform):
     self.entries = []
   def readSpecific(self, fd, string):
     urlSearch = re.search("url\s+\"([\w\-\._\/]+)\"", string, re.S)
-    if urlSearch != None:
+    if urlSearch:
       oldDir = os.getcwd()
       if os.path.isfile(urlSearch.group(1)):
         #print "%sLoading file: %s" % (' ' * self._level, urlSearch.group(1))
@@ -420,7 +392,7 @@ class vrmlShape(vrmlEntry):
                 #verticesUV.append(vert)
         if obj.smooth == False: #Flat shading
           for poly in range(0, len(obj.polygons)):
-            if appearance.normal != None: #Generate tangent coordinates
+            if appearance.normal: #Generate tangent coordinates
               tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
                                    vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]], 
                                    verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]], 
@@ -440,21 +412,21 @@ class vrmlShape(vrmlEntry):
             for ind in range(0, len(obj.polygons[poly])):
               meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
               meshObject.normalList[3 * pos:3 * pos + 3] = [float(normal[0]), float(normal[1]), float(normal[2])]
-              if appearance.diffuse != None:
+              if appearance.diffuse or appearance.normal:
                 meshObject.uvList[2 * pos:2 * pos + 2] = verticesUV[obj.polygonsUV[poly][ind]][0:2]
-              if appearance.normal != None:
+              if appearance.normal:
                 meshObject.tangentList[3 * pos:3 * pos + 3] = [float(tangent[0]), float(tangent[1]), float(tangent[2])]
               pos += 1
         else: #Smooth shading
           normals = []
           for i in range(0, len(vertices)):
             normals.append(numpy.array([0., 0., 0.,]))
-          if appearance.normal != None:
+          if appearance.normal:
             tangents = []
             for i in range(0, len(vertices)):
               tangents.append(numpy.array([0., 0., 0.,]))
           for poly in range(0, len(obj.polygons)):
-            if appearance.normal != None: #Generate tangent coordinates
+            if appearance.normal: #Generate tangent coordinates
               tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
                                    vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]], 
                                    verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]], 
@@ -465,11 +437,11 @@ class vrmlShape(vrmlEntry):
             normal = normalize(normal)
             for ind in obj.polygons[poly]:
               normals[ind] += numpy.array([float(normal[0]), float(normal[1]), float(normal[2])])
-              if appearance.normal != None:
+              if appearance.normal:
                 tangents[ind] += numpy.array([float(tangent[0]), float(tangent[1]), float(tangent[2])])
           for i in range(0, len(vertices)):
             normals[i] = normalize(normals[i])
-            if appearance.normal != None:
+            if appearance.normal:
               tangents[i] = normalize(tangents[i])
           for poly in range(0, len(obj.polygons)):
             #pos = 0
@@ -483,9 +455,9 @@ class vrmlShape(vrmlEntry):
             for ind in range(0, len(obj.polygons[poly])):
               meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
               meshObject.normalList[3 * pos:3 * pos + 3] = normals[obj.polygons[poly][ind]][0:3]
-              if appearance.diffuse != None:
+              if appearance.diffuse or appearance.normal:
                 meshObject.uvList[2 * pos:2 * pos + 2] = verticesUV[obj.polygonsUV[poly][ind]][0:2]
-              if appearance.normal != None:
+              if appearance.normal:
                 meshObject.tangentList[3 * pos:3 * pos + 3] = tangents[obj.polygons[poly][ind]][0:3]
               pos += 1
         _tsb = time.time()
@@ -543,26 +515,26 @@ class vrmlGeometry(vrmlEntry):
     #print "%sTry geo read: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
     initialPos = fd.tell()
     paramSearch = re.search("solid\s+(TRUE|FALSE)", string, re.S)
-    if paramSearch != None:
+    if paramSearch:
       if paramSearch.group(1) == "TRUE":
         self.solid = True
     coordSearch = re.search("coordIndex\s*\[", string, re.S)
     texSearch = re.search("texCoordIndex\s*\[", string, re.S)
-    if coordSearch != None or texSearch != None:
+    if coordSearch or texSearch:
       print "%sStart polygon read" % (' ' * self._level)
       polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
       indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
       tmpPolygons = []
       delta, offset, balance = 0, 0, 0
       data = string
-      if coordSearch != None:
+      if coordSearch:
         pPos = coordSearch.end()
-      elif texSearch != None:
+      elif texSearch:
         pPos = texSearch.end()
       while 1:
         while 1:
           regexp = polyPattern.search(data, pPos)
-          if regexp != None:
+          if regexp:
             (delta, offset) = calcBalance(data[pPos:regexp.start()], -1, (), (']'))
             balance += delta
             offset = len(data) - regexp.start() + offset
@@ -577,7 +549,7 @@ class vrmlGeometry(vrmlEntry):
                 break
               polyData.append(int(ind.group(1)))
               indPos = ind.end()
-            if coordSearch != None:
+            if coordSearch:
               if len(polyData) == 3:
                 self.triCount += 3
                 tmpPolygons.append(polyData)
@@ -588,7 +560,7 @@ class vrmlGeometry(vrmlEntry):
                 for tpos in range(1, len(polyData) - 1):
                   self.triCount += 3
                   tmpPolygons.append([polyData[0], polyData[tpos], polyData[tpos + 1]])
-            if texSearch != None:
+            if texSearch:
               if len(polyData) > 4:
                 for tpos in range(1, len(polyData) - 1):
                   tmpPolygons.append([polyData[0], polyData[tpos], polyData[tpos + 1]])
@@ -609,11 +581,11 @@ class vrmlGeometry(vrmlEntry):
         if len(data) == 0:
           break
         pPos = 0
-      if coordSearch != None:
+      if coordSearch:
         self.polygons = tmpPolygons
         print "%sRead poly done, %d tri, %d quad, %d vertices" % (' ' * self._level, self.triCount / 3, self.quadCount / 4, 
                                                                   self.triCount + self.quadCount)
-      elif texSearch != None:
+      elif texSearch:
         self.polygonsUV = tmpPolygons
         print "%sRead UV poly done, %d poly" % (' ' * self._level, len(self.polygonsUV))
 
@@ -627,7 +599,7 @@ class vrmlCoordinates(vrmlEntry):
     initialPos = fd.tell()
     #print "%sTry coord read: %s, type: %d" % (' ' * self._level, string.replace("\n", "").replace("\t", ""), self.cType)
     indexSearch = re.search("point\s*\[", string, re.S)
-    if indexSearch != None:
+    if indexSearch:
       print "%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType])
       if self.cType == vrmlCoordinates.TYPE['model']:
         vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
@@ -641,7 +613,7 @@ class vrmlCoordinates(vrmlEntry):
         #print "Balance: %d, str: '%s'" % (balance, data.replace("\n", ""))
         while 1:
           regexp = vertexPattern.search(data, vPos)
-          if regexp != None:
+          if regexp:
             (delta, offset) = calcBalance(data[vPos:regexp.start()], -1, (), ('}'))
             balance += delta
             offset = len(data) - regexp.start() + offset
@@ -715,22 +687,22 @@ class vrmlMaterial(vrmlEntry):
   def readSpecific(self, fd, string):
     #print "%sReading material: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
     tmp = re.search("transparency\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       self.transparency = float(tmp.group(1))
     tmp = re.search("diffuseColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       self.diffuseColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1. - self.transparency]
     tmp = re.search("ambientIntensity\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       self.ambientIntensity = float(tmp.group(1))
     tmp = re.search("specularColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       self.specularColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1.]
     tmp = re.search("emissiveColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       self.emissiveColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1.]
     tmp = re.search("shininess\s+([+e\d\.]+)", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       self.shininess = float(tmp.group(1))
     self.ambientColor = [self.diffuseColor[0] * self.ambientIntensity, 
                          self.diffuseColor[1] * self.ambientIntensity, 
@@ -763,10 +735,10 @@ class vrmlTexture(vrmlEntry):
     self.texType  = None
   def readSpecific(self, fd, string):
     tmp = re.search("url\s+\"([\w\-\.:]+)\"", string, re.I | re.S)
-    if tmp != None:
+    if tmp:
       self.fileName = tmp.group(1)
     self.filePath = os.getcwd()
-    if self.fileName == "normalmap": #TODO modify
+    if self.name == "normalmap": #TODO modify
       self.parent.normal = self
     else:
       self.parent.diffuse = self
@@ -919,6 +891,8 @@ class render:
     self.shaders = {}
     self.shaders['colored'] = loadShader("light");
     self.shaders['textured'] = loadShader("light_tex");
+    self.shaders['colored_nm'] = loadShader("light_nm");
+    self.shaders['textured_nm'] = loadShader("light_tex_nm");
     os.chdir(oldDir)
   def initScene(self, aScene):
     vrmlShape._vcount = 0
@@ -988,10 +962,20 @@ class render:
       elif isinstance(mat, vrmlTexture):
         self.setTexture(mat, texNum)
         texNum += 1
-    if texNum == 0:
-      glUseProgram(self.shaders['colored'])
+    if arg.normal:
+      if arg.diffuse:
+        glUseProgram(self.shaders['textured_nm'])
+        tex = glGetUniformLocation(self.shaders['textured_nm'], "diffuseTexture")
+        glUniform1i(tex, 0)
+        tex = glGetUniformLocation(self.shaders['textured_nm'], "normalTexture")
+        glUniform1i(tex, 1)
+      else:
+        glUseProgram(self.shaders['colored_nm'])
     else:
-      glUseProgram(self.shaders['textured'])
+      if arg.diffuse:
+        glUseProgram(self.shaders['textured'])
+      else:
+        glUseProgram(self.shaders['colored'])
   def drawAxis(self):
     glEnableClientState(GL_VERTEX_ARRAY)
     glEnableClientState(GL_COLOR_ARRAY)
