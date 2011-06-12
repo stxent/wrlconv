@@ -94,7 +94,9 @@ def createShader(vertSource, fragSource):
   return program
 
 class vrmlEntry:
+  identifier = 0
   def __init__(self, parent = None):
+    self.id = None
     self.parent = parent
     self.name = ""
     self.objects = []
@@ -170,17 +172,29 @@ class vrmlEntry:
             entry.name = regexp.group(2)
           entry.read(fd)
           ptr = self
-          while isinstance(ptr, vrmlScene) == False:
+          inline = None
+          while not isinstance(ptr, vrmlScene):
+            if inline == None and isinstance(ptr, vrmlInline):
+              inline = ptr
             ptr = ptr.parent
           duplicate = False
           for current in ptr.entries: #Search for duplicates
             if entry == current:
+              print "Duplicate"
               entry = current
               duplicate = True
               break
+          #if self in ptr.entries: #Search for duplicates
+            #print "Duplicate"
+            #entry = current
+            #duplicate = True
           self.objects.append(entry)
           if not duplicate:
+            entry.id = vrmlEntry.identifier #FIXME added
+            vrmlEntry.identifier += 1
             ptr.entries.append(entry)
+            if inline != None:
+              inline.entries.append(entry)
       else:
         (delta, offset) = calcBalance(data, -(balance + 1), ('{'), ('}'))
         balance += delta
@@ -243,11 +257,59 @@ class vrmlScene(vrmlEntry):
     for entry in self.objects:
       entry.write(wrlFile, compList, self.transform)
     wrlFile.close()
+  def mesh(self):
+    class groupDescriptor:
+      def __init__(self, appearance):
+        self.appearance = appearance
+        self.count = numpy.array([0, 0])
+        self.objects = []
+    groups = {}
+    for entry in self.entries:
+      if isinstance(entry, vrmlShape):
+        count = numpy.array([0, 0])
+        for geo in entry.objects:
+          if isinstance(geo, vrmlGeometry):
+            count += numpy.array([geo.triCount, geo.quadCount])#(count[0] + geo.triCount, count[1] + geo.quadCount)
+        for app in entry.objects:
+          if isinstance(app, vrmlAppearance):
+            print "Appearance id: %d, pos: " % app.id,
+            print app
+            if app.id not in groups.keys():
+              groups[app.id] = groupDescriptor(app)
+            #groups[app.id].count = (groups[app.id].count[0] + count[0], groups[app.id].count[1] + count[1])
+            groups[app.id].count += count
+            groups[app.id].objects.append(entry)
+            break
+    res = []
+    for i in groups.keys(): #FIXME rewrite
+      meshobj = mesh()
+      length = groups[i].count[0] + groups[i].count[1]
+      meshobj.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
+      meshobj.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
+      if groups[i].appearance.diffuse != None:
+        meshobj.uvList = numpy.zeros(length * 2, dtype = numpy.float32)
+      if groups[i].appearance.normal != None:
+        meshobj.tangentList = numpy.zeros(length * 3, dtype = numpy.float32)
+      offsets = (0, groups[i].count[0]) #(Triangels, Quads)
+      for shape in groups[i].objects:
+        offsets = shape.mesh(meshobj, offsets, groups[i].appearance)
+      fs = faceset()
+      fs.append(GL_TRIANGLES, 0, offsets[0]) #FIXME
+      fs.append(GL_QUADS, offsets[0], offsets[1])
+      fs.appearance = groups[i].appearance
+      meshobj.objects.append(fs)
+      res.append(meshobj)
+    return res
 
 class vrmlInline(vrmlEntry): #FIXME Rewrite
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
     self.entries = []
+    #FIXME added
+    self.transform = numpy.matrix([[1., 0., 0., 0.],
+                                   [0., 1., 0., 0.],
+                                   [0., 0., 1., 0.],
+                                   [0., 0., 0., 1.]])
   def readSpecific(self, fd, string):
     urlSearch = re.search("url\s+\"([\w\-\._\/]+)\"", string, re.S)
     if urlSearch != None:
@@ -263,13 +325,13 @@ class vrmlInline(vrmlEntry): #FIXME Rewrite
       else:
         print "%sFile not found: %s" % (' ' * self._level, urlSearch.group(1))
       os.chdir(oldDir)
-  def mesh(self, transform, _offset = 0):
-    print "%sDrawing inline: %s" % (' ' * _offset, self.name)
-    res = []
-    for obj in self.objects:
-      #print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
-      res.extend(obj.mesh(transform, _offset + 2))
-    return res
+  #def mesh(self, transform, _offset):
+    #print "%sDrawing inline: %s" % (' ' * _offset, self.name)
+    #res = []
+    #for obj in self.objects:
+      ##print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
+      #res.extend(obj.mesh(transform, _offset + 2))
+    #return res
   def write(self, fd, compList, transform):
     for obj in self.objects:
       obj.write(fd, compList, transform)
@@ -305,14 +367,14 @@ class vrmlTransform(vrmlEntry):
                             [0., 0., float(tmp.group(3)), 0.],
                             [0., 0., 0., 1.]])
       self.transform = self.transform * tform
-  def mesh(self, transform, _offset = 0):
-    print "%sDrawing transform: %s" % (' ' * _offset, self.name)
-    res = []
-    tform = transform * self.transform
-    for obj in self.objects:
-      #print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
-      res.extend(obj.mesh(tform, _offset + 2))
-    return res
+  #def mesh(self, transform, _offset):
+    #print "%sDrawing transform: %s" % (' ' * _offset, self.name)
+    #res = []
+    #tform = transform * self.transform
+    #for obj in self.objects:
+      ##print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
+      #res.extend(obj.mesh(tform, _offset + 2))
+    #return res
   def write(self, fd, compList, transform):
     tform = transform * self.transform
     for obj in self.objects:
@@ -323,119 +385,108 @@ class vrmlShape(vrmlEntry):
   _pcount = 0
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
-  def mesh(self, transform, _offset = 0):
-    print "%sDraw shape %s" % (' ' * _offset, self.name)
-    newMesh = mesh()
+  def mesh(self, meshObject, offsets, appearance):
+    print "%sDraw shape %s" % (' ' * 2, self.name)
+    (triOffset, quadOffset) = (offsets[0], offsets[1])
+    #transform = self.transform
+    transform = numpy.matrix([[1., 0., 0., 0.],
+                              [0., 1., 0., 0.],
+                              [0., 0., 1., 0.],
+                              [0., 0., 0., 1.]])
+    ptr = self
+    while not isinstance(ptr, vrmlScene):
+      ptr = ptr.parent
+      transform = ptr.transform * transform
+    _tsa = time.time()
     for obj in self.objects:
-      if isinstance(obj, vrmlAppearance):
-        newMesh.appearance = obj
-      elif isinstance(obj, vrmlGeometry):
-        _tsa = time.time()
-        print "%sDraw geometry %s" % (' ' * (_offset + 2), obj.name)
-        newMesh.solid = obj.solid
-        print "obj.polygons   %d" % len(obj.polygons)
-        print "obj.polygonsUV %d" % len(obj.polygonsUV)
-        if obj.polygonsUV != None and len(obj.polygons) == len(obj.polygonsUV):
-          genTex = True
-        else:
-          genTex = False
-        tmpVertices = []
-        tmpVerticesUV = []
+      if isinstance(obj, vrmlGeometry):
+        #TODO add solid parsing
+        vertices = []
+        verticesUV = []
         for coords in obj.objects:
           if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
             for vert in coords.vertices:
               tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
               tmp = transform * tmp
-              tmpVertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
+              vertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
           elif isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['texture']:
             for vert in coords.vertices:
-              tmpVerticesUV.append(vert)
-        if obj.triCount > 0:
-          fsTri = faceset(GL_TRIANGLES)
-          fsTri.append(0, obj.triCount)
-          newMesh.objects.append(fsTri)
-        if obj.quadCount > 0:
-          fsQuad = faceset(GL_QUADS)
-          fsQuad.append(obj.triCount, obj.quadCount)
-          newMesh.objects.append(fsQuad)
-        length = obj.triCount + obj.quadCount
-        newMesh.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
-        newMesh.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
-        if genTex == True:
-          newMesh.texList = numpy.zeros(length * 2, dtype = numpy.float32)
-          newMesh.tangentList = numpy.zeros(length * 3, dtype = numpy.float32)
-        tPos = 0
-        qPos = obj.triCount
-        obj.smooth = True
+              verticesUV.append(vert)
         if obj.smooth == False: #Flat shading
           for poly in range(0, len(obj.polygons)):
-            if genTex == True: #Generate tangent coordinates
-              tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
-                                   tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]], 
-                                   tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
-                                   tmpVerticesUV[obj.polygonsUV[poly][2]] - tmpVerticesUV[obj.polygonsUV[poly][0]])
+            if appearance.normal != None: #Generate tangent coordinates
+              tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
+                                   vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]], 
+                                   verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]], 
+                                   verticesUV[obj.polygonsUV[poly][2]] - verticesUV[obj.polygonsUV[poly][0]])
               tangent = normalize(tangent)
-            normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
-                               tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]])
+            normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
+                               vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]])
             normal = normalize(normal)
-            pos = 0
+            #pos = 0
             if len(obj.polygons[poly]) == 3:
-              pos = tPos
-              tPos += 3
-            elif len(obj.polygons[poly]) == 4:
-              pos = qPos
-              qPos += 4
+              pos = triOffset
+              triOffset += 3
+            else:
+            #elif len(obj.polygons[poly]) == 4:
+              pos = quadOffset
+              quadOffset += 4
             for ind in range(0, len(obj.polygons[poly])):
-              newMesh.vertexList[3 * pos:3 * pos + 3] = tmpVertices[obj.polygons[poly][ind]][0:3]
-              newMesh.normalList[3 * pos:3 * pos + 3] = [float(normal[0]), float(normal[1]), float(normal[2])]
-              if genTex == True:
-                newMesh.texList[2 * pos:2 * pos + 2] = tmpVerticesUV[obj.polygonsUV[poly][ind]][0:2]
-                newMesh.normalList[3 * pos:3 * pos + 3] = [float(tangent[0]), float(tangent[1]), float(tangent[2])]
+              meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
+              meshObject.normalList[3 * pos:3 * pos + 3] = [float(normal[0]), float(normal[1]), float(normal[2])]
+              if appearance.diffuse != None:
+                meshObject.uvList[2 * pos:2 * pos + 2] = verticesUV[obj.polygonsUV[poly][ind]][0:2]
+              if appearance.normal != None:
+                meshObject.tangentList[3 * pos:3 * pos + 3] = [float(tangent[0]), float(tangent[1]), float(tangent[2])]
               pos += 1
         else: #Smooth shading
-          tmpNormals = []
-          for i in range(0, len(tmpVertices)):
-            tmpNormals.append(numpy.array([0., 0., 0.,]))
-          if genTex == True:
-            tmpTangents = []
-            for i in range(0, len(tmpVertices)):
-              tmpTangents.append(numpy.array([0., 0., 0.,]))
+          normals = []
+          for i in range(0, len(vertices)):
+            normals.append(numpy.array([0., 0., 0.,]))
+          if appearance.normal != None:
+            tangents = []
+            for i in range(0, len(vertices)):
+              tangents.append(numpy.array([0., 0., 0.,]))
           for poly in range(0, len(obj.polygons)):
-            if genTex == True: #Generate tangent coordinates
-              tangent = getTangent(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
-                                   tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]], 
-                                   tmpVerticesUV[obj.polygonsUV[poly][1]] - tmpVerticesUV[obj.polygonsUV[poly][0]], 
-                                   tmpVerticesUV[obj.polygonsUV[poly][2]] - tmpVerticesUV[obj.polygonsUV[poly][0]])
+            if appearance.normal != None: #Generate tangent coordinates
+              tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
+                                   vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]], 
+                                   verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]], 
+                                   verticesUV[obj.polygonsUV[poly][2]] - verticesUV[obj.polygonsUV[poly][0]])
               tangent = normalize(tangent)
-            normal = getNormal(tmpVertices[obj.polygons[poly][1]] - tmpVertices[obj.polygons[poly][0]], 
-                               tmpVertices[obj.polygons[poly][2]] - tmpVertices[obj.polygons[poly][0]])
+            normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
+                               vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]])
             normal = normalize(normal)
             for ind in obj.polygons[poly]:
-              tmpNormals[ind] += numpy.array([float(normal[0]), float(normal[1]), float(normal[2])])
-              if genTex == True:
-                tmpTangents[ind] += numpy.array([float(tangent[0]), float(tangent[1]), float(tangent[2])])
-          for i in range(0, len(tmpVertices)):
-            tmpNormals[i] = normalize(tmpNormals[i])
-            if genTex == True:
-              tmpTangents[i] = normalize(tmpTangents[i])
+              normals[ind] += numpy.array([float(normal[0]), float(normal[1]), float(normal[2])])
+              if appearance.normal != None:
+                tangents[ind] += numpy.array([float(tangent[0]), float(tangent[1]), float(tangent[2])])
+          for i in range(0, len(vertices)):
+            normals[i] = normalize(normals[i])
+            if appearance.normal != None:
+              tangents[i] = normalize(tangents[i])
           for poly in range(0, len(obj.polygons)):
-            pos = 0
+            #pos = 0
             if len(obj.polygons[poly]) == 3:
-              pos = tPos
-              tPos += 3
-            elif len(obj.polygons[poly]) == 4:
-              pos = qPos
-              qPos += 4
+              pos = triOffset
+              triOffset += 3
+            #elif len(obj.polygons[poly]) == 4:
+            else:
+              pos = quadOffset
+              quadOffset += 4
             for ind in range(0, len(obj.polygons[poly])):
-              newMesh.vertexList[3 * pos:3 * pos + 3] = tmpVertices[obj.polygons[poly][ind]][0:3]
-              newMesh.normalList[3 * pos:3 * pos + 3] = tmpNormals[obj.polygons[poly][ind]][0:3]
-              if genTex == True:
-                newMesh.texList[2 * pos:2 * pos + 2] = tmpVerticesUV[obj.polygonsUV[poly][ind]][0:2]
-                newMesh.tangentList[3 * pos:3 * pos + 3] = tmpTangents[obj.polygons[poly][ind]][0:3]
+              meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
+              meshObject.normalList[3 * pos:3 * pos + 3] = normals[obj.polygons[poly][ind]][0:3]
+              if appearance.diffuse != None:
+                meshObject.uvList[2 * pos:2 * pos + 2] = verticesUV[obj.polygonsUV[poly][ind]][0:2]
+              if appearance.normal != None:
+                meshObject.tangentList[3 * pos:3 * pos + 3] = tangents[obj.polygons[poly][ind]][0:3]
               pos += 1
         _tsb = time.time()
-        print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * (_offset + 2), _tsb - _tsa, len(newMesh.vertexList) / 3, len(obj.polygons))
-    return [newMesh]
+        vrmlShape._vcount += len(vertices)
+        vrmlShape._pcount += len(obj.polygons)
+        print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, len(vertices), len(obj.polygons))
+    return (triOffset, quadOffset)
   def write(self, fd, compList, transform):
     print "Write object %s" % self.name
     if self.parent and self.parent.name != "":
@@ -558,7 +609,7 @@ class vrmlGeometry(vrmlEntry):
                                                                   self.triCount + self.quadCount)
       elif texSearch != None:
         self.polygonsUV = tmpPolygons
-        print "%sRead UV poly done, %d poly, %d vertices" % (' ' * self._level, len(self.polygonsUV), 0)
+        print "%sRead UV poly done, %d poly" % (' ' * self._level, len(self.polygonsUV))
 
 class vrmlCoordinates(vrmlEntry):
   TYPE = {'model' : 0, 'texture' : 1}
@@ -618,6 +669,8 @@ class vrmlCoordinates(vrmlEntry):
 class vrmlAppearance(vrmlEntry):
   def __init__(self, parent = None):
     vrmlEntry.__init__(self, parent)
+    self.diffuse = None
+    self.normal = None
   def __eq__(self, other): #TODO remove in wrlconv
     if not isinstance(other, vrmlAppearance):
       return False
@@ -707,6 +760,7 @@ class vrmlTexture(vrmlEntry):
     if tmp != None:
       self.fileName = tmp.group(1)
     self.filePath = os.getcwd()
+    self.parent.diffuse = self #TODO add normalmap and cubemap
   def __eq__(self, other): #TODO remove in wrlconv
     if not isinstance(other, vrmlTexture):
       return False
@@ -723,50 +777,53 @@ class mesh:
     self.vertexVBO   = 0
     self.normalList  = None
     self.normalVBO   = 0
-    self.texList     = None
-    self.texVBO      = 0
+    self.uvList      = None
+    self.uvVBO       = 0
     self.tangentList = None
     self.tangentVBO  = 0
-    self.appearance  = None
     self.objects     = []
-    self.solid       = False
   def draw(self):
-    if self.solid:
-      glEnable(GL_CULL_FACE)
     glEnableClientState(GL_VERTEX_ARRAY)
-    glEnableClientState(GL_NORMAL_ARRAY)
     glBindBuffer(GL_ARRAY_BUFFER, self.vertexVBO)
     glVertexPointer(3, GL_FLOAT, 0, None)
+    glEnableClientState(GL_NORMAL_ARRAY)
     glBindBuffer(GL_ARRAY_BUFFER, self.normalVBO)
     glNormalPointer(GL_FLOAT, 0, None)
-    if self.texList != None:
+    if self.uvList != None:
       glEnableClientState(GL_TEXTURE_COORD_ARRAY)
-      glEnableVertexAttribArray(1)
-      glBindBuffer(GL_ARRAY_BUFFER, self.texVBO)
+      glBindBuffer(GL_ARRAY_BUFFER, self.uvVBO)
       glTexCoordPointer(2, GL_FLOAT, 0, None)
+    if self.tangentList != None:
+      glEnableVertexAttribArray(1)
       glBindBuffer(GL_ARRAY_BUFFER, self.tangentVBO)
       glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
     for obj in self.objects:
       obj.draw()
+    glDisableVertexAttribArray(1)
     glDisableClientState(GL_TEXTURE_COORD_ARRAY)
     glDisableClientState(GL_NORMAL_ARRAY)
     glDisableClientState(GL_VERTEX_ARRAY)
-    glDisableVertexAttribArray(1)
     glDisable(GL_CULL_FACE)
 
 class faceset:
-  def __init__(self, mode):
-    self.mode   = mode
+  #def __init__(self, mode):
+  def __init__(self):
+    self.appearance = None
+    self.mode   = []
     self.index  = []
     self.length = []
-  def append(self, ind, size):
-    self.index.append(ind)
-    self.length.append(size)
+    self.solid = False
+  def append(self, mode, index, length):
+    self.mode.append(mode)
+    self.index.append(index)
+    self.length.append(length)
   def draw(self):
-    if len(self.index) == 1:
-      glDrawArrays(self.mode, self.index[0], self.length[0])
-    elif len(self.index) > 1:
-      glMultiDrawArrays(self.mode, self.index, self.length, len(self.index))
+    if self.solid:
+      glEnable(GL_CULL_FACE)
+    else:
+      glDisable(GL_CULL_FACE)
+    for i in range(0, len(self.index)):
+      glDrawArrays(self.mode[i], self.index[i], self.length[i])
 
 def loadShader(name):
   fd = open("./shaders/%s.vert" % name, "rb")
@@ -858,54 +915,9 @@ class render:
   def initScene(self, aScene):
     vrmlShape._vcount = 0
     vrmlShape._pcount = 0
-    for entry in aScene.objects:
-      self.data.extend(entry.mesh(aScene.transform))
-    #for mat in aScene.entries:
-      #if isinstance(mat, vrmlAppearance):
-        #print mat
-    ##Geometry optimization
-    #rebuilded = []
-    #for mat in aScene.entries:
-      #if isinstance(mat, vrmlAppearance):
-        #metamesh = mesh()
-        #vertexCount = 0
-        #triCount = 0
-        #quadCount = 0
-        #for entry in self.data:
-          #if mat == entry.appearance:
-            #vertexCount += len(entry.vertexList)
-            #for fset in entry.objects:
-              #if fset.mode == GL_TRIANGLES:
-                #triCount += sum(fset.length)
-              #elif fset.mode == GL_QUADS:
-                #quadCount += sum(fset.length)
-        #metamesh.vertexList = numpy.zeros(vertexCount, dtype = numpy.float32)
-        #metamesh.normalList = numpy.zeros(vertexCount, dtype = numpy.float32)
-        #triPos = 0
-        #quadPos = 0
-        #for entry in self.data:
-          #if mat == entry.appearance:
-            #for fset in entry.objects:
-              #for s in range(0, len(fset.index)):
-                #if fset.mode == GL_TRIANGLES:
-                  #pos = triPos
-                  #triPos += fset.length[s] * 3
-                #elif fset.mode == GL_QUADS:
-                  #pos = quadPos
-                  #quadPos += fset.length[s] * 3
-                #print pos
-                #for i in range(0, fset.length[s] * 3):
-                  #metamesh.vertexList[pos + i] = entry.vertexList[fset.index[s] * 3 + i]
-                  #metamesh.normalList[pos + i] = entry.normalList[fset.index[s] * 3 + i]
-        #fs = faceset(GL_TRIANGLES)
-        #fs.append(0, triPos)
-        #metamesh.objects.append(fs)
-        #fs = faceset(GL_QUADS)
-        #fs.append(triPos, quadPos)
-        #metamesh.objects.append(fs)
-        #metamesh.appearance = mat
-        #rebuilded.append(metamesh)
-    #self.data = rebuilded
+    self.data = aScene.mesh()
+    #for entry in aScene.objects:
+      #self.data.extend(entry.mesh(aScene.transform))
     print "Total vertex count: %d, polygon count: %d, mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
     for meshEntry in self.data:
       meshEntry.vertexVBO = glGenBuffers(1)
@@ -917,15 +929,16 @@ class render:
       meshEntry.normalVBO = glGenBuffers(1)
       glBindBuffer(GL_ARRAY_BUFFER, meshEntry.normalVBO)
       glBufferData(GL_ARRAY_BUFFER, meshEntry.normalList, GL_STATIC_DRAW)
-      if meshEntry.texList != None:
-        meshEntry.texVBO = glGenBuffers(1)
-        glBindBuffer(GL_ARRAY_BUFFER, meshEntry.texVBO)
-        glBufferData(GL_ARRAY_BUFFER, meshEntry.texList, GL_STATIC_DRAW)
+      if meshEntry.uvList != None:
+        meshEntry.uvVBO = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, meshEntry.uvVBO)
+        glBufferData(GL_ARRAY_BUFFER, meshEntry.uvList, GL_STATIC_DRAW)
+      if meshEntry.tangentList != None:
         meshEntry.tangentVBO = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, meshEntry.tangentVBO)
         glBufferData(GL_ARRAY_BUFFER, meshEntry.tangentList, GL_STATIC_DRAW)
-      if meshEntry.appearance != None:
-        for mat in meshEntry.appearance.objects:
+      for sets in meshEntry.objects:
+        for mat in sets.appearance.objects:
           if isinstance(mat, vrmlTexture) and mat.texID == None:
             self.loadTexture(mat)
   def loadTexture(self, arg):
@@ -1017,8 +1030,8 @@ class render:
       glUseProgram(0)
       self.drawAxis()
       for current in self.data:
-        if current.appearance != None:
-          self.setAppearance(current.appearance)
+        for entry in current.objects: #FIXME separate in mesh
+          self.setAppearance(entry.appearance)
         current.draw()
         glDisable(GL_TEXTURE_2D)
       glutSwapBuffers()
