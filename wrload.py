@@ -269,14 +269,11 @@ class vrmlScene(vrmlEntry):
         count = numpy.array([0, 0])
         for geo in entry.objects:
           if isinstance(geo, vrmlGeometry):
-            count += numpy.array([geo.triCount, geo.quadCount])#(count[0] + geo.triCount, count[1] + geo.quadCount)
+            count += numpy.array([geo.triCount, geo.quadCount])
         for app in entry.objects:
           if isinstance(app, vrmlAppearance):
-            print "Appearance id: %d, pos: " % app.id,
-            print app
             if app.id not in groups.keys():
               groups[app.id] = groupDescriptor(app)
-            #groups[app.id].count = (groups[app.id].count[0] + count[0], groups[app.id].count[1] + count[1])
             groups[app.id].count += count
             groups[app.id].objects.append(entry)
             break
@@ -294,47 +291,42 @@ class vrmlScene(vrmlEntry):
       for shape in groups[i].objects:
         offsets = shape.mesh(meshobj, offsets, groups[i].appearance)
       fs = faceset()
-      fs.append(GL_TRIANGLES, 0, offsets[0]) #FIXME
-      fs.append(GL_QUADS, offsets[0], offsets[1])
+      if offsets[0] > 0:
+        fs.append(GL_TRIANGLES, 0, offsets[0])
+      if offsets[1] > 0:
+        fs.append(GL_QUADS, offsets[0], offsets[1])
       fs.appearance = groups[i].appearance
       meshobj.objects.append(fs)
       res.append(meshobj)
     return res
 
-class vrmlInline(vrmlEntry): #FIXME Rewrite
-  def __init__(self, parent):
-    vrmlEntry.__init__(self, parent)
-    self.entries = []
-    #FIXME added
-    self.transform = numpy.matrix([[1., 0., 0., 0.],
-                                   [0., 1., 0., 0.],
-                                   [0., 0., 1., 0.],
-                                   [0., 0., 0., 1.]])
-  def readSpecific(self, fd, string):
-    urlSearch = re.search("url\s+\"([\w\-\._\/]+)\"", string, re.S)
-    if urlSearch != None:
-      oldDir = os.getcwd()
-      if os.path.isfile(urlSearch.group(1)):
-        #print "%sLoading file: %s" % (' ' * self._level, urlSearch.group(1))
-        #self.name = urlSearch.group(1)
-        wrlFile = open(urlSearch.group(1), "r")
-        if len(os.path.dirname(urlSearch.group(1))) > 0:
-          os.chdir(os.path.dirname(urlSearch.group(1)))
-        self.read(wrlFile)
-        wrlFile.close()
-      else:
-        print "%sFile not found: %s" % (' ' * self._level, urlSearch.group(1))
-      os.chdir(oldDir)
-  #def mesh(self, transform, _offset):
-    #print "%sDrawing inline: %s" % (' ' * _offset, self.name)
-    #res = []
+#class vrmlInline(vrmlEntry): #FIXME Rewrite
+  #def __init__(self, parent):
+    #vrmlEntry.__init__(self, parent)
+    #self.entries = []
+    ##FIXME added
+    #self.transform = numpy.matrix([[1., 0., 0., 0.],
+                                   #[0., 1., 0., 0.],
+                                   #[0., 0., 1., 0.],
+                                   #[0., 0., 0., 1.]])
+  #def readSpecific(self, fd, string):
+    #urlSearch = re.search("url\s+\"([\w\-\._\/]+)\"", string, re.S)
+    #if urlSearch != None:
+      #oldDir = os.getcwd()
+      #if os.path.isfile(urlSearch.group(1)):
+        ##print "%sLoading file: %s" % (' ' * self._level, urlSearch.group(1))
+        ##self.name = urlSearch.group(1)
+        #wrlFile = open(urlSearch.group(1), "r")
+        #if len(os.path.dirname(urlSearch.group(1))) > 0:
+          #os.chdir(os.path.dirname(urlSearch.group(1)))
+        #self.read(wrlFile)
+        #wrlFile.close()
+      #else:
+        #print "%sFile not found: %s" % (' ' * self._level, urlSearch.group(1))
+      #os.chdir(oldDir)
+  #def write(self, fd, compList, transform):
     #for obj in self.objects:
-      ##print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
-      #res.extend(obj.mesh(transform, _offset + 2))
-    #return res
-  def write(self, fd, compList, transform):
-    for obj in self.objects:
-      obj.write(fd, compList, transform)
+      #obj.write(fd, compList, transform)
 
 class vrmlTransform(vrmlEntry):
   def __init__(self, parent):
@@ -367,18 +359,30 @@ class vrmlTransform(vrmlEntry):
                             [0., 0., float(tmp.group(3)), 0.],
                             [0., 0., 0., 1.]])
       self.transform = self.transform * tform
-  #def mesh(self, transform, _offset):
-    #print "%sDrawing transform: %s" % (' ' * _offset, self.name)
-    #res = []
-    #tform = transform * self.transform
-    #for obj in self.objects:
-      ##print "%sSubobject: %s (%s)" % (' ' * _offset, obj.name, obj.__class__.__name__)
-      #res.extend(obj.mesh(tform, _offset + 2))
-    #return res
   def write(self, fd, compList, transform):
     tform = transform * self.transform
     for obj in self.objects:
       obj.write(fd, compList, tform)
+
+class vrmlInline(vrmlTransform):
+  def __init__(self, parent):
+    vrmlTransform.__init__(self, parent)
+    self.entries = []
+  def readSpecific(self, fd, string):
+    urlSearch = re.search("url\s+\"([\w\-\._\/]+)\"", string, re.S)
+    if urlSearch != None:
+      oldDir = os.getcwd()
+      if os.path.isfile(urlSearch.group(1)):
+        #print "%sLoading file: %s" % (' ' * self._level, urlSearch.group(1))
+        #self.name = urlSearch.group(1)
+        wrlFile = open(urlSearch.group(1), "r")
+        if len(os.path.dirname(urlSearch.group(1))) > 0:
+          os.chdir(os.path.dirname(urlSearch.group(1)))
+        self.read(wrlFile)
+        wrlFile.close()
+      else:
+        print "%sFile not found: %s" % (' ' * self._level, urlSearch.group(1))
+      os.chdir(oldDir)
 
 class vrmlShape(vrmlEntry):
   _vcount = 0
@@ -404,14 +408,16 @@ class vrmlShape(vrmlEntry):
         vertices = []
         verticesUV = []
         for coords in obj.objects:
-          if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
-            for vert in coords.vertices:
-              tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
-              tmp = transform * tmp
-              vertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
-          elif isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['texture']:
-            for vert in coords.vertices:
-              verticesUV.append(vert)
+          if isinstance(coords, vrmlCoordinates):
+            if coords.cType == vrmlCoordinates.TYPE['model']:
+              for vert in coords.vertices:
+                tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
+                tmp = transform * tmp
+                vertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
+            elif coords.cType == vrmlCoordinates.TYPE['texture']:
+              verticesUV = coords.vertices
+              #for vert in coords.vertices:
+                #verticesUV.append(vert)
         if obj.smooth == False: #Flat shading
           for poly in range(0, len(obj.polygons)):
             if appearance.normal != None: #Generate tangent coordinates
@@ -760,7 +766,10 @@ class vrmlTexture(vrmlEntry):
     if tmp != None:
       self.fileName = tmp.group(1)
     self.filePath = os.getcwd()
-    self.parent.diffuse = self #TODO add normalmap and cubemap
+    if self.fileName == "normalmap": #TODO modify
+      self.parent.normal = self
+    else:
+      self.parent.diffuse = self
   def __eq__(self, other): #TODO remove in wrlconv
     if not isinstance(other, vrmlTexture):
       return False
@@ -806,7 +815,6 @@ class mesh:
     glDisable(GL_CULL_FACE)
 
 class faceset:
-  #def __init__(self, mode):
   def __init__(self):
     self.appearance = None
     self.mode   = []
