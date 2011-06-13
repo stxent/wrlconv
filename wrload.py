@@ -89,7 +89,7 @@ def createShader(vertSource, fragSource):
     print "Shader compilation failed"
     exit()
   except:
-    print "Unknowm shader error"
+    print "Unknown shader error"
     exit()
   return program
 
@@ -180,7 +180,7 @@ class vrmlEntry:
           duplicate = False
           for current in ptr.entries: #Search for duplicates
             if entry == current:
-              print "Duplicate"
+              print "%sNot unique, using entry with id: %d" % (' ' * self._level, current.id)
               entry = current
               duplicate = True
               break
@@ -189,12 +189,12 @@ class vrmlEntry:
             #entry = current
             #duplicate = True
           self.objects.append(entry)
+          if inline:
+            inline.entries.append(entry)
           if not duplicate:
             entry.id = vrmlEntry.identifier #FIXME added
             vrmlEntry.identifier += 1
             ptr.entries.append(entry)
-            if inline:
-              inline.entries.append(entry)
       else:
         (delta, offset) = calcBalance(data, -(balance + 1), ('{'), ('}'))
         balance += delta
@@ -257,7 +257,7 @@ class vrmlScene(vrmlEntry):
     for entry in self.objects:
       entry.write(wrlFile, compList, self.transform)
     wrlFile.close()
-  def mesh(self):
+  def buildMesh(self):
     class groupDescriptor:
       def __init__(self, appearance):
         self.appearance = appearance
@@ -277,8 +277,10 @@ class vrmlScene(vrmlEntry):
             groups[app.id].count += count
             groups[app.id].objects.append(entry)
             break
+    print "Objects grouped, total groups: %d" % len(groups)
     res = []
     for i in groups.keys(): #FIXME rewrite
+      print "Building group with appearance id: %d" % groups[i].appearance.id
       meshobj = mesh()
       length = groups[i].count[0] + groups[i].count[1]
       meshobj.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
@@ -362,7 +364,7 @@ class vrmlShape(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
   def mesh(self, meshObject, offsets, appearance):
-    print "%sDraw shape %s" % (' ' * 2, self.name)
+    #print "%sDraw shape %s" % (' ' * 2, self.name)
     (triOffset, quadOffset) = (offsets[0], offsets[1])
     #transform = self.transform
     transform = numpy.matrix([[1., 0., 0., 0.],
@@ -401,12 +403,10 @@ class vrmlShape(vrmlEntry):
             normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
                                vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]])
             normal = normalize(normal)
-            #pos = 0
             if len(obj.polygons[poly]) == 3:
               pos = triOffset
               triOffset += 3
             else:
-            #elif len(obj.polygons[poly]) == 4:
               pos = quadOffset
               quadOffset += 4
             for ind in range(0, len(obj.polygons[poly])):
@@ -444,11 +444,9 @@ class vrmlShape(vrmlEntry):
             if appearance.normal:
               tangents[i] = normalize(tangents[i])
           for poly in range(0, len(obj.polygons)):
-            #pos = 0
             if len(obj.polygons[poly]) == 3:
               pos = triOffset
               triOffset += 3
-            #elif len(obj.polygons[poly]) == 4:
             else:
               pos = quadOffset
               quadOffset += 4
@@ -524,7 +522,7 @@ class vrmlGeometry(vrmlEntry):
       print "%sStart polygon read" % (' ' * self._level)
       polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
       indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
-      tmpPolygons = []
+      polygons = []
       delta, offset, balance = 0, 0, 0
       data = string
       if coordSearch:
@@ -552,20 +550,20 @@ class vrmlGeometry(vrmlEntry):
             if coordSearch:
               if len(polyData) == 3:
                 self.triCount += 3
-                tmpPolygons.append(polyData)
+                polygons.append(polyData)
               elif len(polyData) == 4:
                 self.quadCount += 4
-                tmpPolygons.append(polyData)
+                polygons.append(polyData)
               else:
-                for tpos in range(1, len(polyData) - 1):
+                for tesselPos in range(1, len(polyData) - 1):
                   self.triCount += 3
-                  tmpPolygons.append([polyData[0], polyData[tpos], polyData[tpos + 1]])
+                  polygons.append([polyData[0], polyData[tesselPos], polyData[tesselPos + 1]])
             if texSearch:
               if len(polyData) > 4:
-                for tpos in range(1, len(polyData) - 1):
-                  tmpPolygons.append([polyData[0], polyData[tpos], polyData[tpos + 1]])
+                for tesselPos in range(1, len(polyData) - 1):
+                  polygons.append([polyData[0], polyData[tesselPos], polyData[tesselPos + 1]])
               else:
-                tmpPolygons.append(polyData)
+                polygons.append(polyData)
             pPos = regexp.end()
           else:
             (delta, offset) = calcBalance(data, None, (), (']'))
@@ -582,11 +580,11 @@ class vrmlGeometry(vrmlEntry):
           break
         pPos = 0
       if coordSearch:
-        self.polygons = tmpPolygons
+        self.polygons = polygons
         print "%sRead poly done, %d tri, %d quad, %d vertices" % (' ' * self._level, self.triCount / 3, self.quadCount / 4, 
                                                                   self.triCount + self.quadCount)
       elif texSearch:
-        self.polygonsUV = tmpPolygons
+        self.polygonsUV = polygons
         print "%sRead UV poly done, %d poly" % (' ' * self._level, len(self.polygonsUV))
 
 class vrmlCoordinates(vrmlEntry):
@@ -652,7 +650,9 @@ class vrmlAppearance(vrmlEntry):
   def __eq__(self, other): #TODO remove in wrlconv
     if not isinstance(other, vrmlAppearance):
       return False
-    for mat in self.objects:
+    if len(self.objects) != len(other.objects):
+      return False
+    for mat in self.objects: #FIXME optimize
       if mat not in other.objects:
         return False
     return True
@@ -897,9 +897,7 @@ class render:
   def initScene(self, aScene):
     vrmlShape._vcount = 0
     vrmlShape._pcount = 0
-    self.data = aScene.mesh()
-    #for entry in aScene.objects:
-      #self.data.extend(entry.mesh(aScene.transform))
+    self.data = aScene.buildMesh()
     print "Total vertex count: %d, polygon count: %d, mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
     for meshEntry in self.data:
       meshEntry.vertexVBO = glGenBuffers(1)
@@ -1022,7 +1020,7 @@ class render:
       glUseProgram(0)
       self.drawAxis()
       for current in self.data:
-        for entry in current.objects: #FIXME separate in mesh
+        for entry in current.objects: #FIXME move to mesh
           self.setAppearance(entry.appearance)
         current.draw()
         glDisable(GL_TEXTURE_2D)
@@ -1121,6 +1119,25 @@ class render:
     if key == "r" or key == "R":
       self.camera = numpy.matrix([[0.], [20.], [0.], [1.]])
       self.pov    = numpy.matrix([[0.], [0.], [0.], [1.]])
+    #if key == "w" or key == "W": #FIXME rewrite
+      #vect = normalize(self.pov - self.camera)
+      #self.pov += vect
+      #self.camera += vect
+    #if key == "s" or key == "S":
+      #vect = normalize(self.pov - self.camera)
+      #vect[3] = 0.
+      #self.pov -= vect
+      #self.camera -= vect
+    #if key == "a" or key == "A":
+      #normal = normalize(getNormal([0., 0., 1.], self.camera - self.pov))
+      #normal = numpy.matrix([[float(normal[0])], [float(normal[1])], [float(normal[2])], [0.]])
+      #self.pov -= normal
+      #self.camera -= normal
+    #if key == "d" or key == "D":
+      #normal = normalize(getNormal([0., 0., 1.], self.camera - self.pov))
+      #normal = numpy.matrix([[float(normal[0])], [float(normal[1])], [float(normal[2])], [0.]])
+      #self.pov += normal
+      #self.camera += normal
     self.updated = True
 
 parser = optparse.OptionParser()
