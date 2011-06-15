@@ -390,8 +390,6 @@ class vrmlShape(vrmlEntry):
                 vertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
             elif coords.cType == vrmlCoordinates.TYPE['texture']:
               verticesUV = coords.vertices
-              #for vert in coords.vertices:
-                #verticesUV.append(vert)
         if obj.smooth == False: #Flat shading
           for poly in range(0, len(obj.polygons)):
             if appearance.normal: #Generate tangent coordinates
