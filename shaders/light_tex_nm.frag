@@ -6,7 +6,6 @@ uniform sampler2D diffuseTexture, normalTexture;
 
 void main()
 {
-  vec4 texel;
   vec3 reflection;
   float diffuseIntensity, specularModifier;
   vec4 color = vec4(ambientGlobal, gl_FrontMaterial.diffuse.a);
@@ -25,8 +24,7 @@ void main()
       color.rgb += specular[i] * pow(specularModifier, gl_FrontMaterial.shininess);
     }
   }
-  texel = texture2D(diffuseTexture, gl_TexCoord[0].st);
-  color *= texel;
+  color *= texture2D(diffuseTexture, gl_TexCoord[0].st);
 
   gl_FragColor = clamp(color, 0.0, 1.0);
 }
