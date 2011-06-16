@@ -890,7 +890,11 @@ class render:
     self.shaders['colored'] = loadShader("light");
     self.shaders['textured'] = loadShader("light_tex");
     self.shaders['colored_nm'] = loadShader("light_nm");
+    glBindAttribLocation(self.shaders['colored_nm'], 1, "tangent")
+    glLinkProgram(self.shaders['colored_nm'])
     self.shaders['textured_nm'] = loadShader("light_tex_nm");
+    glBindAttribLocation(self.shaders['textured_nm'], 1, "tangent")
+    glLinkProgram(self.shaders['textured_nm'])
     os.chdir(oldDir)
   def initScene(self, aScene):
     vrmlShape._vcount = 0
@@ -899,11 +903,10 @@ class render:
     print "Total vertex count: %d, polygon count: %d, mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
     for meshEntry in self.data:
       meshEntry.vertexVBO = glGenBuffers(1)
-      #if glIsBuffer(meshEntry.vertexVBO) == GL_FALSE:
-        #print "Error creating OpenGL buffer"
-        #exit()
       glBindBuffer(GL_ARRAY_BUFFER, meshEntry.vertexVBO)
       glBufferData(GL_ARRAY_BUFFER, meshEntry.vertexList, GL_STATIC_DRAW)
+      #if glIsBuffer(meshEntry.vertexVBO) != GL_FALSE:
+        #print "Buffer created"
       meshEntry.normalVBO = glGenBuffers(1)
       glBindBuffer(GL_ARRAY_BUFFER, meshEntry.normalVBO)
       glBufferData(GL_ARRAY_BUFFER, meshEntry.normalList, GL_STATIC_DRAW)
