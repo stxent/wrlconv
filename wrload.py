@@ -132,7 +132,7 @@ class vrmlEntry:
         entryType = regexp.group(3)
         try:
           if isinstance(self, vrmlScene) or isinstance(self, vrmlTransform) or isinstance(self, vrmlInline):
-            if entryType == "Transform" or entryType == "Group":
+            if entryType == "Transform" or entryType == "Group" or entryType == "Collision":
               entry = vrmlTransform(self)
             elif entryType == "Inline":
               entry = vrmlInline(self)
@@ -501,7 +501,7 @@ class vrmlGeometry(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
     self.smooth     = False
-    #self.smooth     = True
+    self.smooth     = True
     self.solid      = False
     self.polygons   = None
     self.triCount   = 0
@@ -732,7 +732,7 @@ class vrmlTexture(vrmlEntry):
     self.filePath = ""
     self.texType  = None
   def readSpecific(self, fd, string):
-    tmp = re.search("url\s+\"([\w\-\.:]+)\"", string, re.I | re.S)
+    tmp = re.search("url\s+\"([\w\-\.:\/]+)\"", string, re.I | re.S)
     if tmp:
       self.fileName = tmp.group(1)
     self.filePath = os.getcwd()
