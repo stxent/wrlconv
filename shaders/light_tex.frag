@@ -1,6 +1,7 @@
 // Fragment program
 #define LIGHTS 2
-varying vec3 normal, pos, ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
+varying vec3 ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
+varying vec3 normal, view;
 varying vec3 light[LIGHTS];
 uniform sampler2D diffuseTexture;
 
@@ -8,7 +9,6 @@ void main()
 {
   vec4 color = vec4(ambientGlobal, gl_FrontMaterial.diffuse.a);
   vec3 reflection;
-  vec3 view = normalize(-pos.xyz);
 
   for (int i = 0; i < LIGHTS; i++)
   {

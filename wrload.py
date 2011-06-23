@@ -501,7 +501,7 @@ class vrmlGeometry(vrmlEntry):
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
     self.smooth     = False
-    self.smooth     = True
+    #self.smooth     = True
     self.solid      = False
     self.polygons   = None
     self.triCount   = 0
