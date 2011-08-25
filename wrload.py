@@ -289,15 +289,16 @@ class vrmlScene(vrmlEntry):
         meshobj.uvList = numpy.zeros(length * 2, dtype = numpy.float32)
       if groups[i].appearance.normal:
         meshobj.tangentList = numpy.zeros(length * 3, dtype = numpy.float32)
-      offsets = (0, groups[i].count[0]) #(Triangels, Quads)
+      offsets = (0, groups[i].count[0]) #(Triangles, Quads)
       for shape in groups[i].objects:
         offsets = shape.mesh(meshobj, offsets, groups[i].appearance)
       fs = faceset()
       if offsets[0] > 0:
         fs.append(GL_TRIANGLES, 0, offsets[0])
-      if offsets[1] > 0:
-        fs.append(GL_QUADS, offsets[0], offsets[1])
-      fs.appearance = groups[i].appearance
+      if offsets[1] > offsets[0]:
+        fs.append(GL_QUADS, offsets[0], offsets[1] - offsets[0])
+      #fs.appearance = groups[i].appearance
+      meshobj.appearance = groups[i].appearance #FIXME Added
       meshobj.objects.append(fs)
       res.append(meshobj)
     return res
@@ -761,6 +762,7 @@ class mesh:
     self.tangentList = None
     self.tangentVBO  = 0
     self.objects     = []
+    self.appearance = None #FIXME Added
   def draw(self):
     glEnableClientState(GL_VERTEX_ARRAY)
     glBindBuffer(GL_ARRAY_BUFFER, self.vertexVBO)
@@ -776,6 +778,9 @@ class mesh:
       glEnableVertexAttribArray(1)
       glBindBuffer(GL_ARRAY_BUFFER, self.tangentVBO)
       glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
+    #Disabe writing z-values for transparent objects #FIXME
+    if self.appearance.objects[0].transparency > 0.0:
+      glDepthMask(GL_FALSE)
     for obj in self.objects:
       obj.draw()
     glDisableVertexAttribArray(1)
@@ -783,10 +788,11 @@ class mesh:
     glDisableClientState(GL_NORMAL_ARRAY)
     glDisableClientState(GL_VERTEX_ARRAY)
     glDisable(GL_CULL_FACE)
+    glDepthMask(GL_TRUE)
 
 class faceset:
   def __init__(self):
-    self.appearance = None
+    #self.appearance = None
     self.mode   = []
     self.index  = []
     self.length = []
@@ -873,9 +879,10 @@ class render:
     glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.0)
     glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.00005)
     #glEnable(GL_COLOR_MATERIAL)
+    #Blending using shader
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-    glCullFace(GL_BACK)
+    #glCullFace(GL_BACK)
     self.loadShaders()
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
@@ -901,6 +908,20 @@ class render:
     vrmlShape._pcount = 0
     self.data = aScene.buildMesh()
     print "Total vertex count: %d, polygon count: %d, mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
+    #Z-Ordering #FIXME
+    latest = None
+    for i in range(len(self.data) - 1, -1, -1):
+      print "Item %d, transparency %f" % (i, self.data[i].appearance.objects[0].transparency)
+      if self.data[i].appearance.objects[0].transparency > 0.0:
+        if not latest:
+          continue
+        else:
+          print "Swapping %d and %d" % (i, latest)
+          self.data[i], self.data[latest] = self.data[latest], self.data[i]
+          latest = latest - 1
+      else:
+        if not latest:
+          latest = i
     for meshEntry in self.data:
       meshEntry.vertexVBO = glGenBuffers(1)
       glBindBuffer(GL_ARRAY_BUFFER, meshEntry.vertexVBO)
@@ -918,10 +939,13 @@ class render:
         meshEntry.tangentVBO = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, meshEntry.tangentVBO)
         glBufferData(GL_ARRAY_BUFFER, meshEntry.tangentList, GL_STATIC_DRAW)
-      for sets in meshEntry.objects:
-        for mat in sets.appearance.objects:
-          if isinstance(mat, vrmlTexture) and mat.texID == None:
-            self.loadTexture(mat)
+      #for sets in meshEntry.objects:
+        #for mat in sets.appearance.objects:
+          #if isinstance(mat, vrmlTexture) and mat.texID == None:
+            #self.loadTexture(mat)
+      for mat in meshEntry.appearance.objects:
+        if isinstance(mat, vrmlTexture) and mat.texID == None:
+          self.loadTexture(mat)
   def loadTexture(self, arg):
     im = Image.open(arg.filePath + "/" + arg.fileName)
     try:
@@ -1008,7 +1032,7 @@ class render:
     glDisableClientState(GL_COLOR_ARRAY)
     glDisableClientState(GL_VERTEX_ARRAY)
   def drawScene(self):
-    self.updated = True
+    #self.updated = True
     if self.updated == True:
       self.updated = False
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -1021,8 +1045,9 @@ class render:
       glUseProgram(0)
       self.drawAxis()
       for current in self.data:
-        for entry in current.objects: #FIXME move to mesh
-          self.setAppearance(entry.appearance)
+        #for entry in current.objects: #FIXME move to mesh
+          #self.setAppearance(entry.appearance)
+        self.setAppearance(current.appearance)
         current.draw()
         glDisable(GL_TEXTURE_2D)
       glutSwapBuffers()
