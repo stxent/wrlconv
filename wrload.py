@@ -123,12 +123,12 @@ class vrmlEntry:
           print "%sRead error" % (' ' * self._level)
           break
         if balance < 0:
-          print "%sWrong balance: %d" % (' ' * self._level, balance)
+          #print "%sWrong balance: %d" % (' ' * self._level, balance)
           fd.seek(-(len(data) - regexp.start() + offset), os.SEEK_CUR)
           break
         fd.seek(-(len(data) - regexp.end()), os.SEEK_CUR)
         entry = None
-        print "%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance)
+        #print "%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance)
         entryType = regexp.group(3)
         try:
           if isinstance(self, vrmlScene) or isinstance(self, vrmlTransform) or isinstance(self, vrmlInline):
@@ -211,7 +211,7 @@ class vrmlEntry:
               print "%sFound entry %s" % (' ' * self._level, using.group(1))
               self.objects.append(obj)
         if balance < 0:
-          print "%sBalance error: %d" % (' ' * self._level, balance)
+          #print "%sBalance error: %d" % (' ' * self._level, balance)
           if initialPos == fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
           break
@@ -280,7 +280,7 @@ class vrmlScene(vrmlEntry):
     print "Objects grouped, total groups: %d" % len(groups)
     res = []
     for i in groups.keys(): #FIXME rewrite
-      print "Building group with appearance id: %d" % groups[i].appearance.id
+      print "Building group with appearance id: %d, object count: %d" % (groups[i].appearance.id, len(groups[i].objects))
       meshobj = mesh()
       length = groups[i].count[0] + groups[i].count[1]
       meshobj.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
@@ -297,8 +297,7 @@ class vrmlScene(vrmlEntry):
         fs.append(GL_TRIANGLES, 0, offsets[0])
       if offsets[1] > offsets[0]:
         fs.append(GL_QUADS, offsets[0], offsets[1] - offsets[0])
-      #fs.appearance = groups[i].appearance
-      meshobj.appearance = groups[i].appearance #FIXME Added
+      meshobj.appearance = groups[i].appearance
       meshobj.objects.append(fs)
       res.append(meshobj)
     return res
@@ -460,7 +459,7 @@ class vrmlShape(vrmlEntry):
         _tsb = time.time()
         vrmlShape._vcount += len(vertices)
         vrmlShape._pcount += len(obj.polygons)
-        print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, len(vertices), len(obj.polygons))
+        #print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, len(vertices), len(obj.polygons))
     return (triOffset, quadOffset)
   def write(self, fd, compList, transform):
     print "Write object %s" % self.name
@@ -536,7 +535,7 @@ class vrmlGeometry(vrmlEntry):
             balance += delta
             offset = len(data) - regexp.start() + offset
             if balance != 0:
-              print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
+              #print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
               break
             polyData = []
             indPos = 0
@@ -572,7 +571,7 @@ class vrmlGeometry(vrmlEntry):
         if balance != 0:
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
-          print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
+          #print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
         if len(data) == 0:
@@ -597,7 +596,7 @@ class vrmlCoordinates(vrmlEntry):
     #print "%sTry coord read: %s, type: %d" % (' ' * self._level, string.replace("\n", "").replace("\t", ""), self.cType)
     indexSearch = re.search("point\s*\[", string, re.S)
     if indexSearch:
-      print "%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType])
+      #print "%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType])
       if self.cType == vrmlCoordinates.TYPE['model']:
         vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
       elif self.cType == vrmlCoordinates.TYPE['texture']:
@@ -617,7 +616,7 @@ class vrmlCoordinates(vrmlEntry):
             if initialPos != fd.tell():
               offset += 1
             if balance != 0:
-              print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
+              #print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
               break
             if self.cType == vrmlCoordinates.TYPE['model']:
               self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2)), float(regexp.group(3))]))
@@ -633,7 +632,7 @@ class vrmlCoordinates(vrmlEntry):
         if balance != 0:
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
-          print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
+          #print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
         if len(data) == 0:
@@ -762,7 +761,8 @@ class mesh:
     self.tangentList = None
     self.tangentVBO  = 0
     self.objects     = []
-    self.appearance = None #FIXME Added
+    self.appearance  = None
+    self.zbuffer     = True
   def draw(self):
     glEnableClientState(GL_VERTEX_ARRAY)
     glBindBuffer(GL_ARRAY_BUFFER, self.vertexVBO)
@@ -778,8 +778,8 @@ class mesh:
       glEnableVertexAttribArray(1)
       glBindBuffer(GL_ARRAY_BUFFER, self.tangentVBO)
       glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
-    #Disabe writing z-values for transparent objects #FIXME
-    if self.appearance.objects[0].transparency > 0.0:
+    #Disabe writing z-values for transparent objects
+    if self.zbuffer == False:
       glDepthMask(GL_FALSE)
     for obj in self.objects:
       obj.draw()
@@ -792,7 +792,6 @@ class mesh:
 
 class faceset:
   def __init__(self):
-    #self.appearance = None
     self.mode   = []
     self.index  = []
     self.length = []
@@ -911,12 +910,16 @@ class render:
     #Z-Ordering #FIXME
     latest = None
     for i in range(len(self.data) - 1, -1, -1):
-      print "Item %d, transparency %f" % (i, self.data[i].appearance.objects[0].transparency)
-      if self.data[i].appearance.objects[0].transparency > 0.0:
+      tp = 0.0
+      for mat in self.data[i].appearance.objects:
+        if isinstance(mat, vrmlMaterial):
+          tp = mat.transparency;
+          break
+      if tp > 0.0:
+        self.data[i].zbuffer = False
         if not latest:
           continue
         else:
-          print "Swapping %d and %d" % (i, latest)
           self.data[i], self.data[latest] = self.data[latest], self.data[i]
           latest = latest - 1
       else:
@@ -939,10 +942,6 @@ class render:
         meshEntry.tangentVBO = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, meshEntry.tangentVBO)
         glBufferData(GL_ARRAY_BUFFER, meshEntry.tangentList, GL_STATIC_DRAW)
-      #for sets in meshEntry.objects:
-        #for mat in sets.appearance.objects:
-          #if isinstance(mat, vrmlTexture) and mat.texID == None:
-            #self.loadTexture(mat)
       for mat in meshEntry.appearance.objects:
         if isinstance(mat, vrmlTexture) and mat.texID == None:
           self.loadTexture(mat)
@@ -1045,8 +1044,6 @@ class render:
       glUseProgram(0)
       self.drawAxis()
       for current in self.data:
-        #for entry in current.objects: #FIXME move to mesh
-          #self.setAppearance(entry.appearance)
         self.setAppearance(current.appearance)
         current.draw()
         glDisable(GL_TEXTURE_2D)
@@ -1207,15 +1204,6 @@ for fileName in args:
     sc.loadFile(fileName)
     if options.rebuild == True:
       sc.saveFile(os.path.splitext(fileName)[0] + ".re.wrl")
-
-def hprint(obj, level = 0):
-  for i in obj.objects:
-    print "%s%s - %s" % (' ' * level, i.__class__.__name__, i.name)
-    hprint(i, level + 2)
-
-print "----------------STRUCTURE---------------"
-hprint(sc)
-print "----------------END STRUCTURE-----------"
 
 if options.view == True:
   rend = render(sc)
