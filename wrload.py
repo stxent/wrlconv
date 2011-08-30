@@ -263,20 +263,33 @@ class vrmlScene(vrmlEntry):
         self.appearance = appearance
         self.count = numpy.array([0, 0])
         self.objects = []
+    def groupObjects(top, grps):
+      for entry in top.objects:
+        if isinstance(top, vrmlScene) or isinstance(top, vrmlTransform):
+          groupObjects(entry, grps)
+        if isinstance(entry, vrmlShape):
+          count = numpy.array([0, 0])
+          for geo in entry.objects:
+            if isinstance(geo, vrmlGeometry):
+              count += numpy.array([geo.triCount, geo.quadCount])
+          for app in entry.objects:
+            if isinstance(app, vrmlAppearance):
+              if app.id not in grps.keys():
+                grps[app.id] = groupDescriptor(app)
+              grps[app.id].count += count
+              grps[app.id].objects.append(entry)
+              break
+    #FIXME rewrite needed
+    def buildObjects(top, objlist, mesh, transform, off, app):
+      for entry in top.objects:
+        if isinstance(entry, vrmlScene) or isinstance(entry, vrmlTransform):
+          off = buildObjects(entry, objlist, mesh, transform * entry.transform, off, app)
+        if entry in objlist:
+          off = entry.mesh(meshobj, off, app, transform)
+      return off
+
     groups = {}
-    for entry in self.entries:
-      if isinstance(entry, vrmlShape):
-        count = numpy.array([0, 0])
-        for geo in entry.objects:
-          if isinstance(geo, vrmlGeometry):
-            count += numpy.array([geo.triCount, geo.quadCount])
-        for app in entry.objects:
-          if isinstance(app, vrmlAppearance):
-            if app.id not in groups.keys():
-              groups[app.id] = groupDescriptor(app)
-            groups[app.id].count += count
-            groups[app.id].objects.append(entry)
-            break
+    groupObjects(self, groups)
     print "Objects grouped, total groups: %d" % len(groups)
     res = []
     for i in groups.keys(): #FIXME rewrite
@@ -290,8 +303,10 @@ class vrmlScene(vrmlEntry):
       if groups[i].appearance.normal:
         meshobj.tangentList = numpy.zeros(length * 3, dtype = numpy.float32)
       offsets = (0, groups[i].count[0]) #(Triangles, Quads)
-      for shape in groups[i].objects:
-        offsets = shape.mesh(meshobj, offsets, groups[i].appearance)
+      offsets = buildObjects(self, groups[i].objects, meshobj, self.transform, offsets, groups[i].appearance)
+      #for shape in groups[i].objects:
+        #print "Meshing object id %d" % shape.id
+        #offsets = shape.mesh(meshobj, offsets, groups[i].appearance)
       fs = faceset()
       if offsets[0] > 0:
         fs.append(GL_TRIANGLES, 0, offsets[0])
@@ -363,18 +378,9 @@ class vrmlShape(vrmlEntry):
   _pcount = 0
   def __init__(self, parent):
     vrmlEntry.__init__(self, parent)
-  def mesh(self, meshObject, offsets, appearance):
+  def mesh(self, meshObject, offsets, appearance, transform):
     #print "%sDraw shape %s" % (' ' * 2, self.name)
     (triOffset, quadOffset) = (offsets[0], offsets[1])
-    #transform = self.transform
-    transform = numpy.matrix([[1., 0., 0., 0.],
-                              [0., 1., 0., 0.],
-                              [0., 0., 1., 0.],
-                              [0., 0., 0., 1.]])
-    ptr = self
-    while not isinstance(ptr, vrmlScene):
-      ptr = ptr.parent
-      transform = ptr.transform * transform
     _tsa = time.time()
     for obj in self.objects:
       if isinstance(obj, vrmlGeometry):
@@ -1204,6 +1210,15 @@ for fileName in args:
     sc.loadFile(fileName)
     if options.rebuild == True:
       sc.saveFile(os.path.splitext(fileName)[0] + ".re.wrl")
+
+def hprint(obj, level = 0):
+  for i in obj.objects:
+    print "%s%s - %s" % (' ' * level, i.__class__.__name__, i.name)
+    hprint(i, level + 2)
+
+print "----------------STRUCTURE---------------"
+hprint(sc)
+print "----------------END STRUCTURE-----------"
 
 if options.view == True:
   rend = render(sc)
