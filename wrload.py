@@ -123,12 +123,12 @@ class vrmlEntry:
           print "%sRead error" % (' ' * self._level)
           break
         if balance < 0:
-          #print "%sWrong balance: %d" % (' ' * self._level, balance)
+          print "%sWrong balance: %d" % (' ' * self._level, balance)
           fd.seek(-(len(data) - regexp.start() + offset), os.SEEK_CUR)
           break
         fd.seek(-(len(data) - regexp.end()), os.SEEK_CUR)
         entry = None
-        #print "%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance)
+        print "%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance)
         entryType = regexp.group(3)
         try:
           if isinstance(self, vrmlScene) or isinstance(self, vrmlTransform) or isinstance(self, vrmlInline):
@@ -211,7 +211,7 @@ class vrmlEntry:
               print "%sFound entry %s" % (' ' * self._level, using.group(1))
               self.objects.append(obj)
         if balance < 0:
-          #print "%sBalance error: %d" % (' ' * self._level, balance)
+          print "%sBalance error: %d" % (' ' * self._level, balance)
           if initialPos == fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
           break
@@ -465,7 +465,7 @@ class vrmlShape(vrmlEntry):
         _tsb = time.time()
         vrmlShape._vcount += len(vertices)
         vrmlShape._pcount += len(obj.polygons)
-        #print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, len(vertices), len(obj.polygons))
+        print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, len(vertices), len(obj.polygons))
     return (triOffset, quadOffset)
   def write(self, fd, compList, transform):
     print "Write object %s" % self.name
@@ -541,7 +541,7 @@ class vrmlGeometry(vrmlEntry):
             balance += delta
             offset = len(data) - regexp.start() + offset
             if balance != 0:
-              #print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
+              print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
               break
             polyData = []
             indPos = 0
@@ -577,7 +577,7 @@ class vrmlGeometry(vrmlEntry):
         if balance != 0:
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
-          #print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
+          print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
         if len(data) == 0:
@@ -602,7 +602,7 @@ class vrmlCoordinates(vrmlEntry):
     #print "%sTry coord read: %s, type: %d" % (' ' * self._level, string.replace("\n", "").replace("\t", ""), self.cType)
     indexSearch = re.search("point\s*\[", string, re.S)
     if indexSearch:
-      #print "%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType])
+      print "%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType])
       if self.cType == vrmlCoordinates.TYPE['model']:
         vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
       elif self.cType == vrmlCoordinates.TYPE['texture']:
@@ -622,7 +622,7 @@ class vrmlCoordinates(vrmlEntry):
             if initialPos != fd.tell():
               offset += 1
             if balance != 0:
-              #print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
+              print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
               break
             if self.cType == vrmlCoordinates.TYPE['model']:
               self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2)), float(regexp.group(3))]))
@@ -638,7 +638,7 @@ class vrmlCoordinates(vrmlEntry):
         if balance != 0:
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
-          #print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
+          print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
           break
         data = fd.readline()
         if len(data) == 0:
@@ -1216,9 +1216,9 @@ def hprint(obj, level = 0):
     print "%s%s - %s" % (' ' * level, i.__class__.__name__, i.name)
     hprint(i, level + 2)
 
-print "----------------STRUCTURE---------------"
-hprint(sc)
-print "----------------END STRUCTURE-----------"
+#print "----------------STRUCTURE---------------"
+#hprint(sc)
+#print "----------------END STRUCTURE-----------"
 
 if options.view == True:
   rend = render(sc)
