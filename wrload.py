@@ -468,10 +468,15 @@ class vrmlShape(vrmlEntry):
         print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, len(vertices), len(obj.polygons))
     return (triOffset, quadOffset)
   def write(self, fd, compList, transform):
-    print "Write object %s" % self.name
     if self.parent and self.parent.name != "":
-      fd.write("DEF %s Transform {\n  children [\n" % self.parent.name)
+      if len(self.parent.objects) == 1:
+        shapeName = self.parent.name
+      else:
+        shapeName = "%s_%d" % (self.parent.name, self.parent.objects.index(self))
+      print "Write object %s" % shapeName
+      fd.write("DEF %s Transform {\n  children [\n" % shapeName)
     else:
+      print "Write untitled object"
       fd.write("Transform {\n  children [\n")
     fd.write("    Shape {\n")
     for obj in self.objects:
@@ -690,22 +695,22 @@ class vrmlMaterial(vrmlEntry):
     return not self == other
   def readSpecific(self, fd, string):
     #print "%sReading material: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
-    tmp = re.search("transparency\s+([+e\d\.]+)", string, re.I | re.S)
+    tmp = re.search("transparency\s+([+e\d\-\.]+)", string, re.I | re.S)
     if tmp:
       self.transparency = float(tmp.group(1))
-    tmp = re.search("diffuseColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
+    tmp = re.search("diffuseColor\s+([+e\d\-\.]+)\s+([+e\d\-\.]+)\s+([+e\d\-\.]+)", string, re.I | re.S)
     if tmp:
       self.diffuseColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1. - self.transparency]
-    tmp = re.search("ambientIntensity\s+([+e\d\.]+)", string, re.I | re.S)
+    tmp = re.search("ambientIntensity\s+([+e\d\-\.]+)", string, re.I | re.S)
     if tmp:
       self.ambientIntensity = float(tmp.group(1))
-    tmp = re.search("specularColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
+    tmp = re.search("specularColor\s+([+e\d\-\.]+)\s+([+e\d\-\.]+)\s+([+e\d\-\.]+)", string, re.I | re.S)
     if tmp:
       self.specularColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1.]
-    tmp = re.search("emissiveColor\s+([+e\d\.]+)\s+([+e\d\.]+)\s+([+e\d\.]+)", string, re.I | re.S)
+    tmp = re.search("emissiveColor\s+([+e\d\-\.]+)\s+([+e\d\-\.]+)\s+([+e\d\-\.]+)", string, re.I | re.S)
     if tmp:
       self.emissiveColor = [float(tmp.group(1)), float(tmp.group(2)), float(tmp.group(3)), 1.]
-    tmp = re.search("shininess\s+([+e\d\.]+)", string, re.I | re.S)
+    tmp = re.search("shininess\s+([+e\d\-\.]+)", string, re.I | re.S)
     if tmp:
       self.shininess = float(tmp.group(1))
     self.ambientColor = [self.diffuseColor[0] * self.ambientIntensity, 
