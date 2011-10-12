@@ -262,6 +262,7 @@ class vrmlScene(vrmlEntry):
       def __init__(self, appearance):
         self.appearance = appearance
         self.count = numpy.array([0, 0])
+        self.name = ""
         self.objects = []
     def groupObjects(top, grps):
       for entry in top.objects:
@@ -276,6 +277,10 @@ class vrmlScene(vrmlEntry):
             if isinstance(app, vrmlAppearance):
               if app.id not in grps.keys():
                 grps[app.id] = groupDescriptor(app)
+                for appName in app.objects:
+                  if len(grps[app.id].name) != 0:
+                    grps[app.id].name += ", "
+                  grps[app.id].name += appName.name
               grps[app.id].count += count
               grps[app.id].objects.append(entry)
               break
@@ -293,7 +298,7 @@ class vrmlScene(vrmlEntry):
     print "Objects grouped, total groups: %d" % len(groups)
     res = []
     for i in groups.keys(): #FIXME rewrite
-      print "Building group with appearance id: %d, object count: %d" % (groups[i].appearance.id, len(groups[i].objects))
+      print "Group with appearance id: %d (%s), object count: %d" % (groups[i].appearance.id, groups[i].name, len(groups[i].objects))
       meshobj = mesh()
       length = groups[i].count[0] + groups[i].count[1]
       meshobj.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
@@ -463,16 +468,53 @@ class vrmlShape(vrmlEntry):
                 meshObject.tangentList[3 * pos:3 * pos + 3] = tangents[obj.polygons[poly][ind]][0:3]
               pos += 1
         _tsb = time.time()
-        vrmlShape._vcount += len(vertices)
+        #Vertex count needed in VBO rendering
+        #FIXME replace with vertex count used in current shape
+        localVCount = (triOffset - offsets[0]) + (quadOffset - offsets[1])
+        vrmlShape._vcount += localVCount
         vrmlShape._pcount += len(obj.polygons)
-        print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, len(vertices), len(obj.polygons))
+        print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, localVCount, len(obj.polygons))
     return (triOffset, quadOffset)
+  def reindex(self):
+    #Return vertex and polygon lists
+    vertices = []
+    polygons = []
+    usedVertices = []
+    translatedVertices = {}
+    totalVertices = 0
+    #FIXME optimize
+    for obj in self.objects:
+      if isinstance(obj, vrmlGeometry):
+        for poly in obj.polygons:
+          for ind in poly:
+            if ind not in usedVertices:
+              usedVertices.append(ind)
+    usedVertices.sort()
+    for obj in self.objects:
+      if isinstance(obj, vrmlGeometry):
+        for coords in obj.objects:
+          if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
+            totalVertices = len(coords.vertices)
+            for i in range(0, len(usedVertices)):
+              vertices.append(coords.vertices[usedVertices[i]])
+              translatedVertices[usedVertices[i]] = i
+    for obj in self.objects:
+      if isinstance(obj, vrmlGeometry):
+        for poly in obj.polygons:
+          newPoly = []
+          for ind in poly:
+            newPoly.append(translatedVertices[ind])
+          polygons.append(newPoly)
+    print "  Shape reindexed: %d/%d vertices, %d polygons" % (len(vertices), totalVertices, len(polygons))
+    return (vertices, polygons)
   def write(self, fd, compList, transform):
+    partialGeo = False
     if self.parent and self.parent.name != "":
       if len(self.parent.objects) == 1:
         shapeName = self.parent.name
       else:
         shapeName = "%s_%d" % (self.parent.name, self.parent.objects.index(self))
+        partialGeo = True
       print "Write object %s" % shapeName
       fd.write("DEF %s Transform {\n  children [\n" % shapeName)
     else:
@@ -484,27 +526,49 @@ class vrmlShape(vrmlEntry):
         for mat in obj.objects:
           if isinstance(mat, vrmlMaterial):
             mat.write(fd, compList)
-      elif isinstance(obj, vrmlGeometry):
-        fd.write("      geometry IndexedFaceSet {\n        coord Coordinate { point [\n")
-        for coords in obj.objects:
-          if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
-            for i in range(0, len(coords.vertices)):
-              tmp = numpy.matrix([[coords.vertices[i][0]], [coords.vertices[i][1]], [coords.vertices[i][2]], [1.]])
-              tmp = transform * tmp
-              fd.write("          %f %f %f" % (float(tmp[0]), float(tmp[1]), float(tmp[2])))
-              if i != len(coords.vertices) - 1:
-                fd.write(",\n")
-        fd.write(" ] }\n")
-        fd.write("        coordIndex [\n")
-        for i in range(0, len(obj.polygons)):
-          fd.write("          ")
-          for ind in obj.polygons[i]:
-            fd.write("%d, " % ind)
-          fd.write("-1")
-          if i != len(obj.polygons) - 1:
-            fd.write(",\n")
-        fd.write(" ]\n")
-        fd.write("      }\n")
+    if partialGeo:
+      (vert, poly) = self.reindex()
+      fd.write("      geometry IndexedFaceSet {\n        coord Coordinate { point [\n")
+      for i in range(0, len(vert)):
+        tmp = numpy.matrix([[vert[i][0]], [vert[i][1]], [vert[i][2]], [1.]])
+        tmp = transform * tmp
+        fd.write("          %f %f %f" % (float(tmp[0]), float(tmp[1]), float(tmp[2])))
+        if i != len(vert) - 1:
+          fd.write(",\n")
+      fd.write(" ] }\n")
+      fd.write("        coordIndex [\n")
+      for i in range(0, len(poly)):
+        fd.write("          ")
+        for ind in poly[i]:
+          fd.write("%d, " % ind)
+        fd.write("-1")
+        if i != len(poly) - 1:
+          fd.write(",\n")
+      fd.write(" ]\n")
+      fd.write("      }\n")
+    else:
+      for obj in self.objects:
+        if isinstance(obj, vrmlGeometry):
+          fd.write("      geometry IndexedFaceSet {\n        coord Coordinate { point [\n")
+          for coords in obj.objects:
+            if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
+              for i in range(0, len(coords.vertices)):
+                tmp = numpy.matrix([[coords.vertices[i][0]], [coords.vertices[i][1]], [coords.vertices[i][2]], [1.]])
+                tmp = transform * tmp
+                fd.write("          %f %f %f" % (float(tmp[0]), float(tmp[1]), float(tmp[2])))
+                if i != len(coords.vertices) - 1:
+                  fd.write(",\n")
+          fd.write(" ] }\n")
+          fd.write("        coordIndex [\n")
+          for i in range(0, len(obj.polygons)):
+            fd.write("          ")
+            for ind in obj.polygons[i]:
+              fd.write("%d, " % ind)
+            fd.write("-1")
+            if i != len(obj.polygons) - 1:
+              fd.write(",\n")
+          fd.write(" ]\n")
+          fd.write("      }\n")
     fd.write("    }\n")
     fd.write("  ]\n}\n\n")
 
