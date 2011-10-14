@@ -8,7 +8,7 @@ import math
 import numpy
 import sys
 import time
-import optparse
+import argparse
 import Image
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -1251,14 +1251,15 @@ class render:
       #self.camera += normal
     self.updated = True
 
-parser = optparse.OptionParser()
-parser.add_option("-v", "--view", dest="view", help="Render and show model.", default=False, action="store_true")
-parser.add_option("-w", "--write", dest="rebuild", help="Rebuild model.", default=False, action="store_true")
-parser.add_option("-t", "--translate", dest="translate", help="Move shapes to new coordinates [x,y,z], default value \"0.,0.,0.\".", default='0.,0.,0.')
-parser.add_option("-r", "--rotate", dest="rotate", help="Rotate shapes around vector [x,y,z] by angle in degrees, default value \"0.,0.,1.,0.\".", default='0.,0.,1.,0.')
-parser.add_option("-s", "--scale", dest="scale", help="Scale shapes by [x,y,z], default value \"1.,1.,1.\".", default='1.,1.,1.')
-parser.add_option("-f", "--filter", dest="pattern", help="Regular expression, filter objects by name", default="")
-(options, args) = parser.parse_args()
+parser = argparse.ArgumentParser()
+parser.add_argument("-v", dest="view", help="Render model.", default=False, action="store_true")
+parser.add_argument("-w", dest="rebuild", help="Rebuild model.", default=False, action="store_true")
+parser.add_argument("-t", dest="translate", help="Move mesh to new coordinates [x,y,z], default value \"0.,0.,0.\".", default='0.,0.,0.')
+parser.add_argument("-r", dest="rotate", help="Rotate mesh around vector [x,y,z] by angle in degrees, default value \"0.,0.,1.,0.\".", default='0.,0.,1.,0.')
+parser.add_argument("-s", dest="scale", help="Scale shapes by [x,y,z], default value \"1.,1.,1.\".", default='1.,1.,1.')
+parser.add_argument("-f", dest="pattern", help="Regular expression, filter objects by name", default="")
+parser.add_argument(dest="files", nargs="*")
+options = parser.parse_args()
 
 options.translate = options.translate.split(",")
 options.rotate = options.rotate.split(",")
@@ -1288,7 +1289,7 @@ gRotate[3] *= (math.pi / 180)
 sc = vrmlScene()
 sc.setTransform(gTranslate, gRotate, gScale)
 
-for fileName in args:
+for fileName in options.files:
   if os.path.isfile(fileName):
     sc.loadFile(fileName, options.pattern)
     if options.rebuild == True:
