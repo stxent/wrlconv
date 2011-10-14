@@ -100,13 +100,18 @@ class vrmlEntry:
     self.parent = parent
     self.name = ""
     self.objects = []
+    self.active = True #Using in rendering and rebuilding
     if self.parent:
       self._level = self.parent._level + 2
     else:
       self._level = 0
-  def read(self, fd):
+  def read(self, fd, objFilter = ""):
     defPattern = re.compile("([\w]*?)\s*([\w\-]*?)\s*(\w+)\s*{", re.I | re.S)
     delta, offset, balance = 0, 0, 0
+    if len(objFilter) != 0:
+      namePattern = re.compile(objFilter, re.I | re.S)
+    else:
+      namePattern = None
     #Highest level
     while 1:
       data = fd.readline()
@@ -134,6 +139,12 @@ class vrmlEntry:
           if isinstance(self, vrmlScene) or isinstance(self, vrmlTransform) or isinstance(self, vrmlInline):
             if entryType == "Transform" or entryType == "Group" or entryType == "Collision":
               entry = vrmlTransform(self)
+              #Transform filtering
+              if namePattern and len(regexp.group(2)) != 0:
+                res = namePattern.search(regexp.group(2))
+                if not res:
+                  print "%sTransform name does not match with pattern" % (' ' * self._level)
+                  entry.active = False
             elif entryType == "Inline":
               entry = vrmlInline(self)
             elif entryType == "Shape":
@@ -170,7 +181,7 @@ class vrmlEntry:
         if entry:
           if regexp.group(1) == "DEF" and len(regexp.group(2)) > 0:
             entry.name = regexp.group(2)
-          entry.read(fd)
+          entry.read(fd, objFilter)
           ptr = self
           inline = None
           while not isinstance(ptr, vrmlScene):
@@ -242,12 +253,12 @@ class vrmlScene(vrmlEntry):
                           [0., 0., 0., 1.]])
     #self.transform = translation * rotation * scale
     self.transform = translation + rotation * scale
-  def loadFile(self, fileName):
+  def loadFile(self, fileName, objFilter = ""):
     wrlFile = open(fileName, "rb")
     oldDir = os.getcwd()
     if len(os.path.dirname(fileName)) > 0:
       os.chdir(os.path.dirname(fileName))
-    self.read(wrlFile)
+    self.read(wrlFile, objFilter)
     os.chdir(oldDir)
     wrlFile.close()
   def saveFile(self, fileName):
@@ -255,7 +266,8 @@ class vrmlScene(vrmlEntry):
     compList = []
     wrlFile.write("#VRML V2.0 utf8\n#Exported from Blender by wrlconv.py\n")
     for entry in self.objects:
-      entry.write(wrlFile, compList, self.transform)
+      if entry.active:
+        entry.write(wrlFile, compList, self.transform)
     wrlFile.close()
   def buildMesh(self):
     class groupDescriptor:
@@ -266,7 +278,7 @@ class vrmlScene(vrmlEntry):
         self.objects = []
     def groupObjects(top, grps):
       for entry in top.objects:
-        if isinstance(top, vrmlScene) or isinstance(top, vrmlTransform):
+        if isinstance(top, vrmlScene) or (isinstance(top, vrmlTransform) and top.active):
           groupObjects(entry, grps)
         if isinstance(entry, vrmlShape):
           count = numpy.array([0, 0])
@@ -356,7 +368,8 @@ class vrmlTransform(vrmlEntry):
   def write(self, fd, compList, transform):
     tform = transform * self.transform
     for obj in self.objects:
-      obj.write(fd, compList, tform)
+      if obj.active:
+        obj.write(fd, compList, tform)
 
 class vrmlInline(vrmlTransform):
   def __init__(self, parent):
@@ -1244,6 +1257,7 @@ parser.add_option("-w", "--write", dest="rebuild", help="Rebuild model.", defaul
 parser.add_option("-t", "--translate", dest="translate", help="Move shapes to new coordinates [x,y,z], default value \"0.,0.,0.\".", default='0.,0.,0.')
 parser.add_option("-r", "--rotate", dest="rotate", help="Rotate shapes around vector [x,y,z] by angle in degrees, default value \"0.,0.,1.,0.\".", default='0.,0.,1.,0.')
 parser.add_option("-s", "--scale", dest="scale", help="Scale shapes by [x,y,z], default value \"1.,1.,1.\".", default='1.,1.,1.')
+parser.add_option("-f", "--filter", dest="pattern", help="Regular expression, filter objects by name", default="")
 (options, args) = parser.parse_args()
 
 options.translate = options.translate.split(",")
@@ -1276,7 +1290,7 @@ sc.setTransform(gTranslate, gRotate, gScale)
 
 for fileName in args:
   if os.path.isfile(fileName):
-    sc.loadFile(fileName)
+    sc.loadFile(fileName, options.pattern)
     if options.rebuild == True:
       sc.saveFile(os.path.splitext(fileName)[0] + ".re.wrl")
 
