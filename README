@@ -3,3 +3,4 @@ Script requires python-numpy and python-opengl packages.
 Usage:
   wrload.py -v FILE   View model in internal viewer.
   wrload.py -w FILE   Rebuild model to VRML syntax, similar to Wings3D.
+  wrload.py -h        More info.

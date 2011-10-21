@@ -2,18 +2,27 @@
 # -*- coding: utf-8 -*-
 # Author: xen (alexdmitv@gmail.com)
 # License: Public domain code
-# Version: 0.2b
+# Version: 0.3b
 import re
 import math
 import numpy
 import sys
 import time
 import argparse
-import Image
-from OpenGL.GL import *
-from OpenGL.GLU import *
-from OpenGL.GLUT import *
-from OpenGL.GL.shaders import *
+
+debug = False
+opengl = True
+try:
+  from OpenGL.GL import *
+  from OpenGL.GLU import *
+  from OpenGL.GLUT import *
+  from OpenGL.GL.shaders import *
+except:
+  opengl = False
+
+def pDebug(text, level = 1):
+  if debug:
+    print text
 
 def getAngle(v1, v2):
   mag1 = math.sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2])
@@ -35,12 +44,6 @@ def getNormal(v1, v2):
   return numpy.matrix([[float(v1[1] * v2[2] - v1[2] * v2[1])],
                        [float(v1[2] * v2[0] - v1[0] * v2[2])],
                        [float(v1[0] * v2[1] - v1[1] * v2[0])]])
-
-def getTangent(v1, v2, st1, st2):
-  coef = 1. / (st1[1] * st2[0] - st1[0] * st2[1])
-  return numpy.array([coef * (v1[0] * -st2[1] + v2[0] * st1[1]), 
-                      coef * (v1[1] * -st2[1] + v2[1] * st1[1]), 
-                      coef * (v1[2] * -st2[1] + v2[2] * st1[1])])
 
 def fillRotateMatrix(v, angle):
   cs = math.cos(angle)
@@ -128,12 +131,12 @@ class vrmlEntry:
           print "%sRead error" % (' ' * self._level)
           break
         if balance < 0:
-          print "%sWrong balance: %d" % (' ' * self._level, balance)
+          pDebug("%sWrong balance: %d" % (' ' * self._level, balance))
           fd.seek(-(len(data) - regexp.start() + offset), os.SEEK_CUR)
           break
         fd.seek(-(len(data) - regexp.end()), os.SEEK_CUR)
         entry = None
-        print "%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance)
+        pDebug("%sEntry: '%s' '%s' '%s' Balance: %d" % (' ' * self._level, regexp.group(1), regexp.group(2), regexp.group(3), balance))
         entryType = regexp.group(3)
         try:
           if isinstance(self, vrmlScene) or isinstance(self, vrmlTransform) or isinstance(self, vrmlInline):
@@ -143,7 +146,7 @@ class vrmlEntry:
               if namePattern and len(regexp.group(2)) != 0:
                 res = namePattern.search(regexp.group(2))
                 if not res:
-                  print "%sTransform name does not match with pattern" % (' ' * self._level)
+                  pDebug("%sTransform name does not match with pattern" % (' ' * self._level))
                   entry.active = False
             elif entryType == "Inline":
               entry = vrmlInline(self)
@@ -161,21 +164,17 @@ class vrmlEntry:
           elif isinstance(self, vrmlAppearance):
             if entryType == "Material":
               entry = vrmlMaterial(self)
-            elif entryType == "ImageTexture":
-              entry = vrmlTexture(self)
             else:
               raise Exception()
           elif isinstance(self, vrmlGeometry):
             if entryType == "Coordinate":
               entry = vrmlCoordinates(self, 'model')
-            elif entryType == "TextureCoordinate":
-              entry = vrmlCoordinates(self, 'texture')
             else:
               raise Exception()
           else:
             raise Exception()
         except:
-          print "%sUnsopported chunk sequence: %s > %s" % (' ' * self._level, self.__class__.__name__, entryType)
+          pDebug("%sUnsopported chunk sequence: %s > %s" % (' ' * self._level, self.__class__.__name__, entryType))
           offset = skipChunk(fd)
           fd.seek(-offset, os.SEEK_CUR)
         if entry:
@@ -191,19 +190,15 @@ class vrmlEntry:
           duplicate = False
           for current in ptr.entries: #Search for duplicates
             if entry == current:
-              print "%sNot unique, using entry with id: %d" % (' ' * self._level, current.id)
+              pDebug("%sNot unique, using entry with id: %d" % (' ' * self._level, current.id))
               entry = current
               duplicate = True
               break
-          #if self in ptr.entries: #Search for duplicates
-            #print "Duplicate"
-            #entry = current
-            #duplicate = True
           self.objects.append(entry)
           if inline:
             inline.entries.append(entry)
           if not duplicate:
-            entry.id = vrmlEntry.identifier #FIXME added
+            entry.id = vrmlEntry.identifier
             vrmlEntry.identifier += 1
             ptr.entries.append(entry)
       else:
@@ -213,16 +208,16 @@ class vrmlEntry:
         self.readSpecific(fd, data)
         using = re.search("USE\s+([\w\-]+)", data, re.I | re.S)
         if using and using.start() < len(data) - offset:
-          print "%sUsing entry %s" % (' ' * self._level, using.group(1))
+          pDebug("%sUsing entry %s" % (' ' * self._level, using.group(1)))
           ptr = self
           while not isinstance(ptr, vrmlScene) and not isinstance(ptr, vrmlInline):
             ptr = ptr.parent
           for obj in ptr.entries:
             if obj.name == using.group(1):
-              print "%sFound entry %s" % (' ' * self._level, using.group(1))
+              pDebug("%sFound entry %s" % (' ' * self._level, using.group(1)))
               self.objects.append(obj)
         if balance < 0:
-          print "%sBalance error: %d" % (' ' * self._level, balance)
+          pDebug("%sBalance mismatch: %d" % (' ' * self._level, balance))
           if initialPos == fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
           break
@@ -307,18 +302,14 @@ class vrmlScene(vrmlEntry):
 
     groups = {}
     groupObjects(self, groups)
-    print "Objects grouped, total groups: %d" % len(groups)
+    pDebug("Objects grouped, total groups: %d" % len(groups))
     res = []
     for i in groups.keys(): #FIXME rewrite
-      print "Group with appearance id: %d (%s), object count: %d" % (groups[i].appearance.id, groups[i].name, len(groups[i].objects))
+      pDebug("Group with appearance id: %d (%s), object count: %d" % (groups[i].appearance.id, groups[i].name, len(groups[i].objects)))
       meshobj = mesh()
       length = groups[i].count[0] + groups[i].count[1]
       meshobj.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
       meshobj.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
-      if groups[i].appearance.diffuse or groups[i].appearance.normal:
-        meshobj.uvList = numpy.zeros(length * 2, dtype = numpy.float32)
-      if groups[i].appearance.normal:
-        meshobj.tangentList = numpy.zeros(length * 3, dtype = numpy.float32)
       offsets = (0, groups[i].count[0]) #(Triangles, Quads)
       offsets = buildObjects(self, groups[i].objects, meshobj, self.transform, offsets, groups[i].appearance)
       #for shape in groups[i].objects:
@@ -388,7 +379,7 @@ class vrmlInline(vrmlTransform):
         self.read(wrlFile)
         wrlFile.close()
       else:
-        print "%sFile not found: %s" % (' ' * self._level, urlSearch.group(1))
+        print "%sInline file not found: %s" % (' ' * self._level, urlSearch.group(1))
       os.chdir(oldDir)
 
 class vrmlShape(vrmlEntry):
@@ -404,24 +395,14 @@ class vrmlShape(vrmlEntry):
       if isinstance(obj, vrmlGeometry):
         #TODO add solid parsing
         vertices = []
-        verticesUV = []
         for coords in obj.objects:
-          if isinstance(coords, vrmlCoordinates):
-            if coords.cType == vrmlCoordinates.TYPE['model']:
-              for vert in coords.vertices:
-                tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
-                tmp = transform * tmp
-                vertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
-            elif coords.cType == vrmlCoordinates.TYPE['texture']:
-              verticesUV = coords.vertices
+          if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
+            for vert in coords.vertices:
+              tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
+              tmp = transform * tmp
+              vertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
         if obj.smooth == False: #Flat shading
           for poly in range(0, len(obj.polygons)):
-            if appearance.normal: #Generate tangent coordinates
-              tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
-                                   vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]], 
-                                   verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]], 
-                                   verticesUV[obj.polygonsUV[poly][2]] - verticesUV[obj.polygonsUV[poly][0]])
-              tangent = normalize(tangent)
             normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
                                vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]])
             normal = normalize(normal)
@@ -434,26 +415,12 @@ class vrmlShape(vrmlEntry):
             for ind in range(0, len(obj.polygons[poly])):
               meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
               meshObject.normalList[3 * pos:3 * pos + 3] = [float(normal[0]), float(normal[1]), float(normal[2])]
-              if appearance.diffuse or appearance.normal:
-                meshObject.uvList[2 * pos:2 * pos + 2] = verticesUV[obj.polygonsUV[poly][ind]][0:2]
-              if appearance.normal:
-                meshObject.tangentList[3 * pos:3 * pos + 3] = [float(tangent[0]), float(tangent[1]), float(tangent[2])]
               pos += 1
         else: #Smooth shading
           normals = []
           for i in range(0, len(vertices)):
             normals.append(numpy.array([0., 0., 0.,]))
-          if appearance.normal:
-            tangents = []
-            for i in range(0, len(vertices)):
-              tangents.append(numpy.array([0., 0., 0.,]))
           for poly in range(0, len(obj.polygons)):
-            if appearance.normal: #Generate tangent coordinates
-              tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
-                                   vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]], 
-                                   verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]], 
-                                   verticesUV[obj.polygonsUV[poly][2]] - verticesUV[obj.polygonsUV[poly][0]])
-              tangent = normalize(tangent)
             normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
                                vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]])
             normal = normalize(normal)
@@ -475,10 +442,6 @@ class vrmlShape(vrmlEntry):
             for ind in range(0, len(obj.polygons[poly])):
               meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
               meshObject.normalList[3 * pos:3 * pos + 3] = normals[obj.polygons[poly][ind]][0:3]
-              if appearance.diffuse or appearance.normal:
-                meshObject.uvList[2 * pos:2 * pos + 2] = verticesUV[obj.polygonsUV[poly][ind]][0:2]
-              if appearance.normal:
-                meshObject.tangentList[3 * pos:3 * pos + 3] = tangents[obj.polygons[poly][ind]][0:3]
               pos += 1
         _tsb = time.time()
         #Vertex count needed in VBO rendering
@@ -486,7 +449,7 @@ class vrmlShape(vrmlEntry):
         localVCount = (triOffset - offsets[0]) + (quadOffset - offsets[1])
         vrmlShape._vcount += localVCount
         vrmlShape._pcount += len(obj.polygons)
-        print "%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, localVCount, len(obj.polygons))
+        pDebug("%sCreated in: %f, vertices: %d, polygons: %d" % (' ' * 2, _tsb - _tsa, localVCount, len(obj.polygons)))
     return (triOffset, quadOffset)
   def reindex(self):
     #Return vertex and polygon lists
@@ -518,7 +481,7 @@ class vrmlShape(vrmlEntry):
           for ind in poly:
             newPoly.append(translatedVertices[ind])
           polygons.append(newPoly)
-    print "  Shape reindexed: %d/%d vertices, %d polygons" % (len(vertices), totalVertices, len(polygons))
+    pDebug("  Shape reindexed: %d/%d vertices, %d polygons" % (len(vertices), totalVertices, len(polygons)))
     return (vertices, polygons)
   def write(self, fd, compList, transform):
     partialGeo = False
@@ -528,10 +491,10 @@ class vrmlShape(vrmlEntry):
       else:
         shapeName = "%s_%d" % (self.parent.name, self.parent.objects.index(self))
         partialGeo = True
-      print "Write object %s" % shapeName
+      pDebug("Write object %s" % shapeName)
       fd.write("DEF %s Transform {\n  children [\n" % shapeName)
     else:
-      print "Write untitled object"
+      pDebug("Write untitled object")
       fd.write("Transform {\n  children [\n")
     fd.write("    Shape {\n")
     for obj in self.objects:
@@ -594,7 +557,6 @@ class vrmlGeometry(vrmlEntry):
     self.polygons   = None
     self.triCount   = 0
     self.quadCount  = 0
-    self.polygonsUV = None
   def readSpecific(self, fd, string):
     #print "%sTry geo read: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
     initialPos = fd.tell()
@@ -603,18 +565,14 @@ class vrmlGeometry(vrmlEntry):
       if paramSearch.group(1) == "TRUE":
         self.solid = True
     coordSearch = re.search("coordIndex\s*\[", string, re.S)
-    texSearch = re.search("texCoordIndex\s*\[", string, re.S)
-    if coordSearch or texSearch:
-      print "%sStart polygon read" % (' ' * self._level)
+    if coordSearch:
+      pDebug("%sStart polygon read" % (' ' * self._level))
       polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
       indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
       polygons = []
       delta, offset, balance = 0, 0, 0
       data = string
-      if coordSearch:
-        pPos = coordSearch.end()
-      elif texSearch:
-        pPos = texSearch.end()
+      pPos = coordSearch.end()
       while 1:
         while 1:
           regexp = polyPattern.search(data, pPos)
@@ -623,7 +581,7 @@ class vrmlGeometry(vrmlEntry):
             balance += delta
             offset = len(data) - regexp.start() + offset
             if balance != 0:
-              print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
+              pDebug("%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset))
               break
             polyData = []
             indPos = 0
@@ -633,23 +591,16 @@ class vrmlGeometry(vrmlEntry):
                 break
               polyData.append(int(ind.group(1)))
               indPos = ind.end()
-            if coordSearch:
-              if len(polyData) == 3:
+            if len(polyData) == 3:
+              self.triCount += 3
+              polygons.append(polyData)
+            elif len(polyData) == 4:
+              self.quadCount += 4
+              polygons.append(polyData)
+            else:
+              for tesselPos in range(1, len(polyData) - 1):
                 self.triCount += 3
-                polygons.append(polyData)
-              elif len(polyData) == 4:
-                self.quadCount += 4
-                polygons.append(polyData)
-              else:
-                for tesselPos in range(1, len(polyData) - 1):
-                  self.triCount += 3
-                  polygons.append([polyData[0], polyData[tesselPos], polyData[tesselPos + 1]])
-            if texSearch:
-              if len(polyData) > 4:
-                for tesselPos in range(1, len(polyData) - 1):
-                  polygons.append([polyData[0], polyData[tesselPos], polyData[tesselPos + 1]])
-              else:
-                polygons.append(polyData)
+                polygons.append([polyData[0], polyData[tesselPos], polyData[tesselPos + 1]])
             pPos = regexp.end()
           else:
             (delta, offset) = calcBalance(data, None, (), (']'))
@@ -659,7 +610,7 @@ class vrmlGeometry(vrmlEntry):
         if balance != 0:
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
-          print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
+          pDebug("%sBalance mismatch: %d, offset: %d" % (' ' * self._level, balance, offset))
           break
         data = fd.readline()
         if len(data) == 0:
@@ -667,11 +618,8 @@ class vrmlGeometry(vrmlEntry):
         pPos = 0
       if coordSearch:
         self.polygons = polygons
-        print "%sRead poly done, %d tri, %d quad, %d vertices" % (' ' * self._level, self.triCount / 3, self.quadCount / 4, 
-                                                                  self.triCount + self.quadCount)
-      elif texSearch:
-        self.polygonsUV = polygons
-        print "%sRead UV poly done, %d poly" % (' ' * self._level, len(self.polygonsUV))
+        pDebug("%sRead poly done, %d tri, %d quad, %d vertices" % (' ' * self._level, self.triCount / 3, self.quadCount / 4, 
+                                                                  self.triCount + self.quadCount))
 
 class vrmlCoordinates(vrmlEntry):
   TYPE = {'model' : 0, 'texture' : 1}
@@ -681,14 +629,11 @@ class vrmlCoordinates(vrmlEntry):
     self.vertices = None
   def readSpecific(self, fd, string):
     initialPos = fd.tell()
-    #print "%sTry coord read: %s, type: %d" % (' ' * self._level, string.replace("\n", "").replace("\t", ""), self.cType)
     indexSearch = re.search("point\s*\[", string, re.S)
     if indexSearch:
-      print "%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType])
+      pDebug("%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType]))
       if self.cType == vrmlCoordinates.TYPE['model']:
         vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
-      elif self.cType == vrmlCoordinates.TYPE['texture']:
-        vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
       self.vertices = []
       delta, offset, balance = 0, 0, 0
       data = string
@@ -704,12 +649,9 @@ class vrmlCoordinates(vrmlEntry):
             if initialPos != fd.tell():
               offset += 1
             if balance != 0:
-              print "%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset)
+              pDebug("%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset))
               break
-            if self.cType == vrmlCoordinates.TYPE['model']:
-              self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2)), float(regexp.group(3))]))
-            elif self.cType == vrmlCoordinates.TYPE['texture']:
-              self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2))]))
+            self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2)), float(regexp.group(3))]))
             vPos = regexp.end()
           else:
             (delta, offset) = calcBalance(data[vPos:], -1, (), ('}'))
@@ -720,25 +662,25 @@ class vrmlCoordinates(vrmlEntry):
         if balance != 0:
           if initialPos != fd.tell():
             fd.seek(-offset, os.SEEK_CUR)
-          print "%sBalance error: %d, offset: %d" % (' ' * self._level, balance, offset)
+          pDebug("%sBalance mismatch: %d, offset: %d" % (' ' * self._level, balance, offset))
           break
         data = fd.readline()
         if len(data) == 0:
           break
         vPos = 0
-      print "%sEnd vertex read, count: %d" % (' ' * self._level, len(self.vertices))
+      pDebug("%sEnd vertex read, count: %d" % (' ' * self._level, len(self.vertices)))
 
 class vrmlAppearance(vrmlEntry):
   def __init__(self, parent = None):
     vrmlEntry.__init__(self, parent)
     self.diffuse = None
     self.normal = None
-  def __eq__(self, other): #TODO remove in wrlconv
+  def __eq__(self, other):
     if not isinstance(other, vrmlAppearance):
       return False
     if len(self.objects) != len(other.objects):
       return False
-    for mat in self.objects: #FIXME optimize
+    for mat in self.objects:
       if mat not in other.objects:
         return False
     return True
@@ -757,7 +699,7 @@ class vrmlMaterial(vrmlEntry):
     self.ambientIntensity = 1.
     self.shininess        = 0.
     self.transparency     = 0.
-  def __eq__(self, other): #TODO remove in wrlconv
+  def __eq__(self, other):
     if not isinstance(other, vrmlMaterial):
       return False
     if self.diffuseColor  == other.diffuseColor and \
@@ -812,42 +754,12 @@ class vrmlMaterial(vrmlEntry):
     else:
       fd.write("      appearance Appearance {\n        material USE %s\n      }\n" % self.name)
 
-class vrmlTexture(vrmlEntry):
-  def __init__(self, parent = None):
-    vrmlEntry.__init__(self, parent)
-    self.texID    = None
-    self.fileName = ""
-    self.filePath = ""
-    self.texType  = None
-  def readSpecific(self, fd, string):
-    tmp = re.search("url\s+\"([\w\-\.:\/]+)\"", string, re.I | re.S)
-    if tmp:
-      self.fileName = tmp.group(1)
-    self.filePath = os.getcwd()
-    if self.name == "normalmap": #TODO modify
-      self.parent.normal = self
-    else:
-      self.parent.diffuse = self
-  def __eq__(self, other): #TODO remove in wrlconv
-    if not isinstance(other, vrmlTexture):
-      return False
-    if self.fileName == other.fileName:
-      return True
-    else:
-      return False
-  def __ne__(self, other):
-    return not self == other
-
 class mesh:
   def __init__(self):
     self.vertexList  = None
     self.vertexVBO   = 0
     self.normalList  = None
     self.normalVBO   = 0
-    self.uvList      = None
-    self.uvVBO       = 0
-    self.tangentList = None
-    self.tangentVBO  = 0
     self.objects     = []
     self.appearance  = None
     self.zbuffer     = True
@@ -858,21 +770,11 @@ class mesh:
     glEnableClientState(GL_NORMAL_ARRAY)
     glBindBuffer(GL_ARRAY_BUFFER, self.normalVBO)
     glNormalPointer(GL_FLOAT, 0, None)
-    if self.uvList != None:
-      glEnableClientState(GL_TEXTURE_COORD_ARRAY)
-      glBindBuffer(GL_ARRAY_BUFFER, self.uvVBO)
-      glTexCoordPointer(2, GL_FLOAT, 0, None)
-    if self.tangentList != None:
-      glEnableVertexAttribArray(1)
-      glBindBuffer(GL_ARRAY_BUFFER, self.tangentVBO)
-      glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
     #Disabe writing z-values for transparent objects
     if self.zbuffer == False:
       glDepthMask(GL_FALSE)
     for obj in self.objects:
       obj.draw()
-    glDisableVertexAttribArray(1)
-    glDisableClientState(GL_TEXTURE_COORD_ARRAY)
     glDisableClientState(GL_NORMAL_ARRAY)
     glDisableClientState(GL_VERTEX_ARRAY)
     glDisable(GL_CULL_FACE)
@@ -982,19 +884,12 @@ class render:
       os.chdir(scriptDir)
     self.shaders = {}
     self.shaders['colored'] = loadShader("light");
-    self.shaders['textured'] = loadShader("light_tex");
-    self.shaders['colored_nm'] = loadShader("light_nm");
-    glBindAttribLocation(self.shaders['colored_nm'], 1, "tangent")
-    glLinkProgram(self.shaders['colored_nm'])
-    self.shaders['textured_nm'] = loadShader("light_tex_nm");
-    glBindAttribLocation(self.shaders['textured_nm'], 1, "tangent")
-    glLinkProgram(self.shaders['textured_nm'])
     os.chdir(oldDir)
   def initScene(self, aScene):
     vrmlShape._vcount = 0
     vrmlShape._pcount = 0
     self.data = aScene.buildMesh()
-    print "Total vertex count: %d, polygon count: %d, mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
+    print "Total vertex count: %d, polygon count: %d, rendered mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
     #Z-Ordering #FIXME
     latest = None
     for i in range(len(self.data) - 1, -1, -1):
@@ -1022,34 +917,6 @@ class render:
       meshEntry.normalVBO = glGenBuffers(1)
       glBindBuffer(GL_ARRAY_BUFFER, meshEntry.normalVBO)
       glBufferData(GL_ARRAY_BUFFER, meshEntry.normalList, GL_STATIC_DRAW)
-      if meshEntry.uvList != None:
-        meshEntry.uvVBO = glGenBuffers(1)
-        glBindBuffer(GL_ARRAY_BUFFER, meshEntry.uvVBO)
-        glBufferData(GL_ARRAY_BUFFER, meshEntry.uvList, GL_STATIC_DRAW)
-      if meshEntry.tangentList != None:
-        meshEntry.tangentVBO = glGenBuffers(1)
-        glBindBuffer(GL_ARRAY_BUFFER, meshEntry.tangentVBO)
-        glBufferData(GL_ARRAY_BUFFER, meshEntry.tangentList, GL_STATIC_DRAW)
-      for mat in meshEntry.appearance.objects:
-        if isinstance(mat, vrmlTexture) and mat.texID == None:
-          self.loadTexture(mat)
-  def loadTexture(self, arg):
-    im = Image.open(arg.filePath + "/" + arg.fileName)
-    try:
-      width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
-    except SystemError:
-      width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBX", 0, -1)
-    arg.texID = glGenTextures(1)
-    glBindTexture(GL_TEXTURE_2D, arg.texID)
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-    gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
-    print "Loaded %s, width: %d, height: %d, id: %d" % (arg.name, width, height, arg.texID)
-  def setTexture(self, arg, layer = 0):
-    glActiveTexture(GL_TEXTURE0 + layer)
-    glEnable(GL_TEXTURE_2D)
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
-    glBindTexture(GL_TEXTURE_2D, arg.texID)
   def setMaterial(self, arg):
     #glDisable(GL_COLOR_MATERIAL)
     glEnable(GL_COLOR_MATERIAL)
@@ -1069,23 +936,7 @@ class render:
     for mat in arg.objects:
       if isinstance(mat, vrmlMaterial):
         self.setMaterial(mat)
-      elif isinstance(mat, vrmlTexture):
-        self.setTexture(mat, texNum)
-        texNum += 1
-    if arg.normal:
-      if arg.diffuse:
-        glUseProgram(self.shaders['textured_nm'])
-        tex = glGetUniformLocation(self.shaders['textured_nm'], "diffuseTexture")
-        glUniform1i(tex, 0)
-        tex = glGetUniformLocation(self.shaders['textured_nm'], "normalTexture")
-        glUniform1i(tex, 1)
-      else:
-        glUseProgram(self.shaders['colored_nm'])
-    else:
-      if arg.diffuse:
-        glUseProgram(self.shaders['textured'])
-      else:
-        glUseProgram(self.shaders['colored'])
+    glUseProgram(self.shaders['colored'])
   def drawAxis(self):
     glEnableClientState(GL_VERTEX_ARRAY)
     glEnableClientState(GL_COLOR_ARRAY)
@@ -1258,8 +1109,11 @@ parser.add_argument("-t", dest="translate", help="Move mesh to new coordinates [
 parser.add_argument("-r", dest="rotate", help="Rotate mesh around vector [x,y,z] by angle in degrees, default value \"0.,0.,1.,0.\".", default='0.,0.,1.,0.')
 parser.add_argument("-s", dest="scale", help="Scale shapes by [x,y,z], default value \"1.,1.,1.\".", default='1.,1.,1.')
 parser.add_argument("-f", dest="pattern", help="Regular expression, filter objects by name", default="")
+parser.add_argument("-d", dest="debug", help="Show debug information", default=False, action="store_true")
 parser.add_argument(dest="files", nargs="*")
 options = parser.parse_args()
+
+debug = options.debug
 
 options.translate = options.translate.split(",")
 options.rotate = options.rotate.split(",")
@@ -1293,7 +1147,9 @@ for fileName in options.files:
   if os.path.isfile(fileName):
     sc.loadFile(fileName, options.pattern)
     if options.rebuild == True:
-      sc.saveFile(os.path.splitext(fileName)[0] + ".re.wrl")
+      rebuilt = os.path.splitext(fileName)[0] + ".re.wrl"
+      sc.saveFile(rebuilt)
+      print "Input file %s saved to %s" % (fileName, rebuilt)
 
 def hprint(obj, level = 0):
   for i in obj.objects:
@@ -1304,5 +1160,8 @@ def hprint(obj, level = 0):
 #hprint(sc)
 #print "----------------END STRUCTURE-----------"
 
-if options.view == True:
-  rend = render(sc)
+if options.view:
+  if not opengl:
+    print "Please install PyOpenGL package"
+  else:
+    rend = render(sc)
