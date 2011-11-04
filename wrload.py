@@ -260,9 +260,16 @@ class vrmlScene(vrmlEntry):
     wrlFile = open(fileName, "wb")
     compList = []
     wrlFile.write("#VRML V2.0 utf8\n#Exported from Blender by wrlconv.py\n")
+    #Pass 0: opaque objects
+    pDebug("Write opaque objects")
     for entry in self.objects:
       if entry.active:
-        entry.write(wrlFile, compList, self.transform)
+        entry.write(wrlFile, compList, self.transform, 0)
+    #Pass 1: transparent objects
+    pDebug("Write transparent objects")
+    for entry in self.objects:
+      if entry.active:
+        entry.write(wrlFile, compList, self.transform, 1)
     wrlFile.close()
   def buildMesh(self):
     class groupDescriptor:
@@ -356,11 +363,11 @@ class vrmlTransform(vrmlEntry):
                             [0., 0., float(tmp.group(3)), 0.],
                             [0., 0., 0., 1.]])
       self.transform = self.transform * tform
-  def write(self, fd, compList, transform):
+  def write(self, fd, compList, transform, passNum):
     tform = transform * self.transform
     for obj in self.objects:
       if obj.active:
-        obj.write(fd, compList, tform)
+        obj.write(fd, compList, tform, passNum)
 
 class vrmlInline(vrmlTransform):
   def __init__(self, parent):
@@ -483,8 +490,16 @@ class vrmlShape(vrmlEntry):
           polygons.append(newPoly)
     pDebug("  Shape reindexed: %d/%d vertices, %d polygons" % (len(vertices), totalVertices, len(polygons)))
     return (vertices, polygons)
-  def write(self, fd, compList, transform):
+  def write(self, fd, compList, transform, passNum):
     partialGeo = False
+    currentMat = None
+    for obj in self.objects:
+      if isinstance(obj, vrmlAppearance):
+        for mat in obj.objects:
+          if isinstance(mat, vrmlMaterial):
+            currentMat = mat
+    if (passNum == 0 and currentMat.transparency > 0.01) or (passNum == 1 and currentMat.transparency <= 0.01):
+      return
     if self.parent and self.parent.name != "":
       if len(self.parent.objects) == 1:
         shapeName = self.parent.name
@@ -497,11 +512,7 @@ class vrmlShape(vrmlEntry):
       pDebug("Write untitled object")
       fd.write("Transform {\n  children [\n")
     fd.write("    Shape {\n")
-    for obj in self.objects:
-      if isinstance(obj, vrmlAppearance):
-        for mat in obj.objects:
-          if isinstance(mat, vrmlMaterial):
-            mat.write(fd, compList)
+    currentMat.write(fd, compList)
     if partialGeo:
       (vert, poly) = self.reindex()
       fd.write("      geometry IndexedFaceSet {\n        coord Coordinate { point [\n")
