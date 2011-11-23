@@ -9,6 +9,7 @@ import numpy
 import sys
 import time
 import argparse
+import os
 
 debug = False
 opengl = True
@@ -981,7 +982,7 @@ class render:
     glDisableClientState(GL_COLOR_ARRAY)
     glDisableClientState(GL_VERTEX_ARRAY)
   def drawScene(self):
-    #self.updated = True
+    self.updated = True
     if self.updated == True:
       self.updated = False
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
