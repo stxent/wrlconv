@@ -10,6 +10,7 @@ import sys
 import time
 import argparse
 import os
+import subprocess
 
 debug = False
 opengl = True
@@ -1155,13 +1156,43 @@ gRotate[3] *= (math.pi / 180)
 sc = vrmlScene()
 sc.setTransform(gTranslate, gRotate, gScale)
 
+x3dSupport = True
+x3dScript = "X3dToVrml97.xslt"
+try:
+  nf = open(os.devnull, "w")
+  subprocess.call(["xmlto", "--version"], stdout = nf)
+  nf.close()
+  scriptDir = os.path.dirname(os.path.realpath(__file__))
+  if len(scriptDir) > 0:
+    x3dScript = scriptDir + "/" + x3dScript
+except:
+  x3dSupport = False
+
 for fileName in options.files:
   if os.path.isfile(fileName):
-    sc.loadFile(fileName, options.pattern)
+    if os.path.splitext(fileName)[1] == ".x3d":
+      if not x3dSupport:
+        print "Install package \"xmlto\" to handle X3D files"
+        exit()
+      procFile = os.path.splitext(fileName)[0] + ".proc"
+      modelTime, procTime = 0.0, 0.0
+      procExist = os.path.isfile(procFile)
+      if procExist:
+        modelTime = os.path.getctime(fileName)
+        procTime = os.path.getctime(procFile)
+        pDebug("X3D model time: %s, VRML model time: %s" % (time.ctime(modelTime), time.ctime(procTime)))
+      if not procExist or modelTime >= procTime:
+        nf = open(os.devnull, "w")
+        subprocess.call(["xmlto", "-x", x3dScript, "html", "--skip-validation", fileName], stderr = nf)
+        nf.close()
+      if os.path.isfile(procFile):
+        sc.loadFile(procFile)
+    else:
+      sc.loadFile(fileName)
     if options.rebuild == True:
       rebuilt = os.path.splitext(fileName)[0] + ".re.wrl"
       sc.saveFile(rebuilt)
-      print "Input file %s saved to %s" % (fileName, rebuilt)
+      pDebug("Input file %s saved to %s" % (fileName, rebuilt))
 
 def hprint(obj, level = 0):
   for i in obj.objects:
