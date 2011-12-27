@@ -1186,9 +1186,9 @@ for fileName in options.files:
         subprocess.call(["xmlto", "-x", x3dScript, "html", "--skip-validation", fileName], stderr = nf)
         nf.close()
       if os.path.isfile(procFile):
-        sc.loadFile(procFile)
+        sc.loadFile(procFile, options.pattern)
     else:
-      sc.loadFile(fileName)
+      sc.loadFile(fileName, options.pattern)
     if options.rebuild == True:
       rebuilt = os.path.splitext(fileName)[0] + ".re.wrl"
       sc.saveFile(rebuilt)
