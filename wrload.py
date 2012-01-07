@@ -1116,13 +1116,13 @@ class render:
     self.updated = True
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-v", dest="view", help="Render model.", default=False, action="store_true")
-parser.add_argument("-w", dest="rebuild", help="Rebuild model.", default=False, action="store_true")
-parser.add_argument("-t", dest="translate", help="Move mesh to new coordinates [x,y,z], default value \"0.,0.,0.\".", default='0.,0.,0.')
-parser.add_argument("-r", dest="rotate", help="Rotate mesh around vector [x,y,z] by angle in degrees, default value \"0.,0.,1.,0.\".", default='0.,0.,1.,0.')
-parser.add_argument("-s", dest="scale", help="Scale shapes by [x,y,z], default value \"1.,1.,1.\".", default='1.,1.,1.')
-parser.add_argument("-f", dest="pattern", help="Regular expression, filter objects by name", default="")
-parser.add_argument("-d", dest="debug", help="Show debug information", default=False, action="store_true")
+parser.add_argument("-v", dest="view", help="render model", default=False, action="store_true")
+parser.add_argument("-w", dest="rebuild", help="rebuild model", default=False, action="store_true")
+parser.add_argument("-t", dest="translate", help="move mesh to new coordinates [x,y,z], default value \"0.,0.,0.\"", default='0.,0.,0.')
+parser.add_argument("-r", dest="rotate", help="rotate mesh around vector [x,y,z] by angle in degrees, default value \"0.,0.,1.,0.\"", default='0.,0.,1.,0.')
+parser.add_argument("-s", dest="scale", help="scale shapes by [x,y,z], default value \"1.,1.,1.\"", default='1.,1.,1.')
+parser.add_argument("-f", dest="pattern", help="regular expression, filter objects by name", default="")
+parser.add_argument("-d", dest="debug", help="show debug information", default=False, action="store_true")
 parser.add_argument(dest="files", nargs="*")
 options = parser.parse_args()
 
@@ -1198,10 +1198,6 @@ def hprint(obj, level = 0):
   for i in obj.objects:
     print "%s%s - %s" % (' ' * level, i.__class__.__name__, i.name)
     hprint(i, level + 2)
-
-#print "----------------STRUCTURE---------------"
-#hprint(sc)
-#print "----------------END STRUCTURE-----------"
 
 if options.view:
   if not opengl:
