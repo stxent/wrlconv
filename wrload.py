@@ -22,9 +22,11 @@ try:
 except:
     opengl = False
 
+
 def pDebug(text, level = 1):
     if debug:
       print text
+
 
 def getAngle(v1, v2):
     mag1 = math.sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2])
@@ -35,6 +37,7 @@ def getAngle(v1, v2):
       ac *= -1
     return ac
 
+
 def normalize(vect):
     val = numpy.linalg.norm(vect)
     if val != 0:
@@ -42,10 +45,12 @@ def normalize(vect):
     else:
       return vect
 
+
 def getNormal(v1, v2):
     return numpy.matrix([[float(v1[1] * v2[2] - v1[2] * v2[1])],
                          [float(v1[2] * v2[0] - v1[0] * v2[2])],
                          [float(v1[0] * v2[1] - v1[1] * v2[0])]])
+
 
 def fillRotateMatrix(v, angle):
     cs = math.cos(angle)
@@ -55,6 +60,7 @@ def fillRotateMatrix(v, angle):
                          [v[1]*v[0]*(1 - cs) + v[2]*sn,      cs + v[1]*v[1]*(1 - cs), v[1]*v[2]*(1 - cs) - v[0]*sn, 0.],
                          [v[2]*v[0]*(1 - cs) - v[1]*sn, v[2]*v[1]*(1 - cs) + v[0]*sn,      cs + v[2]*v[2]*(1 - cs), 0.],
                          [                          0.,                           0.,                           0., 1.]])
+
 
 def skipChunk(fd):
     balance = 1
@@ -70,6 +76,7 @@ def skipChunk(fd):
             if balance == 0:
                 return len(data) - i - 2
     return 0
+
 
 def calcBalance(string, delta=None, openset=('[', '{'), closeset=(']', '}')):
     balance, offset, update = 0, 0, False
@@ -87,7 +94,7 @@ def calcBalance(string, delta=None, openset=('[', '{'), closeset=(']', '}')):
 
 def createShader(vertSource, fragSource):
     try:
-        program = compileProgram(compileShader(vertSource, GL_VERTEX_SHADER), 
+        program = compileProgram(compileShader(vertSource, GL_VERTEX_SHADER),
                                  compileShader(fragSource, GL_FRAGMENT_SHADER))
     except RuntimeError as runError:
         print runError.args[0] #Print error log
@@ -144,7 +151,7 @@ class vrmlEntry:
                 entryType = regexp.group(3)
                 try:
                     if isinstance(self, vrmlScene) or isinstance(self, vrmlTransform) or isinstance(self, vrmlInline):
-                        if entryType == "Transform" or entryType == "Group" or entryType == "Collision":
+                        if entryType in ("Transform", "Group", "Collision"):
                             entry = vrmlTransform(self)
                             #Transform filtering
                             if namePattern and len(regexp.group(2)) != 0:
@@ -172,7 +179,7 @@ class vrmlEntry:
                             raise Exception()
                     elif isinstance(self, vrmlGeometry):
                         if entryType == "Coordinate":
-                            entry = vrmlCoordinates(self, 'model')
+                            entry = vrmlCoords(self, 'model')
                         else:
                             raise Exception()
                     else:
@@ -396,7 +403,7 @@ class vrmlInline(vrmlTransform):
                 #self.name = urlSearch.group(1)
                 wrlFile = open(urlSearch.group(1), "r")
                 if len(os.path.dirname(urlSearch.group(1))) > 0:
-                  os.chdir(os.path.dirname(urlSearch.group(1)))
+                    os.chdir(os.path.dirname(urlSearch.group(1)))
                 self.read(wrlFile)
                 wrlFile.close()
             else:
@@ -419,7 +426,7 @@ class vrmlShape(vrmlEntry):
                 #TODO add solid parsing
                 vertices = []
                 for coords in obj.objects:
-                    if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
+                    if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['model']:
                         for vert in coords.vertices:
                             tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
                             tmp = transform * tmp
@@ -493,7 +500,7 @@ class vrmlShape(vrmlEntry):
         for obj in self.objects:
             if isinstance(obj, vrmlGeometry):
                 for coords in obj.objects:
-                    if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
+                    if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['model']:
                         totalVertices = len(coords.vertices)
                         for i in range(0, len(usedVertices)):
                             vertices.append(coords.vertices[usedVertices[i]])
@@ -556,7 +563,7 @@ class vrmlShape(vrmlEntry):
                 if isinstance(obj, vrmlGeometry):
                     fd.write("      geometry IndexedFaceSet {\n        coord Coordinate { point [\n")
                     for coords in obj.objects:
-                        if isinstance(coords, vrmlCoordinates) and coords.cType == vrmlCoordinates.TYPE['model']:
+                        if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['model']:
                             for i in range(0, len(coords.vertices)):
                                 tmp = numpy.matrix([[coords.vertices[i][0]], [coords.vertices[i][1]], [coords.vertices[i][2]], [1.]])
                                 tmp = transform * tmp
@@ -653,19 +660,19 @@ class vrmlGeometry(vrmlEntry):
                        (' ' * self._level, self.triCount / 3, self.quadCount / 4, self.triCount + self.quadCount))
 
 
-class vrmlCoordinates(vrmlEntry):
+class vrmlCoords(vrmlEntry):
     TYPE = {'model' : 0, 'texture' : 1}
     def __init__(self, parent, cType):
         vrmlEntry.__init__(self, parent)
-        self.cType = vrmlCoordinates.TYPE[cType]
+        self.cType = vrmlCoords.TYPE[cType]
         self.vertices = None
 
     def readSpecific(self, fd, string):
         initialPos = fd.tell()
         indexSearch = re.search("point\s*\[", string, re.S)
         if indexSearch:
-            pDebug("%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoordinates.TYPE.keys()[self.cType]))
-            if self.cType == vrmlCoordinates.TYPE['model']:
+            pDebug("%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoords.TYPE.keys()[self.cType]))
+            if self.cType == vrmlCoords.TYPE['model']:
                 vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
             self.vertices = []
             delta, offset, balance = 0, 0, 0
