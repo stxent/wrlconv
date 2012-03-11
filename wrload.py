@@ -22,11 +22,9 @@ try:
 except:
     opengl = False
 
-
 def pDebug(text, level = 1):
     if debug:
-      print text
-
+        print text
 
 def getAngle(v1, v2):
     mag1 = math.sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2])
@@ -34,23 +32,20 @@ def getAngle(v1, v2):
     res = (v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2]) / (mag1 * mag2)
     ac = math.acos(res)
     if v2[0]*v1[1] - v2[1]*v1[0] < 0:
-      ac *= -1
+        ac *= -1
     return ac
-
 
 def normalize(vect):
     val = numpy.linalg.norm(vect)
     if val != 0:
-      return vect / val
+        return vect / val
     else:
-      return vect
-
+        return vect
 
 def getNormal(v1, v2):
     return numpy.matrix([[float(v1[1] * v2[2] - v1[2] * v2[1])],
                          [float(v1[2] * v2[0] - v1[0] * v2[2])],
                          [float(v1[0] * v2[1] - v1[1] * v2[0])]])
-
 
 def fillRotateMatrix(v, angle):
     cs = math.cos(angle)
@@ -60,7 +55,6 @@ def fillRotateMatrix(v, angle):
                          [v[1]*v[0]*(1 - cs) + v[2]*sn,      cs + v[1]*v[1]*(1 - cs), v[1]*v[2]*(1 - cs) - v[0]*sn, 0.],
                          [v[2]*v[0]*(1 - cs) - v[1]*sn, v[2]*v[1]*(1 - cs) + v[0]*sn,      cs + v[2]*v[2]*(1 - cs), 0.],
                          [                          0.,                           0.,                           0., 1.]])
-
 
 def skipChunk(fd):
     balance = 1
@@ -76,7 +70,6 @@ def skipChunk(fd):
             if balance == 0:
                 return len(data) - i - 2
     return 0
-
 
 def calcBalance(string, delta=None, openset=('[', '{'), closeset=(']', '}')):
     balance, offset, update = 0, 0, False
@@ -104,6 +97,15 @@ def createShader(vertSource, fragSource):
         print "Unknown shader error"
         exit()
     return program
+
+def extractMat(obj):
+    if isinstance(obj, vrmlMaterial):
+        return obj
+    for entry in obj.objects:
+        res = extractMat(entry)
+        if res is not None:
+            return res
+    return None
 
 
 class vrmlEntry:
@@ -236,6 +238,7 @@ class vrmlEntry:
     def readSpecific(self, fd, string):
         pass
 
+
 class vrmlScene(vrmlEntry):
     def __init__(self):
         vrmlEntry.__init__(self)
@@ -262,7 +265,7 @@ class vrmlScene(vrmlEntry):
         #self.transform = translation * rotation * scale
         self.transform = translation + rotation * scale
 
-    def loadFile(self, fileName, objFilter = ""):
+    def loadFile(self, fileName, objFilter=""):
         wrlFile = open(fileName, "rb")
         oldDir = os.getcwd()
         if len(os.path.dirname(fileName)) > 0:
@@ -271,20 +274,29 @@ class vrmlScene(vrmlEntry):
         os.chdir(oldDir)
         wrlFile.close()
 
+
+
+        #Transparency ordering
+        latest = None
+        for i in range(len(self.objects) - 1, -1, -1):
+            mat = extractMat(self.objects[i])
+            if mat is not None and mat.transparency > 0.0:
+                if not latest:
+                    continue
+                else:
+                    self.objects[i], self.objects[latest] = self.objects[latest], self.objects[i]
+                    latest = latest - 1
+            else:
+                if not latest:
+                    latest = i
+
     def saveFile(self, fileName):
         wrlFile = open(fileName, "wb")
         compList = []
         wrlFile.write("#VRML V2.0 utf8\n#Exported from Blender by wrlconv.py\n")
-        #Pass 0: opaque objects
-        pDebug("Write opaque objects")
         for entry in self.objects:
             if entry.active:
-                entry.write(wrlFile, compList, self.transform, 0)
-        #Pass 1: transparent objects
-        pDebug("Write transparent objects")
-        for entry in self.objects:
-            if entry.active:
-                entry.write(wrlFile, compList, self.transform, 1)
+                entry.write(wrlFile, compList, self.transform)
         wrlFile.close()
 
     def buildMesh(self):
@@ -336,9 +348,6 @@ class vrmlScene(vrmlEntry):
             meshobj.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
             offsets = (0, groups[i].count[0]) #(Triangles, Quads)
             offsets = buildObjects(self, groups[i].objects, meshobj, self.transform, offsets, groups[i].appearance)
-            #for shape in groups[i].objects:
-              #print "Meshing object id %d" % shape.id
-              #offsets = shape.mesh(meshobj, offsets, groups[i].appearance)
             fs = faceset()
             if offsets[0] > 0:
                 fs.append(GL_TRIANGLES, 0, offsets[0])
@@ -347,6 +356,21 @@ class vrmlScene(vrmlEntry):
             meshobj.appearance = groups[i].appearance
             meshobj.objects.append(fs)
             res.append(meshobj)
+
+        #Transparency ordering
+        latest = None
+        for i in range(len(res) - 1, -1, -1):
+            mat = extractMat(res[i].appearance)
+            if mat is not None and mat.transparency > 0.0:
+                res[i].zbuffer = False
+                if not latest:
+                    continue
+                else:
+                    res[i], res[latest] = res[latest], res[i]
+                    latest = latest - 1
+            else:
+                if not latest:
+                    latest = i
         return res
 
 
@@ -383,11 +407,11 @@ class vrmlTransform(vrmlEntry):
                                   [0., 0., 0., 1.]])
             self.transform = self.transform * tform
 
-    def write(self, fd, compList, transform, passNum):
+    def write(self, fd, compList, transform):
         tform = transform * self.transform
         for obj in self.objects:
             if obj.active:
-                obj.write(fd, compList, tform, passNum)
+                obj.write(fd, compList, tform)
 
 class vrmlInline(vrmlTransform):
     def __init__(self, parent):
@@ -515,16 +539,9 @@ class vrmlShape(vrmlEntry):
         pDebug("  Shape reindexed: %d/%d vertices, %d polygons" % (len(vertices), totalVertices, len(polygons)))
         return (vertices, polygons)
 
-    def write(self, fd, compList, transform, passNum):
+    def write(self, fd, compList, transform):
         partialGeo = False
-        currentMat = None
-        for obj in self.objects:
-            if isinstance(obj, vrmlAppearance):
-                for mat in obj.objects:
-                    if isinstance(mat, vrmlMaterial):
-                        currentMat = mat
-        if (passNum == 0 and currentMat.transparency > 0.01) or (passNum == 1 and currentMat.transparency <= 0.01):
-            return
+        currentMat = extractMat(self)
         if self.parent and self.parent.name != "":
             if len(self.parent.objects) == 1:
                 shapeName = self.parent.name
@@ -661,7 +678,7 @@ class vrmlGeometry(vrmlEntry):
 
 
 class vrmlCoords(vrmlEntry):
-    TYPE = {'model' : 0, 'texture' : 1}
+    TYPE = {'model': 0, 'texture': 1}
     def __init__(self, parent, cType):
         vrmlEntry.__init__(self, parent)
         self.cType = vrmlCoords.TYPE[cType]
@@ -679,7 +696,6 @@ class vrmlCoords(vrmlEntry):
             data = string
             vPos = indexSearch.end()
             while 1:
-                #print "Balance: %d, str: '%s'" % (balance, data.replace("\n", ""))
                 while 1:
                     regexp = vertexPattern.search(data, vPos)
                     if regexp:
@@ -748,10 +764,10 @@ class vrmlMaterial(vrmlEntry):
         if not isinstance(other, vrmlMaterial):
             return False
         if self.diffuseColor  == other.diffuseColor and \
-            self.ambientColor  == other.ambientColor and \
-            self.specularColor == other.specularColor and \
-            self.emissiveColor == other.emissiveColor and \
-            self.shininess     == other.shininess:
+           self.ambientColor  == other.ambientColor and \
+           self.specularColor == other.specularColor and \
+           self.emissiveColor == other.emissiveColor and \
+           self.shininess     == other.shininess:
             return True
         else:
             return False
@@ -946,24 +962,6 @@ class render:
         vrmlShape._pcount = 0
         self.data = aScene.buildMesh()
         print "Total vertex count: %d, polygon count: %d, rendered mesh count: %d" % (vrmlShape._vcount, vrmlShape._pcount, len(self.data))
-        #Z-Ordering #FIXME
-        latest = None
-        for i in range(len(self.data) - 1, -1, -1):
-            tp = 0.0
-            for mat in self.data[i].appearance.objects:
-                if isinstance(mat, vrmlMaterial):
-                    tp = mat.transparency;
-                    break
-            if tp > 0.0:
-                self.data[i].zbuffer = False
-                if not latest:
-                    continue
-                else:
-                    self.data[i], self.data[latest] = self.data[latest], self.data[i]
-                    latest = latest - 1
-            else:
-                if not latest:
-                    latest = i
         for meshEntry in self.data:
             meshEntry.vertexVBO = glGenBuffers(1)
             glBindBuffer(GL_ARRAY_BUFFER, meshEntry.vertexVBO)
@@ -1138,26 +1136,26 @@ class render:
             self.mousePos = [xPos, yPos]
         self.updated = True
     def keyHandler(self, key, xPos, yPos):
-        if key == "\x1b" or key == "q" or key == "Q":
+        if key in ("\x1b", "q", "Q"):
             exit()
-        if key == "r" or key == "R":
+        if key in ("r", "R"):
             self.camera = numpy.matrix([[0.], [20.], [0.], [1.]])
             self.pov    = numpy.matrix([[0.], [0.], [0.], [1.]])
-        #if key == "w" or key == "W": #FIXME rewrite
+        #if key in ("w", "W"): #FIXME rewrite
             #vect = normalize(self.pov - self.camera)
             #self.pov += vect
             #self.camera += vect
-        #if key == "s" or key == "S":
+        #if key in ("s", "S"):
             #vect = normalize(self.pov - self.camera)
             #vect[3] = 0.
             #self.pov -= vect
             #self.camera -= vect
-        #if key == "a" or key == "A":
+        #if key in ("a", "A"):
             #normal = normalize(getNormal([0., 0., 1.], self.camera - self.pov))
             #normal = numpy.matrix([[float(normal[0])], [float(normal[1])], [float(normal[2])], [0.]])
             #self.pov -= normal
             #self.camera -= normal
-        #if key == "d" or key == "D":
+        #if key in ("d", "D"):
             #normal = normalize(getNormal([0., 0., 1.], self.camera - self.pov))
             #normal = numpy.matrix([[float(normal[0])], [float(normal[1])], [float(normal[2])], [0.]])
             #self.pov += normal
@@ -1242,11 +1240,6 @@ for fileName in options.files:
             rebuilt = os.path.splitext(fileName)[0] + ".re.wrl"
             sc.saveFile(rebuilt)
             pDebug("Input file %s saved to %s" % (fileName, rebuilt))
-
-def hprint(obj, level=0):
-    for i in obj.objects:
-        print "%s%s - %s" % (' ' * level, i.__class__.__name__, i.name)
-        hprint(i, level + 2)
 
 if options.view:
     if not opengl:
