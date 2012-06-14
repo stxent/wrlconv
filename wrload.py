@@ -122,7 +122,7 @@ class vrmlEntry:
             self._level = 0
 
     def read(self, fd, objFilter=""):
-        defPattern = re.compile("([\w]*?)\s*([\w\-]*?)\s*(\w+)\s*{", re.I | re.S)
+        defPattern = re.compile("([\w]*?)\s*([\w\.\-]*?)\s*(\w+)\s*{", re.I | re.S)
         delta, offset, balance = 0, 0, 0
         if len(objFilter) != 0:
             namePattern = re.compile(objFilter, re.I | re.S)
@@ -219,7 +219,7 @@ class vrmlEntry:
                 balance += delta
                 initialPos = fd.tell()
                 self.readSpecific(fd, data)
-                using = re.search("USE\s+([\w\-]+)", data, re.I | re.S)
+                using = re.search("USE\s+([\w\.\-]+)", data, re.I | re.S)
                 if using and using.start() < len(data) - offset:
                     pDebug("%sUsing entry %s" % (' ' * self._level, using.group(1)))
                     ptr = self
@@ -274,8 +274,6 @@ class vrmlScene(vrmlEntry):
         os.chdir(oldDir)
         wrlFile.close()
 
-
-
         #Transparency ordering
         latest = None
         for i in range(len(self.objects) - 1, -1, -1):
@@ -296,7 +294,7 @@ class vrmlScene(vrmlEntry):
         wrlFile.write("#VRML V2.0 utf8\n#Exported from Blender by wrlconv.py\n")
         for entry in self.objects:
             if entry.active:
-                entry.write(wrlFile, compList, self.transform)
+                entry.write(wrlFile, compList, self.transform, entry.active)
         wrlFile.close()
 
     def buildMesh(self):
@@ -307,10 +305,12 @@ class vrmlScene(vrmlEntry):
                 self.name = ""
                 self.objects = []
 
-        def groupObjects(top, grps):
+        def groupObjects(top, grps, granted=False):
             for entry in top.objects:
-                if isinstance(top, vrmlScene) or (isinstance(top, vrmlTransform) and top.active):
-                    groupObjects(entry, grps)
+                if not entry.active and not granted:
+                    continue
+                if isinstance(top, vrmlScene) or isinstance(top, vrmlTransform):
+                    groupObjects(entry, grps, entry.active or granted)
                 if isinstance(entry, vrmlShape):
                     count = numpy.array([0, 0])
                     for geo in entry.objects:
@@ -328,10 +328,12 @@ class vrmlScene(vrmlEntry):
                             grps[app.id].objects.append(entry)
                             break
 
-        def buildObjects(top, objlist, mesh, transform, off, app): #FIXME rewrite
+        def buildObjects(top, objlist, mesh, transform, off, app, granted=False): #FIXME rewrite
             for entry in top.objects:
+                if not entry.active and not granted:
+                    continue
                 if isinstance(entry, vrmlScene) or isinstance(entry, vrmlTransform):
-                    off = buildObjects(entry, objlist, mesh, transform * entry.transform, off, app)
+                    off = buildObjects(entry, objlist, mesh, transform * entry.transform, off, app, entry.active or granted)
                 if entry in objlist:
                     off = entry.mesh(meshobj, off, app, transform)
             return off
@@ -407,11 +409,11 @@ class vrmlTransform(vrmlEntry):
                                   [0., 0., 0., 1.]])
             self.transform = self.transform * tform
 
-    def write(self, fd, compList, transform):
+    def write(self, fd, compList, transform, granted=False):
         tform = transform * self.transform
         for obj in self.objects:
-            if obj.active:
-                obj.write(fd, compList, tform)
+            if obj.active or granted:
+                obj.write(fd, compList, tform, obj.active or granted)
 
 class vrmlInline(vrmlTransform):
     def __init__(self, parent):
@@ -539,7 +541,7 @@ class vrmlShape(vrmlEntry):
         pDebug("  Shape reindexed: %d/%d vertices, %d polygons" % (len(vertices), totalVertices, len(polygons)))
         return (vertices, polygons)
 
-    def write(self, fd, compList, transform):
+    def write(self, fd, compList, transform, granted=False):
         partialGeo = False
         currentMat = extractMat(self)
         if self.parent and self.parent.name != "":
