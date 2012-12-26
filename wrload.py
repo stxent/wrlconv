@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Author: xen (alexdmitv@gmail.com)
+# Author: xent (alexdmitv@gmail.com)
 # License: Public domain code
 # Version: 0.3b
 import re
