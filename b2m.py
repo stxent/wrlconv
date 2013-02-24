@@ -7,8 +7,8 @@ import numpy
 import Image, ImageDraw
 import random
 import copy
+import math
 #import re
-#import math
 #import sys
 #import time
 #import argparse
@@ -268,6 +268,45 @@ def createBoard(vertices, polygons):
         volPolygons.append(newPoly)
     return (volVertices, volPolygons)
 
+def createHole(position, radius):
+    edges = 24
+    vertices = []
+    polygons = []
+    delta = math.pi * 2 / 24
+    angle = 0
+    for i in range(0, edges):
+        vertices.append([position[0] + radius * math.cos(angle), position[1] + radius * math.sin(angle), 0.25])
+        vertices.append([position[0] + radius * math.cos(angle), position[1] + radius * math.sin(angle), -0.25])
+        angle += delta
+    polygons.append([(edges - 1) * 2, 0, 1, (edges - 1) * 2 + 1])
+    for i in range(0, edges - 1):
+        polygons.append([(i + 0) * 2, (i + 1) * 2, (i + 1) * 2 + 1, (i + 0) * 2 + 1])
+
+    vertices.append([position[0] + radius, position[1] + radius, 0.25])
+    vertices.append([position[0] + radius, position[1] + radius, -0.25])
+    vertices.append([position[0] - radius, position[1] + radius, 0.25])
+    vertices.append([position[0] - radius, position[1] + radius, -0.25])
+    vertices.append([position[0] - radius, position[1] - radius, 0.25])
+    vertices.append([position[0] - radius, position[1] - radius, -0.25])
+    vertices.append([position[0] + radius, position[1] - radius, 0.25])
+    vertices.append([position[0] + radius, position[1] - radius, -0.25])
+
+    offset = edges * 2
+    delta = edges / 4
+    for i in range(0, delta):
+        #Front
+        polygons.append([(i + 0) * 2 + delta * 2 * 0, offset + 0, (i + 1) * 2 + delta * 2 * 0])
+        polygons.append([(i + 0) * 2 + delta * 2 * 1, offset + 2, (i + 1) * 2 + delta * 2 * 1])
+        polygons.append([(i + 0) * 2 + delta * 2 * 2, offset + 4, (i + 1) * 2 + delta * 2 * 2])
+        polygons.append([(i + 0) * 2 + delta * 2 * 3, offset + 6, (i + 1) * 2 + delta * 2 * 3])
+        #Back
+        polygons.append([(i + 1) * 2 + delta * 2 * 0 + 1, offset + 1, (i + 0) * 2 + delta * 2 * 0 + 1])
+        polygons.append([(i + 1) * 2 + delta * 2 * 1 + 1, offset + 3, (i + 0) * 2 + delta * 2 * 1 + 1])
+        polygons.append([(i + 1) * 2 + delta * 2 * 2 + 1, offset + 5, (i + 0) * 2 + delta * 2 * 2 + 1])
+        polygons.append([(i + 1) * 2 + delta * 2 * 3 + 1, offset + 7, (i + 0) * 2 + delta * 2 * 3 + 1])
+
+    return (vertices, polygons)
+
 def writeVRML(filename, vertices, polygons):
     offset, scale = (-400, -400), (0.025, 0.025)
     out = open(filename, "wb")
@@ -315,22 +354,23 @@ def writeVRML(filename, vertices, polygons):
 #test = Rect(((50, 50), (750, 750)), ((10, 15), (20, 10), (15, 20), (20, 30)))
 #test = Rect(((50, 50), (750, 750)), ((50, 50), (50, 50), (50, 50), (50, 50)))
 test = Rect(((50, 50), (750, 750)), ((0, 0), (0, 0), (0, 0), (0, 0)))
-(bVert, bPoly) = test.borders()
+bVert, bPoly = test.borders()
 
 random.seed()
 holes = []
-#holes.append(((400, 400), 30))
-for i in range(0, 16):
-    pos = (random.randint(100, 700), random.randint(100, 700))
-    rad = random.randint(5, 15)
-    holes.append((pos, rad))
+holes.append(((400, 400), 50))
+holes.append(((500, 350), 30))
+#for i in range(0, 2):
+    #pos = (random.randint(100, 700), random.randint(100, 700))
+    #rad = random.randint(20, 50)
+    #holes.append((pos, rad))
 
 for h in holes:
     test.subdivide(circleRect(h[0], h[1]))
 
-(vert, poly) = test.tesselate()
+vert, poly = test.tesselate()
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
-(vert, poly) = optimizeVertices(vert, poly)
+vert, poly = optimizeVertices(vert, poly)
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
 
 sizeX, sizeY = 800, 800
@@ -355,5 +395,19 @@ for poly in bPoly:
         poly[i] += len(xVert)
 xVert.extend(bVert)
 xPoly.extend(bPoly)
+
+print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
+for h in holes:
+    hVert, hPoly = createHole(h[0], h[1])
+    for poly in hPoly:
+        for i in range(0, len(poly)):
+            poly[i] += len(xVert)
+    xVert.extend(hVert)
+    xPoly.extend(hPoly)
+
+print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
+#xVert, xPoly = optimizeVertices(xVert, xPoly)
+#print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
+
 writeVRML("board.wrl", xVert, xPoly)
 colorData.show()
