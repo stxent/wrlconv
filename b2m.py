@@ -16,6 +16,7 @@ import copy
 #import subprocess
 
 class Rect:
+    THICKNESS = 0.25
     class RectCorner:
         def __init__(self, position, chamfer):
             self.position = position #Tuple of two elements: x and y
@@ -24,11 +25,11 @@ class Rect:
         def generate(self, vect):
             vertices = []
             vertices.append([self.position[0] + self.chamfer[0] * vect[0],
-                    self.position[1]])
+                    self.position[1], Rect.THICKNESS])
             vertices.append([self.position[0] + self.chamfer[0] * vect[0],
-                    self.position[1] + self.chamfer[1] * vect[1]])
+                    self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS])
             vertices.append([self.position[0],
-                    self.position[1] + self.chamfer[1] * vect[1]])
+                    self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS])
             return vertices
 
     @staticmethod
@@ -127,6 +128,27 @@ class Rect:
                 vertices.extend(vList)
                 polygons.extend(pList)
             return (vertices, polygons)
+
+    def borders(self):
+        if self.sub is None:
+            vertices = []
+            polygons = [[ 2, 11, 23, 14],
+                        [ 0,  3, 15, 12],
+                        [ 5,  8, 20, 17],
+                        [ 6,  9, 21, 18]]
+            vertices.extend(self.corners[0].generate(( 1,  1)))
+            vertices.extend(self.corners[1].generate((-1,  1)))
+            vertices.extend(self.corners[2].generate((-1, -1)))
+            vertices.extend(self.corners[3].generate(( 1, -1)))
+            for vert in vertices:
+                vert[2] = -Rect.THICKNESS
+            vertices.extend(self.corners[0].generate(( 1,  1)))
+            vertices.extend(self.corners[1].generate((-1,  1)))
+            vertices.extend(self.corners[2].generate((-1, -1)))
+            vertices.extend(self.corners[3].generate(( 1, -1)))
+            return (vertices, polygons)
+        else:
+            return ([], [])
 
     def subdivide(self, points):
         size = (points[1][0] - points[0][0], points[1][1] - points[0][1])
@@ -227,6 +249,25 @@ def optimizeVertices(vertices, polygons):
 def circleRect(position, radius):
     return ((position[0] - radius, position[1] - radius), (position[0] + radius, position[1] + radius))
 
+def createBoard(vertices, polygons):
+    volVertices = []
+    volPolygons = []
+    for vert in vertices:
+        volVertices.append(vert)
+    offset = len(volVertices)
+    for vert in vertices:
+        volVertices.append([vert[0], vert[1], -0.25])
+    for poly in polygons:
+        newPoly = []
+        for i in range(0, len(poly)):
+            newPoly.append(poly[i])
+        volPolygons.append(newPoly)
+        newPoly = []
+        for i in range(len(poly) - 1, -1, -1):
+            newPoly.append(poly[i] + offset)
+        volPolygons.append(newPoly)
+    return (volVertices, volPolygons)
+
 def writeVRML(filename, vertices, polygons):
     offset, scale = (-400, -400), (0.025, 0.025)
     out = open(filename, "wb")
@@ -254,7 +295,7 @@ def writeVRML(filename, vertices, polygons):
               "\t\t\t\t\t\tcoord DEF coord_Cube Coordinate {\n"
               "\t\t\t\t\t\t\tpoint [\n")
     for v in vertices:
-        out.write("%f %f %f\n" % ((v[0] + offset[0]) * scale[0], (v[1] + offset[1]) * scale[1], 0.0))
+        out.write("%f %f %f\n" % ((v[0] + offset[0]) * scale[0], (v[1] + offset[1]) * scale[1], v[2]))
     out.write("\t\t\t\t\t\t\t]\n"
               "\t\t\t\t\t\t}\n"
               "\t\t\t\t\t\tcoordIndex [\n")
@@ -274,6 +315,7 @@ def writeVRML(filename, vertices, polygons):
 #test = Rect(((50, 50), (750, 750)), ((10, 15), (20, 10), (15, 20), (20, 30)))
 #test = Rect(((50, 50), (750, 750)), ((50, 50), (50, 50), (50, 50), (50, 50)))
 test = Rect(((50, 50), (750, 750)), ((0, 0), (0, 0), (0, 0), (0, 0)))
+(bVert, bPoly) = test.borders()
 
 random.seed()
 holes = []
@@ -307,5 +349,11 @@ for i in range(0, len(vert)):
     drawing.line([(v[0] - 2, v[1]), (v[0] + 2, v[1])], col[i % 3])
     drawing.line([(v[0], v[1] - 2), (v[0], v[1] + 2)], col[i % 3])
 
-writeVRML("board.wrl", vert, poly)
+xVert, xPoly = createBoard(vert, poly)
+for poly in bPoly:
+    for i in range(0, len(poly)):
+        poly[i] += len(xVert)
+xVert.extend(bVert)
+xPoly.extend(bPoly)
+writeVRML("board.wrl", xVert, xPoly)
 colorData.show()
