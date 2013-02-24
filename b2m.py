@@ -6,6 +6,7 @@
 import numpy
 import Image, ImageDraw
 import random
+import copy
 #import re
 #import math
 #import sys
@@ -81,8 +82,8 @@ class Rect:
         #Returns tuple with vertex and polygon lists
         if self.sub is None:
             vertices = []
-            polygons = [[ 0,  1,  4,  3],
-                        [ 5,  4,  7,  8],
+            polygons = [[ 1,  0,  3,  4],
+                        [ 4,  5,  8,  7],
                         [ 7,  6,  9, 10],
                         [10, 11,  2,  1],
                         [ 1,  4,  7, 10]]
@@ -90,7 +91,31 @@ class Rect:
             vertices.extend(self.corners[1].generate((-1,  1)))
             vertices.extend(self.corners[2].generate((-1, -1)))
             vertices.extend(self.corners[3].generate(( 1, -1)))
-            return (vertices, polygons)
+
+            rebuilded = []
+            vIndex = range(0, len(vertices))
+            while len(vIndex):
+                vert = vertices[vIndex[0]]
+                same = []
+                for i in range(0, len(vertices)):
+                    if vertices[i] == vert:
+                        same.append(i)
+                last = len(rebuilded)
+                for poly in polygons:
+                    for i in range(0, len(poly)):
+                        if poly[i] in same:
+                            poly[i] = last
+                for ind in same:
+                    vIndex.remove(ind)
+                rebuilded.append(vert)
+            for i in range(len(polygons) - 1, -1, -1):
+                failed = False
+                for j in range(len(polygons[i]) - 1, -1, -1):
+                    if polygons[i].count(polygons[i][j]) > 1:
+                        polygons[i].pop(j)
+                if len(polygons[i]) < 3:
+                    polygons.pop(i)
+            return (rebuilded, polygons)
         else:
             vertices = []
             polygons = []
@@ -179,6 +204,26 @@ class Rect:
                 entry.subdivide(points)
 
 
+def optimizeVertices(vertices, polygons):
+    retVert = []
+    retPoly = copy.deepcopy(polygons)
+    vIndex = range(0, len(vertices))
+    while len(vIndex):
+        vert = vertices[vIndex[0]]
+        same = []
+        for i in range(0, len(vertices)):
+            if vertices[i] == vert:
+                same.append(i)
+        last = len(retVert)
+        for poly in retPoly:
+            for i in range(0, len(poly)):
+                if poly[i] in same:
+                    poly[i] = last
+        for ind in same:
+            vIndex.remove(ind)
+        retVert.append(vert)
+    return (retVert, retPoly)
+
 def circleRect(position, radius):
     return ((position[0] - radius, position[1] - radius), (position[0] + radius, position[1] + radius))
 
@@ -226,11 +271,14 @@ def writeVRML(filename, vertices, polygons):
               "}\n")
     out.close()
 
-test = Rect(((50, 50), (750, 750)), ((10, 15), (20, 10), (15, 20), (20, 30)))
+#test = Rect(((50, 50), (750, 750)), ((10, 15), (20, 10), (15, 20), (20, 30)))
+#test = Rect(((50, 50), (750, 750)), ((50, 50), (50, 50), (50, 50), (50, 50)))
+test = Rect(((50, 50), (750, 750)), ((0, 0), (0, 0), (0, 0), (0, 0)))
 
 random.seed()
 holes = []
-for i in range(0, 4):
+#holes.append(((400, 400), 30))
+for i in range(0, 16):
     pos = (random.randint(100, 700), random.randint(100, 700))
     rad = random.randint(5, 15)
     holes.append((pos, rad))
@@ -240,6 +288,8 @@ for h in holes:
 
 (vert, poly) = test.tesselate()
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
+(vert, poly) = optimizeVertices(vert, poly)
+print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
 
 sizeX, sizeY = 800, 800
 colorData = Image.new("RGB", (sizeX, sizeY))
@@ -247,11 +297,11 @@ drawing = ImageDraw.Draw(colorData)
 col = ((255, 0, 0), (0, 255, 0), (255, 255, 0))
 
 for i in range(0, len(poly)):
-    p = poly[i]
-    drawing.line([(vert[p[0]][0], vert[p[0]][1]), (vert[p[1]][0], vert[p[1]][1])], (128, 128, 128))
-    drawing.line([(vert[p[1]][0], vert[p[1]][1]), (vert[p[2]][0], vert[p[2]][1])], (128, 128, 128))
-    drawing.line([(vert[p[2]][0], vert[p[2]][1]), (vert[p[3]][0], vert[p[3]][1])], (128, 128, 128))
-    drawing.line([(vert[p[3]][0], vert[p[3]][1]), (vert[p[0]][0], vert[p[0]][1])], (128, 128, 128))
+    for j in range(0, len(poly[i]) - 1):
+        va, vb = poly[i][j], poly[i][j + 1]
+        drawing.line([(vert[va][0], vert[va][1]), (vert[vb][0], vert[vb][1])], (128, 128, 128))
+    va, vb = poly[i][len(poly[i]) - 1], poly[i][0]
+    drawing.line([(vert[va][0], vert[va][1]), (vert[vb][0], vert[vb][1])], (128, 128, 128))
 for i in range(0, len(vert)):
     v = vert[i]
     drawing.line([(v[0] - 2, v[1]), (v[0] + 2, v[1])], col[i % 3])
