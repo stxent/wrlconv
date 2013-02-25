@@ -47,6 +47,12 @@ def getNormal(v1, v2):
                          [float(v1[2] * v2[0] - v1[0] * v2[2])],
                          [float(v1[0] * v2[1] - v1[1] * v2[0])]])
 
+def getTangent(v1, v2, st1, st2):
+  coef = 1. / (st1[1] * st2[0] - st1[0] * st2[1])
+  return numpy.array([coef * (v1[0] * -st2[1] + v2[0] * st1[1]),
+                      coef * (v1[1] * -st2[1] + v2[1] * st1[1]),
+                      coef * (v1[2] * -st2[1] + v2[2] * st1[1])])
+
 def fillRotateMatrix(v, angle):
     cs = math.cos(angle)
     sn = math.sin(angle)
@@ -182,6 +188,8 @@ class vrmlEntry:
                     elif isinstance(self, vrmlGeometry):
                         if entryType == "Coordinate":
                             entry = vrmlCoords(self, 'model')
+                        elif entryType == "TextureCoordinate":
+                            entry = vrmlCoords(self, 'texture')
                         else:
                             raise Exception()
                     else:
@@ -348,6 +356,7 @@ class vrmlScene(vrmlEntry):
             length = groups[i].count[0] + groups[i].count[1]
             meshobj.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
             meshobj.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
+            meshobj.tangentList = numpy.zeros(length * 3, dtype = numpy.float32) #FIXME
             offsets = (0, groups[i].count[0]) #(Triangles, Quads)
             offsets = buildObjects(self, groups[i].objects, meshobj, self.transform, offsets, groups[i].appearance)
             fs = faceset()
@@ -450,16 +459,30 @@ class vrmlShape(vrmlEntry):
         for obj in self.objects:
             if isinstance(obj, vrmlGeometry):
                 #TODO add solid parsing
+                if obj.polygonsUV != None and len(obj.polygons) == len(obj.polygonsUV):
+                    genTex = True
+                else:
+                    genTex = False
                 vertices = []
+                verticesUV = []
                 for coords in obj.objects:
                     if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['model']:
                         for vert in coords.vertices:
                             tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
                             tmp = transform * tmp
                             vertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
+                    elif isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['texture']:
+                        for vert in coords.vertices:
+                            verticesUV.append(vert)
                 if not obj.smooth: #Flat shading
                     for poly in range(0, len(obj.polygons)):
-                        normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
+                        if genTex == True:
+                            tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]],
+                                                 vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]],
+                                                 verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]],
+                                                 verticesUV[obj.polygonsUV[poly][2]] - verticesUV[obj.polygonsUV[poly][0]])
+                            tangent = normalize(tangent)
+                        normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]],
                                            vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]])
                         normal = normalize(normal)
                         if len(obj.polygons[poly]) == 3:
@@ -471,6 +494,13 @@ class vrmlShape(vrmlEntry):
                         for ind in range(0, len(obj.polygons[poly])):
                             meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
                             meshObject.normalList[3 * pos:3 * pos + 3] = [float(normal[0]), float(normal[1]), float(normal[2])]
+                            if genTex == True:
+                                #TODO Rewrite
+                                meshObject.texList[2 * pos]         = verticesUV[obj.polygonsUV[poly][ind]][0]
+                                meshObject.texList[2 * pos + 1]     = verticesUV[obj.polygonsUV[poly][ind]][1]
+                                meshObject.tangentList[3 * pos]     = tangent[0]
+                                meshObject.tangentList[3 * pos + 1] = tangent[1]
+                                meshObject.tangentList[3 * pos + 2] = tangent[2]
                             pos += 1
                 else: #Smooth shading
                     normals = []
@@ -613,6 +643,7 @@ class vrmlGeometry(vrmlEntry):
         self.polygons   = None
         self.triCount   = 0
         self.quadCount  = 0
+        self.polygonsUV = None
 
     def readSpecific(self, fd, string):
         #print "%sTry geo read: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
@@ -622,32 +653,38 @@ class vrmlGeometry(vrmlEntry):
             if paramSearch.group(1) == "TRUE":
                 self.solid = True
         coordSearch = re.search("coordIndex\s*\[", string, re.S)
+        texSearch = re.search("texCoordIndex\s*\[", string, re.S)
+        if not coordSearch and not texSearch:
+            return
+        pDebug("%sStart polygon read" % (' ' * self._level))
+        polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
+        indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
+        polygons = []
+        delta, offset, balance = 0, 0, 0
+        data = string
         if coordSearch:
-            pDebug("%sStart polygon read" % (' ' * self._level))
-            polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
-            indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
-            polygons = []
-            delta, offset, balance = 0, 0, 0
-            data = string
             pPos = coordSearch.end()
+        else:
+            pPos = texSearch.end()
+        while 1:
             while 1:
-                while 1:
-                    regexp = polyPattern.search(data, pPos)
-                    if regexp:
-                        (delta, offset) = calcBalance(data[pPos:regexp.start()], -1, (), (']'))
-                        balance += delta
-                        offset = len(data) - regexp.start() + offset
-                        if balance != 0:
-                            pDebug("%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset))
+                regexp = polyPattern.search(data, pPos)
+                if regexp:
+                    (delta, offset) = calcBalance(data[pPos:regexp.start()], -1, (), (']'))
+                    balance += delta
+                    offset = len(data) - regexp.start() + offset
+                    if balance != 0:
+                        pDebug("%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset))
+                        break
+                    polyData = []
+                    indPos = 0
+                    while 1:
+                        ind = indPattern.search(regexp.group(1), indPos)
+                        if ind is None:
                             break
-                        polyData = []
-                        indPos = 0
-                        while 1:
-                            ind = indPattern.search(regexp.group(1), indPos)
-                            if ind is None:
-                                break
-                            polyData.append(int(ind.group(1)))
-                            indPos = ind.end()
+                        polyData.append(int(ind.group(1)))
+                        indPos = ind.end()
+                    if coordSearch:
                         if len(polyData) == 3:
                             self.triCount += 3
                             polygons.append(polyData)
@@ -658,26 +695,28 @@ class vrmlGeometry(vrmlEntry):
                             for tesselPos in range(1, len(polyData) - 1):
                                 self.triCount += 3
                                 polygons.append([polyData[0], polyData[tesselPos], polyData[tesselPos + 1]])
-                        pPos = regexp.end()
-                    else:
-                        (delta, offset) = calcBalance(data, None, (), (']'))
-                        balance += delta
-                        offset = len(data)
-                        break
-                if balance != 0:
-                    if initialPos != fd.tell():
-                        fd.seek(-offset, os.SEEK_CUR)
-                    pDebug("%sBalance mismatch: %d, offset: %d" % (' ' * self._level, balance, offset))
+                    pPos = regexp.end()
+                else:
+                    (delta, offset) = calcBalance(data, None, (), (']'))
+                    balance += delta
+                    offset = len(data)
                     break
-                data = fd.readline()
-                if len(data) == 0:
-                    break
-                pPos = 0
-            if coordSearch:
-                self.polygons = polygons
-                pDebug("%sRead poly done, %d tri, %d quad, %d vertices" %
-                       (' ' * self._level, self.triCount / 3, self.quadCount / 4, self.triCount + self.quadCount))
-
+            if balance != 0:
+                if initialPos != fd.tell():
+                    fd.seek(-offset, os.SEEK_CUR)
+                pDebug("%sBalance mismatch: %d, offset: %d" % (' ' * self._level, balance, offset))
+                break
+            data = fd.readline()
+            if len(data) == 0:
+                break
+            pPos = 0
+        if coordSearch:
+            self.polygons = polygons
+            pDebug("%sRead poly done, %d tri, %d quad, %d vertices" %
+                    (' ' * self._level, self.triCount / 3, self.quadCount / 4, self.triCount + self.quadCount))
+        elif texSearch:
+            self.polygonsUV = polygons
+            pDebug("%sRead UV poly done, %d poly, %d vertices" % (' ' * self._level, len(self.polygonsUV), 0))
 
 class vrmlCoords(vrmlEntry):
     TYPE = {'model': 0, 'texture': 1}
@@ -693,6 +732,8 @@ class vrmlCoords(vrmlEntry):
             pDebug("%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoords.TYPE.keys()[self.cType]))
             if self.cType == vrmlCoords.TYPE['model']:
                 vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
+            elif self.cType == vrmlCoords.TYPE['texture']:
+                vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
             self.vertices = []
             delta, offset, balance = 0, 0, 0
             data = string
@@ -709,7 +750,11 @@ class vrmlCoords(vrmlEntry):
                         if balance != 0:
                             pDebug("%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset))
                             break
-                        self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2)), float(regexp.group(3))]))
+                        if self.cType == vrmlCoords.TYPE['model']:
+                            self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2)), \
+                                    float(regexp.group(3))]))
+                        elif self.cType == vrmlCoords.TYPE['texture']:
+                            self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2))]))
                         vPos = regexp.end()
                     else:
                         (delta, offset) = calcBalance(data[vPos:], -1, (), ('}'))
@@ -821,15 +866,40 @@ class vrmlMaterial(vrmlEntry):
             fd.write("      appearance Appearance {\n        material USE %s\n      }\n" % self.name)
 
 
+class vrmlTexture(vrmlEntry):
+  def __init__(self, parent = None):
+    if not isinstance(parent, vrmlAppearance):
+      raise Exception()
+    vrmlEntry.__init__(self, parent)
+    self.texID    = None
+    self.fileName = ""
+    self.filePath = ""
+    self.texType  = None
+  def readSpecific(self, fd, string):
+    tmp = re.search("url\s+\"([\w\-\.:\/]+)\"", string, re.I | re.S)
+    if tmp != None:
+      self.fileName = tmp.group(1)
+    self.filePath = os.getcwd()
+  def __eq__(self, other): #TODO remove in wrlconv
+    if not isinstance(other, vrmlTexture):
+      return False
+    if self.fileName == other.fileName:
+      return True
+    else:
+      return False
+  def __ne__(self, other):
+    return not self == other
+
+
 class mesh:
     def __init__(self):
-        self.vertexList = None
-        self.vertexVBO  = 0
-        self.normalList = None
-        self.normalVBO  = 0
-        self.objects    = []
-        self.appearance = None
-        self.zbuffer    = True
+        self.vertexList, self.vertexVBO = None, 0
+        self.normalList, self.normalVBO = None, 0
+        self.texList, self.texVBO = None, 0
+        self.tangentList, self.tangentVBO = None, 0
+        self.objects     = []
+        self.appearance  = None
+        self.zbuffer     = True
 
     def draw(self):
         glEnableClientState(GL_VERTEX_ARRAY)
@@ -838,13 +908,22 @@ class mesh:
         glEnableClientState(GL_NORMAL_ARRAY)
         glBindBuffer(GL_ARRAY_BUFFER, self.normalVBO)
         glNormalPointer(GL_FLOAT, 0, None)
+        if self.texList != None:
+            glEnableClientState(GL_TEXTURE_COORD_ARRAY)
+            glEnableVertexAttribArray(1)
+            glBindBuffer(GL_ARRAY_BUFFER, self.texVBO)
+            glTexCoordPointer(2, GL_FLOAT, 0, None)
+            glBindBuffer(GL_ARRAY_BUFFER, self.tangentVBO)
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
         #Disabe writing z-values for transparent objects
         if not self.zbuffer:
             glDepthMask(GL_FALSE)
         for obj in self.objects:
             obj.draw()
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY)
         glDisableClientState(GL_NORMAL_ARRAY)
         glDisableClientState(GL_VERTEX_ARRAY)
+        glDisableVertexAttribArray(1)
         glDisable(GL_CULL_FACE)
         glDepthMask(GL_TRUE)
 
@@ -957,6 +1036,9 @@ class render:
             os.chdir(scriptDir)
         self.shaders = {}
         self.shaders['colored'] = loadShader("light");
+        self.shaders['texture'] = loadShader("light_tex");
+        self.shaders['normals'] = loadShader("light_nmap");
+        self.shaders['cubemap'] = loadShader("cubemap");
         os.chdir(oldDir)
 
     def initScene(self, aScene):
@@ -989,12 +1071,92 @@ class render:
         #glEnable(GL_COLOR_MATERIAL)
         glDisable(GL_COLOR_MATERIAL)
 
+    def loadTexture(self, arg):
+        mapPath = re.search("cubemap:(.*?)(\..*)", arg.fileName, re.I)
+        if mapPath != None:
+            arg.texType = GL_TEXTURE_CUBE_MAP
+            arg.texID = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_CUBE_MAP, arg.texID)
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+            mapTarget = [GL_TEXTURE_CUBE_MAP_POSITIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+                         GL_TEXTURE_CUBE_MAP_POSITIVE_Y, GL_TEXTURE_CUBE_MAP_POSITIVE_Z, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z]
+            mapFile   = [arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_x" + mapPath.group(2),
+                         arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_x" + mapPath.group(2),
+                         arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_y" + mapPath.group(2),
+                         arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_y" + mapPath.group(2),
+                         arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_positive_z" + mapPath.group(2),
+                         arg.filePath + "/" + mapPath.group(1) + "/" + mapPath.group(1) + "_negative_z" + mapPath.group(2)]
+            print mapFile
+            for i in range(0, 6):
+                im = Image.open(mapFile[i])
+                width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGB", 0, -1)
+                #gluBuild2DMipmaps(mapTarget[i], 4, width, height, GL_RGB, GL_UNSIGNED_BYTE, image)
+                glTexImage2D(mapTarget[i], 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image)
+        else:
+            im = Image.open(arg.filePath + "/" + arg.fileName)
+            try:
+                #Get image dimensions and data
+                width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
+            except SystemError:
+                #Has no alpha channel, synthesize one, see the texture module for more realistic handling
+                width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBX", 0, -1)
+            arg.texType = GL_TEXTURE_2D
+            arg.texID = glGenTextures(1)
+            #Make it current
+            glBindTexture(GL_TEXTURE_2D, arg.texID)
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+            #Copy the texture into the current texture ID
+            #glTexImage2D(GL_TEXTURE_2D, 0, 3, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
+            #gluBuild2DMipmaps(GL_TEXTURE_2D, GLU_RGBA8, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
+            gluBuild2DMipmaps(GL_TEXTURE_2D, 4, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image)
+        print "Loaded %s, width: %d, height: %d, id: %d" % (arg.name, width, height, arg.texID)
+
+    def setTexture(self, arg, layer = 0):
+        texLayer = None
+        if layer == 0:
+            texLayer = GL_TEXTURE0
+        elif layer == 1:
+            texLayer = GL_TEXTURE1
+        glActiveTexture(texLayer)
+        if arg.texType == GL_TEXTURE_2D:
+            glEnable(GL_TEXTURE_2D)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+            glBindTexture(GL_TEXTURE_2D, arg.texID)
+        elif arg.texType == GL_TEXTURE_CUBE_MAP:
+            glEnable(GL_TEXTURE_CUBE_MAP)
+            glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            #glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+            glBindTexture(GL_TEXTURE_CUBE_MAP, arg.texID)
+
     def setAppearance(self, arg):
         texNum = 0
+        texType = None
         for mat in arg.objects:
             if isinstance(mat, vrmlMaterial):
                 self.setMaterial(mat)
-        glUseProgram(self.shaders['colored'])
+            elif isinstance(mat, vrmlTexture):
+                self.setTexture(mat, texNum)
+                texType = mat.texType
+                texNum += 1
+        if texNum == 0:
+            glUseProgram(self.shaders['colored'])
+        elif texNum == 1:
+            if texType == GL_TEXTURE_2D:
+                glUseProgram(self.shaders['texture'])
+                tex = glGetUniformLocation(self.shaders['texture'], "diffuseTexture")
+            else:
+                glUseProgram(self.shaders['cubemap'])
+                tex = glGetUniformLocation(self.shaders['cubemap'], "diffuseTexture")
+            glUniform1i(tex, 0)
+        elif texNum >= 2:
+            glUseProgram(self.shaders['normals'])
+            tex = glGetUniformLocation(self.shaders['normals'], "diffuseTexture")
+            glUniform1i(tex, 0)
+            tex = glGetUniformLocation(self.shaders['normals'], "normalTexture")
+            glUniform1i(tex, 1)
 
     def drawAxis(self):
         glEnableClientState(GL_VERTEX_ARRAY)
