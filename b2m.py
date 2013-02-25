@@ -83,15 +83,43 @@ class Rect:
         #Returns tuple with vertex and polygon lists
         if self.sub is None:
             vertices = []
-            polygons = [[ 1,  0,  3,  4],
-                        [ 4,  5,  8,  7],
-                        [ 7,  6,  9, 10],
-                        [10, 11,  2,  1],
-                        [ 1,  4,  7, 10]]
+            polygons = []
             vertices.extend(self.corners[0].generate(( 1,  1)))
             vertices.extend(self.corners[1].generate((-1,  1)))
             vertices.extend(self.corners[2].generate((-1, -1)))
             vertices.extend(self.corners[3].generate(( 1, -1)))
+            amorph0 = self.coords[1][1] - self.corners[2].chamfer[1] < self.coords[0][1] + self.corners[0].chamfer[1]
+            amorph1 = self.coords[1][1] - self.corners[3].chamfer[1] < self.coords[0][1] + self.corners[1].chamfer[1]
+            amorph2 = self.coords[1][0] - self.corners[2].chamfer[0] < self.coords[0][0] + self.corners[0].chamfer[0]
+            amorph3 = self.coords[1][0] - self.corners[3].chamfer[0] < self.coords[0][0] + self.corners[1].chamfer[0]
+            if amorph0 or amorph1:
+                polygons.append([ 1, 10, 11,  2])
+                polygons.append([ 4,  5,  8,  7])
+                if amorph0:
+                    polygons.append([ 0,  3,  4,  7])
+                    polygons.append([ 0,  7,  6,  1])
+                    polygons.append([ 1,  6,  9, 10])
+                else:
+                    polygons.append([ 0,  3, 10,  1])
+                    polygons.append([ 3,  4,  9, 10])
+                    polygons.append([ 4,  7,  6,  9])
+            elif amorph2 or amorph3:
+                polygons.append([ 7,  6,  9, 10])
+                polygons.append([ 0,  3,  4,  1])
+                if amorph2:
+                    polygons.append([ 1,  4,  5,  8])
+                    polygons.append([ 2,  7, 10, 11])
+                    polygons.append([ 1,  8,  7,  2])
+                else:
+                    polygons.append([ 2,  1,  4, 11])
+                    polygons.append([ 4,  5, 10, 11])
+                    polygons.append([ 5,  8,  7, 10])
+            else:
+                polygons = [[ 1,  0,  3,  4],
+                            [ 4,  5,  8,  7],
+                            [ 7,  6,  9, 10],
+                            [10, 11,  2,  1],
+                            [ 1,  4,  7, 10]]
 
             rebuilded = []
             vIndex = range(0, len(vertices))
@@ -358,20 +386,23 @@ bVert, bPoly = test.borders()
 
 random.seed()
 holes = []
-holes.append(((400, 400), 50))
-holes.append(((500, 350), 30))
-#for i in range(0, 2):
-    #pos = (random.randint(100, 700), random.randint(100, 700))
-    #rad = random.randint(20, 50)
-    #holes.append((pos, rad))
+
+#FIXME
+#holes.append(((400, 400), 80))
+#holes.append(((550, 360), 20))
+
+for i in range(0, 20):
+    pos = (random.randint(100, 700), random.randint(100, 700))
+    rad = random.randint(10, 20)
+    holes.append((pos, rad))
 
 for h in holes:
     test.subdivide(circleRect(h[0], h[1]))
 
 vert, poly = test.tesselate()
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
-vert, poly = optimizeVertices(vert, poly)
-print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
+#vert, poly = optimizeVertices(vert, poly)
+#print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
 
 sizeX, sizeY = 800, 800
 colorData = Image.new("RGB", (sizeX, sizeY))
