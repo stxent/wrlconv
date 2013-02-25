@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # Author: xent (alexdmitv@gmail.com)
 # License: Public domain code
-# Version: 0.3b
+# Version: 0.4b
 import re
 import math
 import numpy

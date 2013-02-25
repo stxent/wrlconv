@@ -8,6 +8,8 @@ import Image, ImageDraw
 import random
 import copy
 import math
+
+import model
 #import re
 #import sys
 #import time
@@ -282,114 +284,123 @@ def optimizeVertices(vertices, polygons):
 def circleRect(position, radius):
     return ((position[0] - radius, position[1] - radius), (position[0] + radius, position[1] + radius))
 
+def wrapTexture(mesh):
+    bounds = [[mesh.vertices[0][0], mesh.vertices[0][1]], [mesh.vertices[0][0], mesh.vertices[0][1]]]
+    for vert in mesh.vertices:
+        if vert[0] < bounds[0][0]:
+            bounds[0][0] = vert[0]
+        if vert[0] > bounds[1][0]:
+            bounds[1][0] = vert[0]
+        if vert[1] < bounds[0][1]:
+            bounds[0][1] = vert[1]
+        if vert[1] > bounds[1][1]:
+            bounds[1][1] = vert[1]
+    print "Model boundaries: (%f, %f), (%f, %f)" % (bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1])
+    size = (bounds[1][0] - bounds[0][0], bounds[1][1] - bounds[0][1])
+    for poly in mesh.polygons:
+        for index in poly:
+            mesh.texels.append(numpy.array([(mesh.vertices[index][0] - bounds[0][0]) / size[0],
+                    1.0 - (mesh.vertices[index][1] - bounds[0][1]) / size[1]]))
+
 def createBoard(vertices, polygons):
-    volVertices = []
-    volPolygons = []
+    top, bottom = model.Mesh(), model.Mesh()
     for vert in vertices:
-        volVertices.append(vert)
-    offset = len(volVertices)
-    for vert in vertices:
-        volVertices.append([vert[0], vert[1], -0.25])
+        top.vertices.append(numpy.array([vert[0], vert[1], Rect.THICKNESS]))
+        bottom.vertices.append(numpy.array([vert[0], vert[1], -Rect.THICKNESS]))
     for poly in polygons:
-        newPoly = []
-        for i in range(0, len(poly)):
-            newPoly.append(poly[i])
-        volPolygons.append(newPoly)
-        newPoly = []
-        for i in range(len(poly) - 1, -1, -1):
-            newPoly.append(poly[i] + offset)
-        volPolygons.append(newPoly)
-    return (volVertices, volPolygons)
+        top.polygons.append(poly[::])
+        bottom.polygons.append(poly[::-1])
+    return (top, bottom)
 
 def createHole(position, radius):
+    top, hole, bottom = model.Mesh(), model.Mesh(), model.Mesh()
+
     edges = 24
-    vertices = []
-    polygons = []
-    delta = math.pi * 2 / 24
-    angle = 0
+    angle, delta = 0, math.pi * 2 / edges
     for i in range(0, edges):
-        vertices.append([position[0] + radius * math.cos(angle), position[1] + radius * math.sin(angle), 0.25])
-        vertices.append([position[0] + radius * math.cos(angle), position[1] + radius * math.sin(angle), -0.25])
+        xPos, yPos = position[0] + radius * math.cos(angle), position[1] + radius * math.sin(angle)
+        top.vertices.append(numpy.array([xPos, yPos, Rect.THICKNESS]))
+        bottom.vertices.append(numpy.array([xPos, yPos, -Rect.THICKNESS]))
+        hole.vertices.extend([numpy.array([xPos, yPos, Rect.THICKNESS]), numpy.array([xPos, yPos, -Rect.THICKNESS])])
         angle += delta
-    polygons.append([(edges - 1) * 2, 0, 1, (edges - 1) * 2 + 1])
+
+    hole.polygons.append([(edges - 1) * 2, 0, 1, (edges - 1) * 2 + 1])
     for i in range(0, edges - 1):
-        polygons.append([(i + 0) * 2, (i + 1) * 2, (i + 1) * 2 + 1, (i + 0) * 2 + 1])
+        hole.polygons.append([(i + 0) * 2, (i + 1) * 2, (i + 1) * 2 + 1, (i + 0) * 2 + 1])
 
-    vertices.append([position[0] + radius, position[1] + radius, 0.25])
-    vertices.append([position[0] + radius, position[1] + radius, -0.25])
-    vertices.append([position[0] - radius, position[1] + radius, 0.25])
-    vertices.append([position[0] - radius, position[1] + radius, -0.25])
-    vertices.append([position[0] - radius, position[1] - radius, 0.25])
-    vertices.append([position[0] - radius, position[1] - radius, -0.25])
-    vertices.append([position[0] + radius, position[1] - radius, 0.25])
-    vertices.append([position[0] + radius, position[1] - radius, -0.25])
+    top.vertices.append([position[0] + radius, position[1] + radius, Rect.THICKNESS])
+    bottom.vertices.append([position[0] + radius, position[1] + radius, -Rect.THICKNESS])
+    top.vertices.append([position[0] - radius, position[1] + radius, Rect.THICKNESS])
+    bottom.vertices.append([position[0] - radius, position[1] + radius, -Rect.THICKNESS])
+    top.vertices.append([position[0] - radius, position[1] - radius, Rect.THICKNESS])
+    bottom.vertices.append([position[0] - radius, position[1] - radius, -Rect.THICKNESS])
+    top.vertices.append([position[0] + radius, position[1] - radius, Rect.THICKNESS])
+    bottom.vertices.append([position[0] + radius, position[1] - radius, -Rect.THICKNESS])
 
-    offset = edges * 2
-    delta = edges / 4
-    for i in range(0, delta):
-        #Front
-        polygons.append([(i + 0) * 2 + delta * 2 * 0, offset + 0, (i + 1) * 2 + delta * 2 * 0])
-        polygons.append([(i + 0) * 2 + delta * 2 * 1, offset + 2, (i + 1) * 2 + delta * 2 * 1])
-        polygons.append([(i + 0) * 2 + delta * 2 * 2, offset + 4, (i + 1) * 2 + delta * 2 * 2])
-        polygons.append([(i + 0) * 2 + delta * 2 * 3, offset + 6, (i + 1) * 2 + delta * 2 * 3])
-        #Back
-        polygons.append([(i + 1) * 2 + delta * 2 * 0 + 1, offset + 1, (i + 0) * 2 + delta * 2 * 0 + 1])
-        polygons.append([(i + 1) * 2 + delta * 2 * 1 + 1, offset + 3, (i + 0) * 2 + delta * 2 * 1 + 1])
-        polygons.append([(i + 1) * 2 + delta * 2 * 2 + 1, offset + 5, (i + 0) * 2 + delta * 2 * 2 + 1])
-        polygons.append([(i + 1) * 2 + delta * 2 * 3 + 1, offset + 7, (i + 0) * 2 + delta * 2 * 3 + 1])
+    mult = edges / 4
+    for i in range(0, mult):
+        for j in range(0, 4):
+            top.polygons.append([(i + 0) + mult * j, edges + j, (i + 1) + mult * j])
+            bottom.polygons.append([(i + 1) + mult * j, edges + j, (i + 0) + mult * j])
+    return (top, hole, bottom)
 
-    return (vertices, polygons)
-
-def writeVRML(filename, vertices, polygons, texVertices, texPolygons, offset):
+#def writeVRML(out, mesh, offset, img):
+def writeVRML(out, mesh, offset, img = ""):
+    #print "Sizes xVert %u, xPoly %u, texVert %u, texPoly %u" % \
+            #(len(vertices), len(polygons), len(texVertices), len(texPolygons))
     scale = (0.025, 0.025)
-    out = open(filename, "wb")
     out.write("#VRML V2.0 utf8\n#Created by b2m.py\n")
-    out.write("DEF OB_Board Transform {\n")
+    out.write("DEF OB_%u Transform {\n" % random.randint(1000, 9999))
     out.write("\ttranslation 0 0 0\n")
     out.write("\trotation 1 0 0 0\n")
     out.write("\tscale 1 1 1\n")
     out.write("\tchildren [\n"
-              "\t\tDEF ME_Cube Group {\n"
+              "\t\tDEF ME_%u Group {\n"
               "\t\t\tchildren [\n"
-              "\t\t\t\tShape {\n")
+              "\t\t\t\tShape {\n" % random.randint(1000, 9999))
     out.write("\t\t\t\t\tappearance Appearance {\n"
-              "\t\t\t\t\t\tmaterial DEF lapp Material {\n"
+              "\t\t\t\t\t\tmaterial DEF MAT_%u Material {\n"
               "\t\t\t\t\t\t\tdiffuseColor 1.0 1.0 1.0\n"
               "\t\t\t\t\t\t\tambientIntensity 0.2\n"
               "\t\t\t\t\t\t\tspecularColor 0.5 0.5 0.8\n"
               "\t\t\t\t\t\t\temissiveColor  0.0 0.0 0.0\n"
               "\t\t\t\t\t\t\tshininess 0.95\n"
               "\t\t\t\t\t\t\ttransparency 0.0\n"
-              "\t\t\t\t\t\t}\n"
-              "\t\t\t\t\t\ttexture DEF diffusemap ImageTexture {\n"
-              "\t\t\t\t\t\t\turl \"top.jpg\"\n"
-              "\t\t\t\t\t\t}\n"
-              "\t\t\t\t\t}\n")
+              "\t\t\t\t\t\t}\n" % random.randint(1000, 9999));
+    if img != "":
+        out.write("\t\t\t\t\t\ttexture DEF diffusemap ImageTexture {\n"
+                "\t\t\t\t\t\t\turl \"%s\"\n"
+                "\t\t\t\t\t\t}\n" % img)
+    out.write("\t\t\t\t\t}\n")
     out.write("\t\t\t\t\tgeometry IndexedFaceSet {\n"
               "\t\t\t\t\t\tsolid FALSE\n"
               "\t\t\t\t\t\tcoord DEF coord_Cube Coordinate {\n"
               "\t\t\t\t\t\t\tpoint [\n")
-    for v in vertices:
+    for v in mesh.vertices:
         out.write("%f %f %f\n" % ((v[0] + offset[0]) * scale[0], (v[1] + offset[1]) * scale[1], v[2]))
     out.write("\t\t\t\t\t\t\t]\n"
               "\t\t\t\t\t\t}\n"
               "\t\t\t\t\t\tcoordIndex [\n")
-    for p in polygons:
+    for p in mesh.polygons:
         for index in p:
             out.write("%u " % index)
         out.write("-1,\n")
-    out.write("\t\t\t\t\t\t]\n");
-    out.write("\t\t\t\t\t\ttexCoord TextureCoordinate {\n"
-              "\t\t\t\t\t\tpoint [\n");
-    for v in texVertices:
-        out.write("%f %f,\n" % (v[0], v[1]))
-    out.write("\t\t\t\t\t\t]\n");
-    out.write("\t\t\t\t\t}\n");
-    out.write("\t\t\t\t\ttexCoordIndex [\n");
-    for p in texPolygons:
-        for index in p:
-            out.write("%u " % index)
-        out.write("-1\n")
+
+    if img != "":
+        out.write("\t\t\t\t\t\t]\n");
+        out.write("\t\t\t\t\t\ttexCoord TextureCoordinate {\n"
+                "\t\t\t\t\t\tpoint [\n");
+        for v in mesh.texels:
+            out.write("%f %f,\n" % (v[0], v[1]))
+        out.write("\t\t\t\t\t\t]\n");
+        out.write("\t\t\t\t\t}\n");
+        out.write("\t\t\t\t\ttexCoordIndex [\n");
+        i = 0
+        for p in mesh.polygons:
+            for index in p:
+                out.write("%u " % i)
+                i += 1
+            out.write("-1\n")
     out.write("\t\t\t\t\t\t]\n"
               "\t\t\t\t\t}\n"
               "\t\t\t\t}\n"
@@ -397,7 +408,6 @@ def writeVRML(filename, vertices, polygons, texVertices, texPolygons, offset):
               "\t\t}\n"
               "\t]\n"
               "}\n")
-    out.close()
 
 boardSz = (609.6, 431.8)
 boardCn = (boardSz[0] / 2, boardSz[1] / 2)
@@ -406,7 +416,9 @@ boardCn = (boardSz[0] / 2, boardSz[1] / 2)
 #test = Rect(((50, 50), (750, 750)), ((50, 50), (50, 50), (50, 50), (50, 50)))
 #test = Rect(((50, 50), (750, 750)), ((0, 0), (0, 0), (0, 0), (0, 0)))
 test = Rect(((0, 0), boardSz), ((0, 0), (0, 0), (0, 0), (0, 0)))
-bVert, bPoly = test.borders()
+
+borders = model.Mesh()
+borders.vertices, borders.polygons = test.borders()
 
 random.seed()
 holes = []
@@ -474,27 +486,12 @@ holes.append(((81.28, 35.56), 1.016))
 for i in range(0, len(holes)):
     holes[i] = (((holes[i][0][0] - 25.4) * 10, (holes[i][0][1] - 25.4) * 10), holes[i][1] * 5) #FIXME Fix x10 mult
 
-#i = 0
-#while i < 100:
-    #pos = (random.randint(100, 700), random.randint(100, 700))
-    #rad = random.randint(8, 10)
-    #failed = False
-    #for h in holes:
-        #if Rect.rCollision(circleRect(h[0], h[1]), circleRect(pos, rad)):
-            #failed = True
-            #break
-    #if failed:
-        #continue
-    #holes.append((pos, rad))
-    #i += 1
-
 for h in holes:
     test.subdivide(circleRect(h[0], h[1]))
 
 vert, poly = test.tesselate()
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
 #vert, poly = optimizeVertices(vert, poly)
-#print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
 
 sizeX, sizeY = 800, 800
 colorData = Image.new("RGB", (sizeX, sizeY))
@@ -512,41 +509,21 @@ for i in range(0, len(vert)):
     drawing.line([(v[0] - 2, v[1]), (v[0] + 2, v[1])], col[i % 3])
     drawing.line([(v[0], v[1] - 2), (v[0], v[1] + 2)], col[i % 3])
 
-xVert, xPoly = createBoard(vert, poly)
-for poly in bPoly:
-    for i in range(0, len(poly)):
-        poly[i] += len(xVert)
-xVert.extend(bVert)
-xPoly.extend(bPoly)
+front, back = createBoard(vert, poly)
+inner = model.Mesh()
 
-print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
 for h in holes:
-    hVert, hPoly = createHole(h[0], h[1])
-    for poly in hPoly:
-        for i in range(0, len(poly)):
-            poly[i] += len(xVert)
-    xVert.extend(hVert)
-    xPoly.extend(hPoly)
+    holeTop, holeCylinder, holeBottom = createHole(h[0], h[1])
+    inner.append(holeCylinder)
+    front.append(holeTop)
+    back.append(holeBottom)
 
-print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
-#xVert, xPoly = optimizeVertices(xVert, xPoly)
-#print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
+wrapTexture(front)
+wrapTexture(back)
 
-#Create tex coords
-texVert = []
-texPoly = []
-for poly in xPoly:
-    offset = len(texVert)
-    texVert.append([xVert[poly[0]][0] / boardSz[0], 1.0 - xVert[poly[0]][1] / boardSz[1]])
-    texVert.append([xVert[poly[1]][0] / boardSz[0], 1.0 - xVert[poly[1]][1] / boardSz[1]])
-    texVert.append([xVert[poly[2]][0] / boardSz[0], 1.0 - xVert[poly[2]][1] / boardSz[1]])
-    if len(poly) == 4:
-        texVert.append([xVert[poly[3]][0] / boardSz[0], 1.0 - xVert[poly[3]][1] / boardSz[1]])
-    if len(poly) == 3:
-        texPoly.append([offset + 0, offset + 1, offset + 2])
-    elif len(poly) == 4:
-        texPoly.append([offset + 0, offset + 1, offset + 2, offset + 3])
-
-print "Sizes xVert %u, xPoly %u, texVert %u, texPoly %u" % (len(xVert), len(xPoly), len(texVert), len(texPoly))
-writeVRML("board.wrl", xVert, xPoly, texVert, texPoly, (-boardCn[0], -boardCn[1]))
+out = open("board.wrl", "wb")
+writeVRML(out, front, (-boardCn[0], -boardCn[1]), "bottom.jpg")
+writeVRML(out, back, (-boardCn[0], -boardCn[1]), "top.jpg")
+writeVRML(out, inner, (-boardCn[0], -boardCn[1]))
+writeVRML(out, borders, (-boardCn[0], -boardCn[1]))
 colorData.show()
