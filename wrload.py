@@ -463,10 +463,7 @@ class vrmlShape(vrmlEntry):
         for obj in self.objects:
             if isinstance(obj, vrmlGeometry):
                 #TODO add solid parsing
-                if obj.polygonsUV != None and len(obj.polygons) == len(obj.polygonsUV):
-                    genTex = True
-                else:
-                    genTex = False
+                genTex = obj.polygonsUV != None and len(obj.polygons) == len(obj.polygonsUV)
                 vertices = []
                 verticesUV = []
                 for coords in obj.objects:
@@ -480,7 +477,7 @@ class vrmlShape(vrmlEntry):
                             verticesUV.append(vert)
                 if not obj.smooth: #Flat shading
                     for poly in range(0, len(obj.polygons)):
-                        if genTex == True:
+                        if genTex:
                             tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]],
                                                  vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]],
                                                  verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]],
@@ -498,7 +495,7 @@ class vrmlShape(vrmlEntry):
                         for ind in range(0, len(obj.polygons[poly])):
                             meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
                             meshObject.normalList[3 * pos:3 * pos + 3] = [float(normal[0]), float(normal[1]), float(normal[2])]
-                            if genTex == True:
+                            if genTex:
                                 #TODO Rewrite
                                 meshObject.texList[2 * pos]         = verticesUV[obj.polygonsUV[poly][ind]][0]
                                 meshObject.texList[2 * pos + 1]     = verticesUV[obj.polygonsUV[poly][ind]][1]
@@ -904,9 +901,9 @@ class mesh:
         self.normalList, self.normalVBO = None, 0
         self.texList, self.texVBO = None, 0
         self.tangentList, self.tangentVBO = None, 0
-        self.objects     = []
-        self.appearance  = None
-        self.zbuffer     = True
+        self.objects = []
+        self.appearance = None
+        self.zbuffer = True
 
     def draw(self):
         glEnableClientState(GL_VERTEX_ARRAY)
@@ -1045,6 +1042,8 @@ class render:
         self.shaders['colored'] = loadShader("light");
         self.shaders['texture'] = loadShader("light_tex");
         self.shaders['normals'] = loadShader("light_nmap");
+        glBindAttribLocation(self.shaders['normals'], 1, "tangent")
+        glLinkProgram(self.shaders['normals'])
         self.shaders['cubemap'] = loadShader("cubemap");
         os.chdir(oldDir)
 
