@@ -49,10 +49,10 @@ def getNormal(v1, v2):
                          [float(v1[0] * v2[1] - v1[1] * v2[0])]])
 
 def getTangent(v1, v2, st1, st2):
-  coef = 1. / (st1[1] * st2[0] - st1[0] * st2[1])
-  return numpy.array([coef * (v1[0] * -st2[1] + v2[0] * st1[1]),
-                      coef * (v1[1] * -st2[1] + v2[1] * st1[1]),
-                      coef * (v1[2] * -st2[1] + v2[2] * st1[1])])
+    coef = 1. / (st1[1] * st2[0] - st1[0] * st2[1])
+    return numpy.array([coef * (v1[0] * -st2[1] + v2[0] * st1[1]),
+                        coef * (v1[1] * -st2[1] + v2[1] * st1[1]),
+                        coef * (v1[2] * -st2[1] + v2[2] * st1[1])])
 
 def fillRotateMatrix(v, angle):
     cs = math.cos(angle)
@@ -1017,8 +1017,8 @@ class render:
         glEnable(GL_LIGHT1)
         glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
         glLightfv(GL_LIGHT1, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
-        glLightfv(GL_LIGHT1, GL_DIFFUSE,  [0.5, 0.5, 0.5, 1.])
-        glLightfv(GL_LIGHT1, GL_SPECULAR, [0.3, 0.3, 0.3, 1.])
+        glLightfv(GL_LIGHT1, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.])
+        glLightfv(GL_LIGHT1, GL_SPECULAR, [0.5, 0.5, 0.5, 1.])
         glLightf(GL_LIGHT1, GL_CONSTANT_ATTENUATION, 1.0)
         glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.0)
         glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.00005)

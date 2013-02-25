@@ -340,7 +340,7 @@ def createHole(position, radius):
 
     return (vertices, polygons)
 
-def writeVRML(filename, vertices, polygons, offset):
+def writeVRML(filename, vertices, polygons, texVertices, texPolygons, offset):
     scale = (0.025, 0.025)
     out = open(filename, "wb")
     out.write("#VRML V2.0 utf8\n#Created by b2m.py\n")
@@ -354,12 +354,15 @@ def writeVRML(filename, vertices, polygons, offset):
               "\t\t\t\tShape {\n")
     out.write("\t\t\t\t\tappearance Appearance {\n"
               "\t\t\t\t\t\tmaterial DEF lapp Material {\n"
-              "\t\t\t\t\t\t\tdiffuseColor 0.1939154 0.7799909 0.5564991\n"
-              "\t\t\t\t\t\t\tambientIntensity 0.3333333\n"
-              "\t\t\t\t\t\t\tspecularColor 0.4012008 0.8012008 0.4012008\n"
+              "\t\t\t\t\t\t\tdiffuseColor 1.0 1.0 1.0\n"
+              "\t\t\t\t\t\t\tambientIntensity 0.2\n"
+              "\t\t\t\t\t\t\tspecularColor 0.5 0.5 0.8\n"
               "\t\t\t\t\t\t\temissiveColor  0.0 0.0 0.0\n"
               "\t\t\t\t\t\t\tshininess 0.95\n"
               "\t\t\t\t\t\t\ttransparency 0.0\n"
+              "\t\t\t\t\t\t}\n"
+              "\t\t\t\t\t\ttexture DEF diffusemap ImageTexture {\n"
+              "\t\t\t\t\t\t\turl \"top.jpg\"\n"
               "\t\t\t\t\t\t}\n"
               "\t\t\t\t\t}\n")
     out.write("\t\t\t\t\tgeometry IndexedFaceSet {\n"
@@ -375,6 +378,18 @@ def writeVRML(filename, vertices, polygons, offset):
         for index in p:
             out.write("%u " % index)
         out.write("-1,\n")
+    out.write("\t\t\t\t\t\t]\n");
+    out.write("\t\t\t\t\t\ttexCoord TextureCoordinate {\n"
+              "\t\t\t\t\t\tpoint [\n");
+    for v in texVertices:
+        out.write("%f %f,\n" % (v[0], v[1]))
+    out.write("\t\t\t\t\t\t]\n");
+    out.write("\t\t\t\t\t}\n");
+    out.write("\t\t\t\t\ttexCoordIndex [\n");
+    for p in texPolygons:
+        for index in p:
+            out.write("%u " % index)
+        out.write("-1\n")
     out.write("\t\t\t\t\t\t]\n"
               "\t\t\t\t\t}\n"
               "\t\t\t\t}\n"
@@ -517,5 +532,21 @@ print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
 #xVert, xPoly = optimizeVertices(xVert, xPoly)
 #print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
 
-writeVRML("board.wrl", xVert, xPoly, (-boardCn[0], -boardCn[1]))
+#Create tex coords
+texVert = []
+texPoly = []
+for poly in xPoly:
+    offset = len(texVert)
+    texVert.append([xVert[poly[0]][0] / boardSz[0], 1.0 - xVert[poly[0]][1] / boardSz[1]])
+    texVert.append([xVert[poly[1]][0] / boardSz[0], 1.0 - xVert[poly[1]][1] / boardSz[1]])
+    texVert.append([xVert[poly[2]][0] / boardSz[0], 1.0 - xVert[poly[2]][1] / boardSz[1]])
+    if len(poly) == 4:
+        texVert.append([xVert[poly[3]][0] / boardSz[0], 1.0 - xVert[poly[3]][1] / boardSz[1]])
+    if len(poly) == 3:
+        texPoly.append([offset + 0, offset + 1, offset + 2])
+    elif len(poly) == 4:
+        texPoly.append([offset + 0, offset + 1, offset + 2, offset + 3])
+
+print "Sizes xVert %u, xPoly %u, texVert %u, texPoly %u" % (len(xVert), len(xPoly), len(texVert), len(texPoly))
+writeVRML("board.wrl", xVert, xPoly, texVert, texPoly, (-boardCn[0], -boardCn[1]))
 colorData.show()
