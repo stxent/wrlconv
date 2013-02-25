@@ -340,8 +340,8 @@ def createHole(position, radius):
 
     return (vertices, polygons)
 
-def writeVRML(filename, vertices, polygons):
-    offset, scale = (-400, -400), (0.025, 0.025)
+def writeVRML(filename, vertices, polygons, offset):
+    scale = (0.025, 0.025)
     out = open(filename, "wb")
     out.write("#VRML V2.0 utf8\n#Created by b2m.py\n")
     out.write("DEF OB_Board Transform {\n")
@@ -384,9 +384,13 @@ def writeVRML(filename, vertices, polygons):
               "}\n")
     out.close()
 
+boardSz = (609.6, 431.8)
+boardCn = (boardSz[0] / 2, boardSz[1] / 2)
+
 #test = Rect(((50, 50), (750, 750)), ((10, 15), (20, 10), (15, 20), (20, 30)))
 #test = Rect(((50, 50), (750, 750)), ((50, 50), (50, 50), (50, 50), (50, 50)))
-test = Rect(((50, 50), (750, 750)), ((0, 0), (0, 0), (0, 0), (0, 0)))
+#test = Rect(((50, 50), (750, 750)), ((0, 0), (0, 0), (0, 0), (0, 0)))
+test = Rect(((0, 0), boardSz), ((0, 0), (0, 0), (0, 0), (0, 0)))
 bVert, bPoly = test.borders()
 
 random.seed()
@@ -396,19 +400,78 @@ holes = []
 #holes.append(((400, 400), 80))
 #holes.append(((550, 360), 20))
 
-i = 0
-while i < 100:
-    pos = (random.randint(100, 700), random.randint(100, 700))
-    rad = random.randint(8, 10)
-    failed = False
-    for h in holes:
-        if Rect.rCollision(circleRect(h[0], h[1]), circleRect(pos, rad)):
-            failed = True
-            break
-    if failed:
-        continue
-    holes.append((pos, rad))
-    i += 1
+#T1
+holes.append(((32.258, 50.8), 0.762))
+holes.append(((38.735, 59.69), 0.762))
+holes.append(((40.259, 63.627), 0.762))
+holes.append(((41.656, 41.656), 0.762))
+holes.append(((44.45, 47.625), 0.762))
+holes.append(((44.45, 54.61), 0.762))
+holes.append(((46.355, 59.055), 0.762))
+holes.append(((49.657, 38.608), 0.762))
+holes.append(((57.15, 36.195), 0.762))
+holes.append(((58.42, 40.005), 0.762))
+holes.append(((60.325, 36.83), 0.762))
+holes.append(((60.325, 58.42), 0.762))
+holes.append(((61.595, 60.325), 0.762))
+holes.append(((63.5, 49.53), 0.762))
+holes.append(((64.135, 63.5), 0.762))
+holes.append(((64.77, 52.07), 0.762))
+holes.append(((65.405, 47.625), 0.762))
+holes.append(((66.675, 50.165), 0.762))
+holes.append(((67.31, 54.61), 0.762))
+holes.append(((68.326, 59.944), 0.762))
+holes.append(((69.215, 47.625), 0.762))
+holes.append(((78.74, 39.37), 0.762))
+#T2
+holes.append(((45.26, 32.385), 0.813))
+holes.append(((47.26, 32.385), 0.813))
+holes.append(((49.26, 32.385), 0.813))
+holes.append(((51.26, 32.385), 0.813))
+#T3
+holes.append(((35.56, 29.21), 1.016))
+holes.append(((35.56, 31.75), 1.016))
+holes.append(((35.56, 34.29), 1.016))
+holes.append(((35.56, 36.83), 1.016))
+holes.append(((35.56, 39.37), 1.016))
+holes.append(((35.56, 45.72), 1.016))
+holes.append(((35.56, 48.26), 1.016))
+holes.append(((35.56, 50.8), 1.016))
+holes.append(((35.56, 53.34), 1.016))
+holes.append(((35.56, 59.69), 1.016))
+holes.append(((35.56, 62.23), 1.016))
+holes.append(((35.56, 64.77), 1.016))
+holes.append(((38.1, 45.72), 1.016))
+holes.append(((38.1, 48.26), 1.016))
+holes.append(((38.1, 50.8), 1.016))
+holes.append(((38.1, 53.34), 1.016))
+holes.append(((76.2, 29.21), 1.016))
+holes.append(((76.2, 31.75), 1.016))
+holes.append(((76.2, 35.56), 1.016))
+holes.append(((76.2, 53.34), 1.016))
+holes.append(((76.2, 55.88), 1.016))
+holes.append(((76.2, 59.69), 1.016))
+holes.append(((76.2, 62.23), 1.016))
+holes.append(((76.2, 64.77), 1.016))
+holes.append(((78.74, 35.56), 1.016))
+holes.append(((81.28, 35.56), 1.016))
+
+for i in range(0, len(holes)):
+    holes[i] = (((holes[i][0][0] - 25.4) * 10, (holes[i][0][1] - 25.4) * 10), holes[i][1] * 5) #FIXME Fix x10 mult
+
+#i = 0
+#while i < 100:
+    #pos = (random.randint(100, 700), random.randint(100, 700))
+    #rad = random.randint(8, 10)
+    #failed = False
+    #for h in holes:
+        #if Rect.rCollision(circleRect(h[0], h[1]), circleRect(pos, rad)):
+            #failed = True
+            #break
+    #if failed:
+        #continue
+    #holes.append((pos, rad))
+    #i += 1
 
 for h in holes:
     test.subdivide(circleRect(h[0], h[1]))
@@ -454,5 +517,5 @@ print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
 #xVert, xPoly = optimizeVertices(xVert, xPoly)
 #print "Complexity: vertices %u, polygons %u" % (len(xVert), len(xPoly))
 
-writeVRML("board.wrl", xVert, xPoly)
+writeVRML("board.wrl", xVert, xPoly, (-boardCn[0], -boardCn[1]))
 colorData.show()
