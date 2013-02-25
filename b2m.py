@@ -37,6 +37,11 @@ class Rect:
         top, bottom = coords[0], coords[1]
         return top[0] <= point[0] <= bottom[0] and top[1] <= point[1] <= bottom[1]
 
+    @staticmethod
+    def rCollision(ca, cb):
+        return (ca[0][0] <= cb[0][0] <= ca[1][0] or cb[0][0] <= ca[0][0] <= cb[1][0]) and \
+               (ca[0][1] <= cb[0][1] <= ca[1][1] or cb[0][1] <= ca[0][1] <= cb[1][1])
+
     def __init__(self, points, chamfers):
         cpoints = [[points[0][0], points[0][1]],
                    [points[1][0], points[0][1]],
@@ -391,10 +396,19 @@ holes = []
 #holes.append(((400, 400), 80))
 #holes.append(((550, 360), 20))
 
-for i in range(0, 20):
+i = 0
+while i < 100:
     pos = (random.randint(100, 700), random.randint(100, 700))
-    rad = random.randint(10, 20)
+    rad = random.randint(8, 10)
+    failed = False
+    for h in holes:
+        if Rect.rCollision(circleRect(h[0], h[1]), circleRect(pos, rad)):
+            failed = True
+            break
+    if failed:
+        continue
     holes.append((pos, rad))
+    i += 1
 
 for h in holes:
     test.subdivide(circleRect(h[0], h[1]))
