@@ -11,6 +11,7 @@ import time
 import argparse
 import os
 import subprocess
+import Image
 
 debug = False
 opengl = True
@@ -183,6 +184,8 @@ class vrmlEntry:
                     elif isinstance(self, vrmlAppearance):
                         if entryType == "Material":
                             entry = vrmlMaterial(self)
+                        elif entryType == "ImageTexture":
+                            entry = vrmlTexture(self)
                         else:
                             raise Exception()
                     elif isinstance(self, vrmlGeometry):
@@ -357,6 +360,7 @@ class vrmlScene(vrmlEntry):
             meshobj.vertexList = numpy.zeros(length * 3, dtype = numpy.float32)
             meshobj.normalList = numpy.zeros(length * 3, dtype = numpy.float32)
             meshobj.tangentList = numpy.zeros(length * 3, dtype = numpy.float32) #FIXME
+            meshobj.texList = numpy.zeros(length * 2, dtype = numpy.float32) #FIXME
             offsets = (0, groups[i].count[0]) #(Triangles, Quads)
             offsets = buildObjects(self, groups[i].objects, meshobj, self.transform, offsets, groups[i].appearance)
             fs = faceset()
@@ -656,15 +660,16 @@ class vrmlGeometry(vrmlEntry):
         texSearch = re.search("texCoordIndex\s*\[", string, re.S)
         if not coordSearch and not texSearch:
             return
-        pDebug("%sStart polygon read" % (' ' * self._level))
         polyPattern = re.compile("([ ,\t\d]+)-1", re.I | re.S)
         indPattern = re.compile("[ ,\t]*(\d+)[ ,\t]*", re.I | re.S)
         polygons = []
         delta, offset, balance = 0, 0, 0
         data = string
         if coordSearch:
+            pDebug("%sStart coordinate polygons read" % (' ' * self._level))
             pPos = coordSearch.end()
         else:
+            pDebug("%sStart texture polygons read" % (' ' * self._level))
             pPos = texSearch.end()
         while 1:
             while 1:
@@ -695,6 +700,8 @@ class vrmlGeometry(vrmlEntry):
                             for tesselPos in range(1, len(polyData) - 1):
                                 self.triCount += 3
                                 polygons.append([polyData[0], polyData[tesselPos], polyData[tesselPos + 1]])
+                    else:
+                        polygons.append(polyData) #FIXME Optimize
                     pPos = regexp.end()
                 else:
                     (delta, offset) = calcBalance(data, None, (), (']'))
@@ -1055,6 +1062,17 @@ class render:
             meshEntry.normalVBO = glGenBuffers(1)
             glBindBuffer(GL_ARRAY_BUFFER, meshEntry.normalVBO)
             glBufferData(GL_ARRAY_BUFFER, meshEntry.normalList, GL_STATIC_DRAW)
+            if meshEntry.texList != None:
+                meshEntry.texVBO = glGenBuffers(1)
+                glBindBuffer(GL_ARRAY_BUFFER, meshEntry.texVBO)
+                glBufferData(GL_ARRAY_BUFFER, meshEntry.texList, GL_STATIC_DRAW)
+                meshEntry.tangentVBO = glGenBuffers(1)
+                glBindBuffer(GL_ARRAY_BUFFER, meshEntry.tangentVBO)
+                glBufferData(GL_ARRAY_BUFFER, meshEntry.tangentList, GL_STATIC_DRAW)
+                if meshEntry.appearance != None:
+                    for mat in meshEntry.appearance.objects:
+                        if isinstance(mat, vrmlTexture) and mat.texID == None:
+                            self.loadTexture(mat)
 
     def setMaterial(self, arg):
         #glDisable(GL_COLOR_MATERIAL)
