@@ -1,14 +1,13 @@
 // Vertex program
 #define LIGHTS 2
 varying vec3 ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
-varying vec3 normal, view;
+varying vec3 normal, pos;
 varying vec3 light[LIGHTS];
 
 void main()
 {
-  vec3 pos = vec3(gl_ModelViewMatrix * gl_Vertex);
+  pos = vec3(gl_ModelViewMatrix * gl_Vertex);
   normal = normalize(gl_NormalMatrix * gl_Normal);
-  view = normalize(-pos.xyz);
 
   ambientGlobal = vec3(gl_FrontMaterial.ambient * gl_LightModel.ambient);
   for (int i = 0; i < LIGHTS; i++)

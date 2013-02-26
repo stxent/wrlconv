@@ -965,8 +965,8 @@ class render:
     def __init__(self, aScene):
         self.camera = numpy.matrix([[0.], [20.], [20.], [1.]])
         self.pov    = numpy.matrix([[0.], [0.], [0.], [1.]])
-        self.lighta = numpy.matrix([[20.], [20.], [20.], [1.]])
-        self.lightb = numpy.matrix([[-20.], [-20.], [-20.], [1.]])
+        self.lighta = numpy.matrix([[50.], [50.], [50.], [1.]])
+        self.lightb = numpy.matrix([[-50.], [-50.], [-50.], [1.]])
         self.axis   = numpy.matrix([[0.], [0.], [1.], [1.]])
         self.updated = True
         self.rotateCamera = False
@@ -1009,20 +1009,17 @@ class render:
         glLightfv(GL_LIGHT0, GL_POSITION, self.lighta)
         glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
         glLightfv(GL_LIGHT0, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.])
-        glLightfv(GL_LIGHT0, GL_SPECULAR, [0.5, 0.5, 0.5, 1.])
+        glLightfv(GL_LIGHT0, GL_SPECULAR, [0.8, 0.8, 0.8, 1.])
         glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 1.0)
         glLightf(GL_LIGHT0, GL_LINEAR_ATTENUATION, 0.0)
-        glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 0.00005)
         #Setup light 1
         glEnable(GL_LIGHT1)
         glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
         glLightfv(GL_LIGHT1, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
         glLightfv(GL_LIGHT1, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.])
-        glLightfv(GL_LIGHT1, GL_SPECULAR, [0.5, 0.5, 0.5, 1.])
+        glLightfv(GL_LIGHT1, GL_SPECULAR, [0.8, 0.8, 0.8, 1.])
         glLightf(GL_LIGHT1, GL_CONSTANT_ATTENUATION, 1.0)
         glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.0)
-        glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.00005)
-        #glEnable(GL_COLOR_MATERIAL)
         #Blending using shader
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -1074,18 +1071,14 @@ class render:
                             self.loadTexture(mat)
 
     def setMaterial(self, arg):
-        #glDisable(GL_COLOR_MATERIAL)
         glEnable(GL_COLOR_MATERIAL)
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, arg.shininess * 128.)
         glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, arg.specularColor)
         glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, arg.emissiveColor)
-        #glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, arg.ambientColor)
-        #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, arg.diffuseColor)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT)
         glColor4f(arg.ambientColor[0], arg.ambientColor[1], arg.ambientColor[2], arg.ambientColor[3])
         glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE)
         glColor4f(arg.diffuseColor[0], arg.diffuseColor[1], arg.diffuseColor[2], arg.diffuseColor[3])
-        #glEnable(GL_COLOR_MATERIAL)
         glDisable(GL_COLOR_MATERIAL)
 
     def loadTexture(self, arg):

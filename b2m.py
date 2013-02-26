@@ -18,7 +18,7 @@ import model
 #import subprocess
 
 class Rect:
-    THICKNESS = 0.25
+    THICKNESS = 0.2
     class RectCorner:
         def __init__(self, position, chamfer):
             self.position = position #Tuple of two elements: x and y
@@ -299,8 +299,9 @@ def wrapTexture(mesh):
     size = (bounds[1][0] - bounds[0][0], bounds[1][1] - bounds[0][1])
     for poly in mesh.polygons:
         for index in poly:
-            mesh.texels.append(numpy.array([(mesh.vertices[index][0] - bounds[0][0]) / size[0],
-                    1.0 - (mesh.vertices[index][1] - bounds[0][1]) / size[1]]))
+            u = (mesh.vertices[index][0] - bounds[0][0]) / size[0]
+            v = 1.0 - (mesh.vertices[index][1] - bounds[0][1]) / size[1]
+            mesh.texels.append(numpy.array([u, v]))
 
 def createBoard(vertices, polygons):
     top, bottom = model.Mesh(), model.Mesh()
@@ -348,7 +349,7 @@ def createHole(position, radius):
 def writeVRML(out, mesh, offset, img = ""):
     #print "Sizes xVert %u, xPoly %u, texVert %u, texPoly %u" % \
             #(len(vertices), len(polygons), len(texVertices), len(texPolygons))
-    scale = (0.025, 0.025)
+    scale = (0.03937, 0.03937)
     out.write("#VRML V2.0 utf8\n#Created by b2m.py\n")
     out.write("DEF OB_%u Transform {\n" % random.randint(1000, 9999))
     out.write("\ttranslation 0 0 0\n")
@@ -359,17 +360,23 @@ def writeVRML(out, mesh, offset, img = ""):
               "\t\t\tchildren [\n"
               "\t\t\t\tShape {\n" % random.randint(1000, 9999))
     out.write("\t\t\t\t\tappearance Appearance {\n"
-              "\t\t\t\t\t\tmaterial DEF MAT_%u Material {\n"
-              "\t\t\t\t\t\t\tdiffuseColor 1.0 1.0 1.0\n"
-              "\t\t\t\t\t\t\tambientIntensity 0.2\n"
-              "\t\t\t\t\t\t\tspecularColor 0.5 0.5 0.8\n"
+              "\t\t\t\t\t\tmaterial DEF MAT_%u Material {\n" % random.randint(1000, 9999))
+    if img != "":
+        out.write("\t\t\t\t\t\t\tdiffuseColor 1.0 1.0 1.0\n")
+    else:
+        out.write("\t\t\t\t\t\t\tdiffuseColor 0.039 0.138 0.332\n")
+    out.write("\t\t\t\t\t\t\tambientIntensity 0.2\n"
+              "\t\t\t\t\t\t\tspecularColor 1.0 1.0 1.0\n"
               "\t\t\t\t\t\t\temissiveColor  0.0 0.0 0.0\n"
-              "\t\t\t\t\t\t\tshininess 0.95\n"
+              "\t\t\t\t\t\t\tshininess 0.5\n"
               "\t\t\t\t\t\t\ttransparency 0.0\n"
-              "\t\t\t\t\t\t}\n" % random.randint(1000, 9999));
+              "\t\t\t\t\t\t}\n");
     if img != "":
         out.write("\t\t\t\t\t\ttexture DEF diffusemap ImageTexture {\n"
                 "\t\t\t\t\t\t\turl \"%s\"\n"
+                "\t\t\t\t\t\t}\n" % img)
+        out.write("\t\t\t\t\t\ttexture DEF normalmap ImageTexture {\n"
+                "\t\t\t\t\t\t\turl \"map_%s\"\n"
                 "\t\t\t\t\t\t}\n" % img)
     out.write("\t\t\t\t\t}\n")
     out.write("\t\t\t\t\tgeometry IndexedFaceSet {\n"
@@ -482,6 +489,9 @@ holes.append(((76.2, 62.23), 1.016))
 holes.append(((76.2, 64.77), 1.016))
 holes.append(((78.74, 35.56), 1.016))
 holes.append(((81.28, 35.56), 1.016))
+#NPTH
+holes.append(((62.57, 31.539), 0.914))
+holes.append(((66.97, 31.539), 0.914))
 
 for i in range(0, len(holes)):
     holes[i] = (((holes[i][0][0] - 25.4) * 10, (holes[i][0][1] - 25.4) * 10), holes[i][1] * 5) #FIXME Fix x10 mult
@@ -520,10 +530,12 @@ for h in holes:
 
 wrapTexture(front)
 wrapTexture(back)
+#wrapTexture(inner)
+#wrapTexture(borders)
 
 out = open("board.wrl", "wb")
-writeVRML(out, front, (-boardCn[0], -boardCn[1]), "bottom.jpg")
-writeVRML(out, back, (-boardCn[0], -boardCn[1]), "top.jpg")
+writeVRML(out, front, (-boardCn[0], -boardCn[1]), "back.png")
+writeVRML(out, back, (-boardCn[0], -boardCn[1]), "front.png")
 writeVRML(out, inner, (-boardCn[0], -boardCn[1]))
 writeVRML(out, borders, (-boardCn[0], -boardCn[1]))
 colorData.show()

@@ -2,7 +2,6 @@
 #define LIGHTS 2
 varying vec3 normal, pos, ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
 varying vec3 light[LIGHTS], view;
-// varying vec3 ta, bi;
 varying float attenuation[LIGHTS];
 uniform sampler2D diffuseTexture, normalTexture;
 
@@ -22,14 +21,10 @@ void main()
     color.rgb += ambient[i] * attenuation[i];
     color.rgb += diffuse[i].rgb * diffuseIntensity * attenuation[i];
     if (diffuseIntensity > 0.0)
-    {
-      specularModifier = max(0.0, dot(reflection, view));
-      color.rgb += specular[i] * pow(specularModifier, gl_FrontMaterial.shininess) * attenuation[i];
-    }
+      color.rgb += specular[i] * pow(max(0.0, dot(reflection, view)), gl_FrontMaterial.shininess) * attenuation[i];
   }
   texel = texture2D(diffuseTexture, gl_TexCoord[0].st);
   color *= texel;
-//   color.rgb = ta;
 
   gl_FragColor = clamp(color, 0.0, 1.0);
 }
