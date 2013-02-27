@@ -486,6 +486,7 @@ class vrmlShape(vrmlEntry):
                         normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]],
                                            vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]])
                         normal = normalize(normal)
+                        normal = numpy.array([float(normal[0]), float(normal[1]), float(normal[2])])
                         if len(obj.polygons[poly]) == 3:
                             pos = triOffset
                             triOffset += 3
@@ -494,30 +495,37 @@ class vrmlShape(vrmlEntry):
                             quadOffset += 4
                         for ind in range(0, len(obj.polygons[poly])):
                             meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
-                            meshObject.normalList[3 * pos:3 * pos + 3] = [float(normal[0]), float(normal[1]), float(normal[2])]
+                            meshObject.normalList[3 * pos:3 * pos + 3] = normal
                             if genTex:
-                                #TODO Rewrite
-                                meshObject.texList[2 * pos]         = verticesUV[obj.polygonsUV[poly][ind]][0]
-                                meshObject.texList[2 * pos + 1]     = verticesUV[obj.polygonsUV[poly][ind]][1]
-                                meshObject.tangentList[3 * pos]     = tangent[0]
-                                meshObject.tangentList[3 * pos + 1] = tangent[1]
-                                meshObject.tangentList[3 * pos + 2] = tangent[2]
+                                meshObject.texList[2 * pos:2 * pos + 2] = verticesUV[obj.polygonsUV[poly][ind]][0:2]
+                                meshObject.tangentList[3 * pos:3 * pos + 3] = tangent[0:3]
                             pos += 1
                 else: #Smooth shading
                     normals = []
+                    tangents = []
                     for i in range(0, len(vertices)):
                         normals.append(numpy.array([0., 0., 0.,]))
+                    if genTex:
+                        for i in range(0, len(vertices)):
+                            tangents.append(numpy.array([0., 0., 0.,]))
                     for poly in range(0, len(obj.polygons)):
+                        if genTex:
+                            tangent = getTangent(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]],
+                                                 vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]],
+                                                 verticesUV[obj.polygonsUV[poly][1]] - verticesUV[obj.polygonsUV[poly][0]],
+                                                 verticesUV[obj.polygonsUV[poly][2]] - verticesUV[obj.polygonsUV[poly][0]])
+                            tangent = normalize(tangent)
+                            tangent = numpy.array([float(tangent[0]), float(tangent[1]), float(tangent[2])])
                         normal = getNormal(vertices[obj.polygons[poly][1]] - vertices[obj.polygons[poly][0]], 
                                            vertices[obj.polygons[poly][2]] - vertices[obj.polygons[poly][0]])
                         normal = normalize(normal)
                         for ind in obj.polygons[poly]:
                             normals[ind] += numpy.array([float(normal[0]), float(normal[1]), float(normal[2])])
-                            if appearance.normal:
-                                tangents[ind] += numpy.array([float(tangent[0]), float(tangent[1]), float(tangent[2])])
+                            if genTex:
+                                tangents[ind] += tangent
                     for i in range(0, len(vertices)):
                         normals[i] = normalize(normals[i])
-                        if appearance.normal:
+                        if genTex:
                             tangents[i] = normalize(tangents[i])
                     for poly in range(0, len(obj.polygons)):
                         if len(obj.polygons[poly]) == 3:
@@ -529,6 +537,9 @@ class vrmlShape(vrmlEntry):
                         for ind in range(0, len(obj.polygons[poly])):
                             meshObject.vertexList[3 * pos:3 * pos + 3] = vertices[obj.polygons[poly][ind]][0:3]
                             meshObject.normalList[3 * pos:3 * pos + 3] = normals[obj.polygons[poly][ind]][0:3]
+                            if genTex:
+                                meshObject.texList[2 * pos:2 * pos + 2] = verticesUV[obj.polygonsUV[poly][ind]][0:2]
+                                meshObject.tangentList[3 * pos:3 * pos + 3] = tangents[obj.polygons[poly][ind]][0:3]
                             pos += 1
                 _tsb = time.time()
                 #Vertex count needed in VBO rendering
