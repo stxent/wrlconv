@@ -313,13 +313,13 @@ def createBoard(vertices, polygons):
         bottom.polygons.append(poly[::-1])
     return (top, bottom)
 
-def createHole(position, radius):
+def createHole(radius):
     top, hole, bottom = model.Mesh(), model.Mesh(), model.Mesh()
 
     edges = 24
     angle, delta = 0, math.pi * 2 / edges
     for i in range(0, edges):
-        xPos, yPos = position[0] + radius * math.cos(angle), position[1] + radius * math.sin(angle)
+        xPos, yPos = radius * math.cos(angle), radius * math.sin(angle)
         top.vertices.append(numpy.array([xPos, yPos, Rect.THICKNESS]))
         bottom.vertices.append(numpy.array([xPos, yPos, -Rect.THICKNESS]))
         hole.vertices.extend([numpy.array([xPos, yPos, Rect.THICKNESS]), numpy.array([xPos, yPos, -Rect.THICKNESS])])
@@ -329,14 +329,10 @@ def createHole(position, radius):
     for i in range(0, edges - 1):
         hole.polygons.append([(i + 0) * 2, (i + 1) * 2, (i + 1) * 2 + 1, (i + 0) * 2 + 1])
 
-    top.vertices.append([position[0] + radius, position[1] + radius, Rect.THICKNESS])
-    bottom.vertices.append([position[0] + radius, position[1] + radius, -Rect.THICKNESS])
-    top.vertices.append([position[0] - radius, position[1] + radius, Rect.THICKNESS])
-    bottom.vertices.append([position[0] - radius, position[1] + radius, -Rect.THICKNESS])
-    top.vertices.append([position[0] - radius, position[1] - radius, Rect.THICKNESS])
-    bottom.vertices.append([position[0] - radius, position[1] - radius, -Rect.THICKNESS])
-    top.vertices.append([position[0] + radius, position[1] - radius, Rect.THICKNESS])
-    bottom.vertices.append([position[0] + radius, position[1] - radius, -Rect.THICKNESS])
+    planarCoords = [[radius, radius], [-radius, radius], [-radius, -radius], [radius, -radius]]
+    for pair in planarCoords:
+        top.vertices.append(numpy.array([pair[0], pair[1], Rect.THICKNESS]))
+        bottom.vertices.append(numpy.array([pair[0], pair[1], -Rect.THICKNESS]))
 
     mult = edges / 4
     for i in range(0, mult):
@@ -434,64 +430,71 @@ holes = []
 #holes.append(((400, 400), 80))
 #holes.append(((550, 360), 20))
 
+diameters = [0.762, 0.813, 1.016, 0.914]
+holeModels = []
+for diam in diameters:
+    holeModels.append(createHole(diam * 5)) #FIXME * 0.5 * 10
+
 #T1
+holesT1 = [(32.258, 50.8), (38.735, 59.69), (40.259, 63.627), (41.656, 41.656), (44.45, 47.625)]
 holes.append(((32.258, 50.8), 0.762))
 holes.append(((38.735, 59.69), 0.762))
 holes.append(((40.259, 63.627), 0.762))
 holes.append(((41.656, 41.656), 0.762))
 holes.append(((44.45, 47.625), 0.762))
-holes.append(((44.45, 54.61), 0.762))
-holes.append(((46.355, 59.055), 0.762))
-holes.append(((49.657, 38.608), 0.762))
-holes.append(((57.15, 36.195), 0.762))
-holes.append(((58.42, 40.005), 0.762))
-holes.append(((60.325, 36.83), 0.762))
-holes.append(((60.325, 58.42), 0.762))
-holes.append(((61.595, 60.325), 0.762))
-holes.append(((63.5, 49.53), 0.762))
-holes.append(((64.135, 63.5), 0.762))
-holes.append(((64.77, 52.07), 0.762))
-holes.append(((65.405, 47.625), 0.762))
-holes.append(((66.675, 50.165), 0.762))
-holes.append(((67.31, 54.61), 0.762))
-holes.append(((68.326, 59.944), 0.762))
-holes.append(((69.215, 47.625), 0.762))
-holes.append(((78.74, 39.37), 0.762))
+#holes.append(((44.45, 54.61), 0.762))
+#holes.append(((46.355, 59.055), 0.762))
+#holes.append(((49.657, 38.608), 0.762))
+#holes.append(((57.15, 36.195), 0.762))
+#holes.append(((58.42, 40.005), 0.762))
+#holes.append(((60.325, 36.83), 0.762))
+#holes.append(((60.325, 58.42), 0.762))
+#holes.append(((61.595, 60.325), 0.762))
+#holes.append(((63.5, 49.53), 0.762))
+#holes.append(((64.135, 63.5), 0.762))
+#holes.append(((64.77, 52.07), 0.762))
+#holes.append(((65.405, 47.625), 0.762))
+#holes.append(((66.675, 50.165), 0.762))
+#holes.append(((67.31, 54.61), 0.762))
+#holes.append(((68.326, 59.944), 0.762))
+#holes.append(((69.215, 47.625), 0.762))
+#holes.append(((78.74, 39.37), 0.762))
 #T2
-holes.append(((45.26, 32.385), 0.813))
-holes.append(((47.26, 32.385), 0.813))
-holes.append(((49.26, 32.385), 0.813))
-holes.append(((51.26, 32.385), 0.813))
+#holes.append(((45.26, 32.385), 0.813))
+#holes.append(((47.26, 32.385), 0.813))
+#holes.append(((49.26, 32.385), 0.813))
+#holes.append(((51.26, 32.385), 0.813))
+#holesT2 = [(45.26, 32.385), (47.26, 32.385), (49.26, 32.385), (51.26, 32.385)]
 #T3
-holes.append(((35.56, 29.21), 1.016))
-holes.append(((35.56, 31.75), 1.016))
-holes.append(((35.56, 34.29), 1.016))
-holes.append(((35.56, 36.83), 1.016))
-holes.append(((35.56, 39.37), 1.016))
-holes.append(((35.56, 45.72), 1.016))
-holes.append(((35.56, 48.26), 1.016))
-holes.append(((35.56, 50.8), 1.016))
-holes.append(((35.56, 53.34), 1.016))
-holes.append(((35.56, 59.69), 1.016))
-holes.append(((35.56, 62.23), 1.016))
-holes.append(((35.56, 64.77), 1.016))
-holes.append(((38.1, 45.72), 1.016))
-holes.append(((38.1, 48.26), 1.016))
-holes.append(((38.1, 50.8), 1.016))
-holes.append(((38.1, 53.34), 1.016))
-holes.append(((76.2, 29.21), 1.016))
-holes.append(((76.2, 31.75), 1.016))
-holes.append(((76.2, 35.56), 1.016))
-holes.append(((76.2, 53.34), 1.016))
-holes.append(((76.2, 55.88), 1.016))
-holes.append(((76.2, 59.69), 1.016))
-holes.append(((76.2, 62.23), 1.016))
-holes.append(((76.2, 64.77), 1.016))
-holes.append(((78.74, 35.56), 1.016))
-holes.append(((81.28, 35.56), 1.016))
-#NPTH
-holes.append(((62.57, 31.539), 0.914))
-holes.append(((66.97, 31.539), 0.914))
+#holes.append(((35.56, 29.21), 1.016))
+#holes.append(((35.56, 31.75), 1.016))
+#holes.append(((35.56, 34.29), 1.016))
+#holes.append(((35.56, 36.83), 1.016))
+#holes.append(((35.56, 39.37), 1.016))
+#holes.append(((35.56, 45.72), 1.016))
+#holes.append(((35.56, 48.26), 1.016))
+#holes.append(((35.56, 50.8), 1.016))
+#holes.append(((35.56, 53.34), 1.016))
+#holes.append(((35.56, 59.69), 1.016))
+#holes.append(((35.56, 62.23), 1.016))
+#holes.append(((35.56, 64.77), 1.016))
+#holes.append(((38.1, 45.72), 1.016))
+#holes.append(((38.1, 48.26), 1.016))
+#holes.append(((38.1, 50.8), 1.016))
+#holes.append(((38.1, 53.34), 1.016))
+#holes.append(((76.2, 29.21), 1.016))
+#holes.append(((76.2, 31.75), 1.016))
+#holes.append(((76.2, 35.56), 1.016))
+#holes.append(((76.2, 53.34), 1.016))
+#holes.append(((76.2, 55.88), 1.016))
+#holes.append(((76.2, 59.69), 1.016))
+#holes.append(((76.2, 62.23), 1.016))
+#holes.append(((76.2, 64.77), 1.016))
+#holes.append(((78.74, 35.56), 1.016))
+#holes.append(((81.28, 35.56), 1.016))
+##NPTH
+#holes.append(((62.57, 31.539), 0.914))
+#holes.append(((66.97, 31.539), 0.914))
 
 for i in range(0, len(holes)):
     holes[i] = (((holes[i][0][0] - 25.4) * 10, (holes[i][0][1] - 25.4) * 10), holes[i][1] * 5) #FIXME Fix x10 mult
@@ -523,7 +526,14 @@ front, back = createBoard(vert, poly)
 inner = model.Mesh()
 
 for h in holes:
-    holeTop, holeCylinder, holeBottom = createHole(h[0], h[1])
+    holeTop = model.Mesh(holeModels[0][0])
+    holeCylinder = model.Mesh(holeModels[0][1])
+    holeBottom = model.Mesh(holeModels[0][2])
+
+    holeTop.translate((h[0][0], h[0][1], 0));
+    holeCylinder.translate((h[0][0], h[0][1], 0));
+    holeBottom.translate((h[0][0], h[0][1], 0));
+
     inner.append(holeCylinder)
     front.append(holeTop)
     back.append(holeBottom)
