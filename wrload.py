@@ -467,12 +467,12 @@ class vrmlShape(vrmlEntry):
                 vertices = []
                 verticesUV = []
                 for coords in obj.objects:
-                    if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['model']:
+                    if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE["model"]:
                         for vert in coords.vertices:
                             tmp = numpy.matrix([[vert[0]], [vert[1]], [vert[2]], [1.]])
                             tmp = transform * tmp
                             vertices.append(numpy.array([float(tmp[0]), float(tmp[1]), float(tmp[2])]))
-                    elif isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['texture']:
+                    elif isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE["texture"]:
                         for vert in coords.vertices:
                             verticesUV.append(vert)
                 if not obj.smooth: #Flat shading
@@ -557,7 +557,7 @@ class vrmlShape(vrmlEntry):
         for obj in self.objects:
             if isinstance(obj, vrmlGeometry):
                 for coords in obj.objects:
-                    if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['model']:
+                    if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE["model"]:
                         totalVertices = len(coords.vertices)
                         for i in range(0, len(usedVertices)):
                             vertices.append(coords.vertices[usedVertices[i]])
@@ -613,7 +613,7 @@ class vrmlShape(vrmlEntry):
                 if isinstance(obj, vrmlGeometry):
                     fd.write("      geometry IndexedFaceSet {\n        coord Coordinate { point [\n")
                     for coords in obj.objects:
-                        if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE['model']:
+                        if isinstance(coords, vrmlCoords) and coords.cType == vrmlCoords.TYPE["model"]:
                             for i in range(0, len(coords.vertices)):
                                 tmp = numpy.matrix([[coords.vertices[i][0]], [coords.vertices[i][1]], [coords.vertices[i][2]], [1.]])
                                 tmp = transform * tmp
@@ -734,9 +734,9 @@ class vrmlCoords(vrmlEntry):
         indexSearch = re.search("point\s*\[", string, re.S)
         if indexSearch:
             pDebug("%sStart vertex read, type: %s" % (' ' * self._level, vrmlCoords.TYPE.keys()[self.cType]))
-            if self.cType == vrmlCoords.TYPE['model']:
+            if self.cType == vrmlCoords.TYPE["model"]:
                 vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
-            elif self.cType == vrmlCoords.TYPE['texture']:
+            elif self.cType == vrmlCoords.TYPE["texture"]:
                 vertexPattern = re.compile("([+e\d\-\.]+)[ ,\t]+([+e\d\-\.]+)", re.I | re.S)
             self.vertices = []
             delta, offset, balance = 0, 0, 0
@@ -754,10 +754,10 @@ class vrmlCoords(vrmlEntry):
                         if balance != 0:
                             pDebug("%sWrong balance: %d, offset: %d" % (' ' * self._level, balance, offset))
                             break
-                        if self.cType == vrmlCoords.TYPE['model']:
+                        if self.cType == vrmlCoords.TYPE["model"]:
                             self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2)), \
                                     float(regexp.group(3))]))
-                        elif self.cType == vrmlCoords.TYPE['texture']:
+                        elif self.cType == vrmlCoords.TYPE["texture"]:
                             self.vertices.append(numpy.array([float(regexp.group(1)), float(regexp.group(2))]))
                         vPos = regexp.end()
                     else:
@@ -1007,19 +1007,21 @@ class render:
         #Setup light 0
         glEnable(GL_LIGHT0)
         glLightfv(GL_LIGHT0, GL_POSITION, self.lighta)
-        glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
-        glLightfv(GL_LIGHT0, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.])
+        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.0, 0.0, 0.0, 1.])
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, [1.0, 1.0, 1.0, 1.])
         glLightfv(GL_LIGHT0, GL_SPECULAR, [0.8, 0.8, 0.8, 1.])
         glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 1.0)
         glLightf(GL_LIGHT0, GL_LINEAR_ATTENUATION, 0.0)
+        glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 0.0)
         #Setup light 1
         glEnable(GL_LIGHT1)
         glLightfv(GL_LIGHT1, GL_POSITION, self.lightb)
-        glLightfv(GL_LIGHT1, GL_AMBIENT,  [0.0, 0.0, 0.0, 1.])
-        glLightfv(GL_LIGHT1, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.])
+        glLightfv(GL_LIGHT1, GL_AMBIENT, [0.0, 0.0, 0.0, 1.])
+        glLightfv(GL_LIGHT1, GL_DIFFUSE, [1.0, 1.0, 1.0, 1.])
         glLightfv(GL_LIGHT1, GL_SPECULAR, [0.8, 0.8, 0.8, 1.])
         glLightf(GL_LIGHT1, GL_CONSTANT_ATTENUATION, 1.0)
         glLightf(GL_LIGHT1, GL_LINEAR_ATTENUATION, 0.0)
+        glLightf(GL_LIGHT1, GL_QUADRATIC_ATTENUATION, 0.0)
         #Blending using shader
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -1036,12 +1038,12 @@ class render:
         if len(scriptDir) > 0:
             os.chdir(scriptDir)
         self.shaders = {}
-        self.shaders['colored'] = loadShader("light");
-        self.shaders['texture'] = loadShader("light_tex");
-        self.shaders['normals'] = loadShader("light_nmap");
-        glBindAttribLocation(self.shaders['normals'], 1, "tangent")
-        glLinkProgram(self.shaders['normals'])
-        self.shaders['cubemap'] = loadShader("cubemap");
+        self.shaders["colored"] = loadShader("light");
+        self.shaders["texture"] = loadShader("light_tex");
+        self.shaders["normals"] = loadShader("light_nmap");
+        glBindAttribLocation(self.shaders["normals"], 1, "tangentVector")
+        glLinkProgram(self.shaders["normals"])
+        self.shaders["cubemap"] = loadShader("cubemap");
         os.chdir(oldDir)
 
     def initScene(self, aScene):
@@ -1152,20 +1154,20 @@ class render:
                 texType = mat.texType
                 texNum += 1
         if texNum == 0:
-            glUseProgram(self.shaders['colored'])
+            glUseProgram(self.shaders["colored"])
         elif texNum == 1:
             if texType == GL_TEXTURE_2D:
-                glUseProgram(self.shaders['texture'])
-                tex = glGetUniformLocation(self.shaders['texture'], "diffuseTexture")
+                glUseProgram(self.shaders["texture"])
+                tex = glGetUniformLocation(self.shaders["texture"], "diffuseTexture")
             else:
-                glUseProgram(self.shaders['cubemap'])
-                tex = glGetUniformLocation(self.shaders['cubemap'], "diffuseTexture")
+                glUseProgram(self.shaders["cubemap"])
+                tex = glGetUniformLocation(self.shaders["cubemap"], "diffuseTexture")
             glUniform1i(tex, 0)
         elif texNum >= 2:
-            glUseProgram(self.shaders['normals'])
-            tex = glGetUniformLocation(self.shaders['normals'], "diffuseTexture")
+            glUseProgram(self.shaders["normals"])
+            tex = glGetUniformLocation(self.shaders["normals"], "diffuseTexture")
             glUniform1i(tex, 0)
-            tex = glGetUniformLocation(self.shaders['normals'], "normalTexture")
+            tex = glGetUniformLocation(self.shaders["normals"], "normalTexture")
             glUniform1i(tex, 1)
 
     def drawAxis(self):
