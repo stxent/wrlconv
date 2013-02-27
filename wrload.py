@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Author: xent (alexdmitv@gmail.com)
-# License: Public domain code
-# Version: 0.4b
+#
+# wrload.py
+# Copyright (C) 2011 xent
+# Project is distributed under the terms of the GNU General Public License v3.0
+
 import re
 import math
 import numpy

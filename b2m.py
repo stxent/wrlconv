@@ -1,16 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Author: xent (alexdmitv@gmail.com)
-# License: Public domain code
-# Version: 0.3b
+#
+# b2m.py
+# Copyright (C) 2013 xent
+# Project is distributed under the terms of the GNU General Public License v3.0
+
 import numpy
 import Image, ImageDraw
 import random
 import copy
 import math
+import re
 
 import model
-#import re
 #import sys
 #import time
 #import argparse
@@ -261,6 +263,54 @@ class Rect:
                 entry.subdivide(points)
 
 
+class DrillParser:
+    class Tool:
+        def __init__(self, number, diameter):
+            self.number = number
+            self.diameter = diameter
+
+    def __init__(self, path):
+        self.path = path
+        self.tools = []
+        self.holes = {}
+        self.scale = 10.0
+
+    def readTools(self, stream):
+        while True:
+            data = stream.readline()
+            eoh = re.search("^%$", data)
+            if not len(data) or data[0] == "%":
+                break
+            tool = re.search("T(\d+)C([\.\d]+).*$", data, re.S)
+            if tool:
+                num, diam = int(tool.group(1)), (float(tool.group(2)) / 2) * self.scale
+                self.tools.append(DrillParser.Tool(num, diam))
+
+    def readSegments(self, stream):
+        current = None
+        while True:
+            data = stream.readline()
+            if not len(data):
+                break
+            tool = re.search("T(\d+)$", data, re.S)
+            if tool:
+                current = None
+                for item in self.tools: #FIXME Optimize
+                    if item.number == int(tool.group(1)):
+                        current = item
+                        self.holes[current.number] = []
+            hole = re.search("X([\.\d]+)Y([\.\d]+)", data)
+            if current is not None and hole:
+                self.holes[current.number].append((float(hole.group(1)) * self.scale, \
+                        float(hole.group(2)) * self.scale))
+
+    def read(self):
+        stream = open(self.path, "rb")
+        self.readTools(stream)
+        self.readSegments(stream)
+        stream.close()
+
+
 def optimizeVertices(vertices, polygons):
     retVert = []
     retPoly = copy.deepcopy(polygons)
@@ -412,95 +462,24 @@ def writeVRML(out, mesh, offset, img = ""):
               "\t]\n"
               "}\n")
 
+random.seed()
 boardSz = (609.6, 431.8)
 boardCn = (boardSz[0] / 2, boardSz[1] / 2)
 
-#test = Rect(((50, 50), (750, 750)), ((10, 15), (20, 10), (15, 20), (20, 30)))
-#test = Rect(((50, 50), (750, 750)), ((50, 50), (50, 50), (50, 50), (50, 50)))
-#test = Rect(((50, 50), (750, 750)), ((0, 0), (0, 0), (0, 0), (0, 0)))
 test = Rect(((0, 0), boardSz), ((0, 0), (0, 0), (0, 0), (0, 0)))
-
 borders = model.Mesh()
 borders.vertices, borders.polygons = test.borders()
 
-random.seed()
-holes = []
+dp = DrillParser("_exp/lpc1343_dev.drl")
+dp.read()
 
-#FIXME
-#holes.append(((400, 400), 80))
-#holes.append(((550, 360), 20))
+holeModels = {}
+for tool in dp.tools:
+    holeModels[tool.number] = createHole(tool.diameter)
 
-diameters = [0.762, 0.813, 1.016, 0.914]
-holeModels = []
-for diam in diameters:
-    holeModels.append(createHole(diam * 5)) #FIXME * 0.5 * 10
-
-#T1
-holesT1 = [(32.258, 50.8), (38.735, 59.69), (40.259, 63.627), (41.656, 41.656), (44.45, 47.625)]
-holes.append(((32.258, 50.8), 0.762))
-holes.append(((38.735, 59.69), 0.762))
-holes.append(((40.259, 63.627), 0.762))
-holes.append(((41.656, 41.656), 0.762))
-holes.append(((44.45, 47.625), 0.762))
-#holes.append(((44.45, 54.61), 0.762))
-#holes.append(((46.355, 59.055), 0.762))
-#holes.append(((49.657, 38.608), 0.762))
-#holes.append(((57.15, 36.195), 0.762))
-#holes.append(((58.42, 40.005), 0.762))
-#holes.append(((60.325, 36.83), 0.762))
-#holes.append(((60.325, 58.42), 0.762))
-#holes.append(((61.595, 60.325), 0.762))
-#holes.append(((63.5, 49.53), 0.762))
-#holes.append(((64.135, 63.5), 0.762))
-#holes.append(((64.77, 52.07), 0.762))
-#holes.append(((65.405, 47.625), 0.762))
-#holes.append(((66.675, 50.165), 0.762))
-#holes.append(((67.31, 54.61), 0.762))
-#holes.append(((68.326, 59.944), 0.762))
-#holes.append(((69.215, 47.625), 0.762))
-#holes.append(((78.74, 39.37), 0.762))
-#T2
-#holes.append(((45.26, 32.385), 0.813))
-#holes.append(((47.26, 32.385), 0.813))
-#holes.append(((49.26, 32.385), 0.813))
-#holes.append(((51.26, 32.385), 0.813))
-#holesT2 = [(45.26, 32.385), (47.26, 32.385), (49.26, 32.385), (51.26, 32.385)]
-#T3
-#holes.append(((35.56, 29.21), 1.016))
-#holes.append(((35.56, 31.75), 1.016))
-#holes.append(((35.56, 34.29), 1.016))
-#holes.append(((35.56, 36.83), 1.016))
-#holes.append(((35.56, 39.37), 1.016))
-#holes.append(((35.56, 45.72), 1.016))
-#holes.append(((35.56, 48.26), 1.016))
-#holes.append(((35.56, 50.8), 1.016))
-#holes.append(((35.56, 53.34), 1.016))
-#holes.append(((35.56, 59.69), 1.016))
-#holes.append(((35.56, 62.23), 1.016))
-#holes.append(((35.56, 64.77), 1.016))
-#holes.append(((38.1, 45.72), 1.016))
-#holes.append(((38.1, 48.26), 1.016))
-#holes.append(((38.1, 50.8), 1.016))
-#holes.append(((38.1, 53.34), 1.016))
-#holes.append(((76.2, 29.21), 1.016))
-#holes.append(((76.2, 31.75), 1.016))
-#holes.append(((76.2, 35.56), 1.016))
-#holes.append(((76.2, 53.34), 1.016))
-#holes.append(((76.2, 55.88), 1.016))
-#holes.append(((76.2, 59.69), 1.016))
-#holes.append(((76.2, 62.23), 1.016))
-#holes.append(((76.2, 64.77), 1.016))
-#holes.append(((78.74, 35.56), 1.016))
-#holes.append(((81.28, 35.56), 1.016))
-##NPTH
-#holes.append(((62.57, 31.539), 0.914))
-#holes.append(((66.97, 31.539), 0.914))
-
-for i in range(0, len(holes)):
-    holes[i] = (((holes[i][0][0] - 25.4) * 10, (holes[i][0][1] - 25.4) * 10), holes[i][1] * 5) #FIXME Fix x10 mult
-
-for h in holes:
-    test.subdivide(circleRect(h[0], h[1]))
+for tool in dp.tools:
+    for hole in dp.holes[tool.number]:
+        test.subdivide(circleRect(hole, tool.diameter))
 
 vert, poly = test.tesselate()
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
@@ -525,18 +504,19 @@ for i in range(0, len(vert)):
 front, back = createBoard(vert, poly)
 inner = model.Mesh()
 
-for h in holes:
-    holeTop = model.Mesh(holeModels[0][0])
-    holeCylinder = model.Mesh(holeModels[0][1])
-    holeBottom = model.Mesh(holeModels[0][2])
+for tool in dp.tools:
+    for hole in dp.holes[tool.number]:
+        holeTop = model.Mesh(holeModels[tool.number][0])
+        holeCylinder = model.Mesh(holeModels[tool.number][1])
+        holeBottom = model.Mesh(holeModels[tool.number][2])
 
-    holeTop.translate((h[0][0], h[0][1], 0));
-    holeCylinder.translate((h[0][0], h[0][1], 0));
-    holeBottom.translate((h[0][0], h[0][1], 0));
+        holeTop.translate((hole[0], hole[1], 0));
+        holeCylinder.translate((hole[0], hole[1], 0));
+        holeBottom.translate((hole[0], hole[1], 0));
 
-    inner.append(holeCylinder)
-    front.append(holeTop)
-    back.append(holeBottom)
+        inner.append(holeCylinder)
+        front.append(holeTop)
+        back.append(holeBottom)
 
 wrapTexture(front)
 wrapTexture(back)
