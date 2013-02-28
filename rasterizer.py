@@ -18,7 +18,8 @@ from OpenGL.GLUT import *
 from OpenGL.GL.shaders import *
 from OpenGL.GL.framebufferobjects import *
 
-dpi = (90, 90) #Source dpi
+#TODO
+dpi = (90, 90) #Destination dpi
 
 
 def createShader(vertSource, fragSource):
@@ -67,8 +68,6 @@ class Render:
         self.shaders = {}
         self.shaders["diffuse"] = Render.readShader("diffuse");
         self.shaders["normalmap"] = Render.readShader("normalmap");
-        #glBindAttribLocation(self.shaders['normals'], 1, "tangent")
-        #glLinkProgram(self.shaders['normals'])
         os.chdir(oldDir)
 
     def initScene(self):
@@ -116,7 +115,6 @@ class Render:
         buffers = [GL_COLOR_ATTACHMENT0]
         glDrawBuffers(1, buffers)
         glClear(GL_COLOR_BUFFER_BIT)
-        glUseProgram(self.shaders[shader])
 
         for item in texList:
             glActiveTexture(layers[item[0]])
@@ -126,9 +124,10 @@ class Render:
             glTexParameterf(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
             glBindTexture(GL_TEXTURE_RECTANGLE, item[1])
 
-        tex = glGetUniformLocation(self.shaders[shader], "silk") #TODO Fix order
-        glUniform1i(tex, 0)
+        glUseProgram(self.shaders[shader])
         tex = glGetUniformLocation(self.shaders[shader], "copper")
+        glUniform1i(tex, 0)
+        tex = glGetUniformLocation(self.shaders[shader], "silk")
         glUniform1i(tex, 1)
         tex = glGetUniformLocation(self.shaders[shader], "mask")
         glUniform1i(tex, 2)
@@ -143,6 +142,8 @@ class Render:
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         self.drawPlane()
+        glDisable(GL_TEXTURE_RECTANGLE)
+        glUseProgram(0)
 
         pix = glReadPixels(0, 0, size[0], size[1], GL_RGBA, GL_UNSIGNED_BYTE)
         return Image.fromstring("RGBA", size, pix, "raw", "RGBA", 0, -1)
@@ -177,26 +178,34 @@ for layer in layerNames:
                     raise Exception()
         except:
             continue
-        layerList.append(({layerCu, layerSilk, layerMask}, {"diffuse": layerDiffuse, "map": layerNormal}))
+        layerList.append(((layerCu, layerSilk, layerMask), {"diffuse": layerDiffuse, "map": layerNormal}))
 
 rend = Render()
 for layer in layerList:
     images = []
     for entry in layer[0]:
-        #TODO Add file access date and time checking
-        #TODO Replace with something command-line
-        subprocess.call(["inkscape", "%s%s.svg" % (options.path, entry), "--verb", "FitCanvasToDrawing", "--verb", \
-                "FileSave", "--verb", "FileClose"])
-        subprocess.call(["inkscape", "-f", "%s%s.svg" % (options.path, entry), "--export-dpi", "900", "-e", \
-                "%s%s.png" % (outPath, entry)])
-        #stdout=subprocess.PIPE
-        #subprocess.call(["rsvg", "--x-zoom=10.0", "--y-zoom=10.0", "--format=png", "%s.svg" % entry, "%s.png" % entry])
+        convert = False
+        if os.path.isfile("%s%s.png" % (outPath, entry)):
+            srcTime = os.path.getctime("%s%s.svg" % (options.path, entry))
+            dstTime = os.path.getctime("%s%s.png" % (outPath, entry))
+            if srcTime > dstTime:
+                convert = True
+        else:
+            convert = True
+        if convert:
+            #TODO Replace with something command-line
+            subprocess.call(["inkscape", "%s%s.svg" % (options.path, entry), "--verb", "FitCanvasToDrawing", "--verb", \
+                    "FileSave", "--verb", "FileClose"])
+            subprocess.call(["inkscape", "-f", "%s%s.svg" % (options.path, entry), "--export-dpi", "900", "-e", \
+                    "%s%s.png" % (outPath, entry)])
+            #stdout=subprocess.PIPE
+            #subprocess.call(["rsvg", "--x-zoom=10.0", "--y-zoom=10.0", "--format=png", "%s.svg", "%s.png"])
         tmp = Image.open("%s%s.png" % (outPath, entry))
         tmp.load()
         images.append(tmp)
     width, height = images[0].size
+    #TODO dpi=(dpi[0] * 5.0, dpi[1] * 5.0)
     #Diffuse texture
-    #dpi=(dpi[0] * 5.0, dpi[1] * 5.0)
     processed = rend.processImage((width, height), [images[0], images[1], images[2]], "diffuse")
     processed.save("%s%s.png" % (outPath, layer[1]["diffuse"]), "PNG")
     #Normal map
