@@ -463,14 +463,15 @@ def writeVRML(out, mesh, offset, img = ""):
               "}\n")
 
 random.seed()
-boardSz = (609.6, 431.8)
+#boardSz = (381.0, 577.85)
+boardSz = (533.4, 762.0)
 boardCn = (boardSz[0] / 2, boardSz[1] / 2)
 
 test = Rect(((0, 0), boardSz), ((0, 0), (0, 0), (0, 0), (0, 0)))
 borders = model.Mesh()
 borders.vertices, borders.polygons = test.borders()
 
-dp = DrillParser("_exp/lpc1343_dev.drl")
+dp = DrillParser("holes.drl")
 dp.read()
 
 holeModels = {}

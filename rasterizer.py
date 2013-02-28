@@ -51,10 +51,10 @@ class Render:
 
     @staticmethod
     def readShader(name):
-        fd = open("./shaders/%s.vert" % name, "rb")
+        fd = open("./shaders_proc/%s.vert" % name, "rb")
         vertShader = fd.read()
         fd.close()
-        fd = open("./shaders/%s.frag" % name, "rb")
+        fd = open("./shaders_proc/%s.frag" % name, "rb")
         fragShader = fd.read()
         fd.close()
         return createShader(vertShader, fragShader)
@@ -137,9 +137,7 @@ class Render:
         color = glGetUniformLocation(self.shaders[shader], "maskColor")
         glUniform3f(color, 0.039, 0.138, 0.332) #FIXME
         color = glGetUniformLocation(self.shaders[shader], "silkColor")
-        glUniform3f(color, 1.0, 1.0, 1.0) #FIXME
-        #dim = glGetUniformLocation(self.shaders['diffuse'], "dimensions") #FIXME Remove?
-        #glUniform2i(dim, size[0], size[1])
+        glUniform3f(color, 1.0, 1.0, 1.0)
 
         glViewport(0, 0, size[0], size[1])
         glMatrixMode(GL_PROJECTION)
@@ -151,41 +149,57 @@ class Render:
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-i", dest="source", help="Source SVG image.", default="")
-parser.add_argument("-o", dest="output", help="Output directory.", default="")
+parser.add_argument("-i", dest="path", help="project directory", default="")
+parser.add_argument("-p", dest="project", help="project name", default="")
+parser.add_argument("-o", dest="output", help="output directory", default="")
 options = parser.parse_args()
 
-baseName = re.search("(.*?)-(F|B)(ront|ack)\.svg", options.source, re.S)
-layerSilk, layerCu, layerMask, outName = "", "", "", ""
-if baseName:
-    layerCu = "%s-%s%s" % (baseName.group(1), baseName.group(2), baseName.group(3))
-    layerSilk = "%s-%s_SilkS" % (baseName.group(1), baseName.group(2))
-    layerMask = "%s-%s_Mask" % (baseName.group(1), baseName.group(2))
-    outName = "%s-%s_Render" % (baseName.group(1), baseName.group(2))
+if options.output == "":
+    outPath = options.path
+else:
+    outPath = options.output
 
-#TODO Replace with something command-line
-for entry in (layerSilk, layerCu, layerMask):
-    if not os.path.isfile("%s.svg" % entry):
-        print "File does not exist: %s.svg" % entry
-        exit()
-    #subprocess.call(["inkscape", "%s.svg" % entry, "--verb", "FitCanvasToDrawing", "--verb", "FileSave", "--verb", \
-            #"FileClose"])
-    #subprocess.call(["inkscape", "-f", "%s.svg" % entry, "--export-dpi", "900", "-e", "%s.png" % entry])
-    #stdout=subprocess.PIPE
-    #subprocess.call(["rsvg", "--x-zoom=10.0", "--y-zoom=10.0", "--format=png", "%s.svg" % entry, "%s.png" % entry])
-
-images = {}
-imageFiles = {"copper": layerSilk, "silk": layerCu, "mask": layerMask}
-for imgType in ("copper", "silk", "mask"):
-    im = Image.open("%s.png" % imageFiles[imgType])
-    im.load()
-    images[imgType] = im
-width, height = images["copper"].size[0], images["copper"].size[1]
+layerNames = [("Front", "F"), ("Back", "B")]
+layerList = []
+for layer in layerNames:
+    if os.path.isfile("%s%s-%s.svg" % (options.path, options.project, layer[0])):
+        layerCu = "%s-%s" % (options.project, layer[0])
+        layerSilk = "%s-%s_SilkS" % (options.project, layer[1])
+        layerMask = "%s-%s_Mask" % (options.project, layer[1])
+        layerDiffuse = "%s-%s_Diffuse" % (options.project, layer[0]) #Diffuse texture
+        layerNormal = "%s-%s_Normal" % (options.project, layer[0]) #Normal map
+        #TODO Improve error handling
+        try:
+            for entry in (layerCu, layerSilk, layerMask):
+                filePath = "%s%s.svg" % (options.path, layerCu)
+                if not os.path.isfile(filePath):
+                    print "Not found: %s" % filePath
+                    raise Exception()
+        except:
+            continue
+        layerList.append(({layerCu, layerSilk, layerMask}, {"diffuse": layerDiffuse, "map": layerNormal}))
 
 rend = Render()
-#im = rend.processImage((width, height), [images["copper"], images["silk"], images["mask"]], "diffuse")
-#im.save("%s.png" % outName, 'PNG', dpi=(dpi[0] * 5.0, dpi[1] * 5.0))
-im = rend.processImage((width, height), [images["copper"], images["silk"], images["mask"]], "normalmap")
-im.save("%s_map.png" % outName, 'PNG', dpi=(dpi[0] * 5.0, dpi[1] * 5.0))
-
-print "Image size: %dx%d" % (width, height)
+for layer in layerList:
+    images = []
+    for entry in layer[0]:
+        #TODO Add file access date and time checking
+        #TODO Replace with something command-line
+        subprocess.call(["inkscape", "%s%s.svg" % (options.path, entry), "--verb", "FitCanvasToDrawing", "--verb", \
+                "FileSave", "--verb", "FileClose"])
+        subprocess.call(["inkscape", "-f", "%s%s.svg" % (options.path, entry), "--export-dpi", "900", "-e", \
+                "%s%s.png" % (outPath, entry)])
+        #stdout=subprocess.PIPE
+        #subprocess.call(["rsvg", "--x-zoom=10.0", "--y-zoom=10.0", "--format=png", "%s.svg" % entry, "%s.png" % entry])
+        tmp = Image.open("%s%s.png" % (outPath, entry))
+        tmp.load()
+        images.append(tmp)
+    width, height = images[0].size
+    #Diffuse texture
+    #dpi=(dpi[0] * 5.0, dpi[1] * 5.0)
+    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "diffuse")
+    processed.save("%s%s.png" % (outPath, layer[1]["diffuse"]), "PNG")
+    #Normal map
+    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "normalmap")
+    processed.save("%s%s.png" % (outPath, layer[1]["map"]), "PNG")
+    print "Image size: %dx%d" % (width, height)
