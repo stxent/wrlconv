@@ -5,18 +5,20 @@
 # Copyright (C) 2013 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
-import numpy
-import Image, ImageDraw
-import random
+import argparse
 import copy
+import numpy
 import math
+import os
+import random
 import re
+
+import Image
+import ImageDraw
 
 import model
 #import sys
 #import time
-#import argparse
-#import os
 #import subprocess
 
 class Rect:
@@ -269,7 +271,7 @@ class DrillParser:
             self.number = number
             self.diameter = diameter
 
-    def __init__(self, path):
+    def __init__(self, path = ""):
         self.path = path
         self.tools = []
         self.holes = {}
@@ -305,6 +307,8 @@ class DrillParser:
                         float(hole.group(2)) * self.scale))
 
     def read(self):
+        if self.path == "":
+            return
         stream = open(self.path, "rb")
         self.readTools(stream)
         self.readSegments(stream)
@@ -392,7 +396,7 @@ def createHole(radius):
     return (top, hole, bottom)
 
 #def writeVRML(out, mesh, offset, img):
-def writeVRML(out, mesh, offset, img = ""):
+def writeVRML(out, mesh, offset, img = None):
     #print "Sizes xVert %u, xPoly %u, texVert %u, texPoly %u" % \
             #(len(vertices), len(polygons), len(texVertices), len(texPolygons))
     scale = (0.03937, 0.03937)
@@ -407,7 +411,7 @@ def writeVRML(out, mesh, offset, img = ""):
               "\t\t\t\tShape {\n" % random.randint(1000, 9999))
     out.write("\t\t\t\t\tappearance Appearance {\n"
               "\t\t\t\t\t\tmaterial DEF MAT_%u Material {\n" % random.randint(1000, 9999))
-    if img != "":
+    if img != None:
         out.write("\t\t\t\t\t\t\tdiffuseColor 1.0 1.0 1.0\n")
     else:
         out.write("\t\t\t\t\t\t\tdiffuseColor 0.039 0.138 0.332\n")
@@ -417,13 +421,13 @@ def writeVRML(out, mesh, offset, img = ""):
               "\t\t\t\t\t\t\tshininess 0.5\n"
               "\t\t\t\t\t\t\ttransparency 0.0\n"
               "\t\t\t\t\t\t}\n");
-    if img != "":
+    if img != None:
         out.write("\t\t\t\t\t\ttexture DEF diffusemap ImageTexture {\n"
                 "\t\t\t\t\t\t\turl \"%s\"\n"
-                "\t\t\t\t\t\t}\n" % img)
+                "\t\t\t\t\t\t}\n" % img["diffuse"])
         out.write("\t\t\t\t\t\ttexture DEF normalmap ImageTexture {\n"
-                "\t\t\t\t\t\t\turl \"map_%s\"\n"
-                "\t\t\t\t\t\t}\n" % img)
+                "\t\t\t\t\t\t\turl \"%s\"\n"
+                "\t\t\t\t\t\t}\n" % img["normals"])
     out.write("\t\t\t\t\t}\n")
     out.write("\t\t\t\t\tgeometry IndexedFaceSet {\n"
               "\t\t\t\t\t\tsolid FALSE\n"
@@ -439,7 +443,7 @@ def writeVRML(out, mesh, offset, img = ""):
             out.write("%u " % index)
         out.write("-1,\n")
 
-    if img != "":
+    if img != None:
         out.write("\t\t\t\t\t\t]\n");
         out.write("\t\t\t\t\t\ttexCoord TextureCoordinate {\n"
                 "\t\t\t\t\t\tpoint [\n");
@@ -462,16 +466,41 @@ def writeVRML(out, mesh, offset, img = ""):
               "\t]\n"
               "}\n")
 
-random.seed()
-#boardSz = (381.0, 577.85)
-boardSz = (533.4, 762.0)
-boardCn = (boardSz[0] / 2, boardSz[1] / 2)
+#random.seed()
 
-test = Rect(((0, 0), boardSz), ((0, 0), (0, 0), (0, 0), (0, 0)))
+parser = argparse.ArgumentParser()
+parser.add_argument("-i", dest="path", help="project directory", default="")
+parser.add_argument("-p", dest="project", help="project name", default="")
+parser.add_argument("-o", dest="output", help="output directory", default="")
+options = parser.parse_args()
+
+if options.output == "":
+    outPath = options.path
+else:
+    outPath = options.output
+
+layerList = {}
+for layer in [("Front", "F", "front"), ("Back", "B", "back")]:
+    if os.path.isfile("%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0])):
+        layerList[layer[2]] = ({"diffuse": "%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0]), \
+                "normals": "%s%s-%s_Normals.png" % (outPath, options.project, layer[0])})
+
+boardSize = (0, 0)
+if layerList["front"] is not None: #FIXME Rewrite
+    tmp = Image.open(layerList["front"]["diffuse"])
+    #TODO Add variable DPI
+    boardSize = (float(tmp.size[0]) / 900.0 * 254, float(tmp.size[1]) / 900.0 * 254)
+
+boardCn = (boardSize[0] / 2, boardSize[1] / 2)
+
+test = Rect(((0, 0), boardSize), ((0, 0), (0, 0), (0, 0), (0, 0)))
 borders = model.Mesh()
 borders.vertices, borders.polygons = test.borders()
 
-dp = DrillParser("holes.drl")
+if os.path.isfile("%s%s.drl" % (outPath, options.project)):
+    dp = DrillParser("%s%s.drl" % (outPath, options.project))
+else:
+    dp = DrillParser()
 dp.read()
 
 holeModels = {}
@@ -525,8 +554,9 @@ wrapTexture(back)
 #wrapTexture(borders)
 
 out = open("board.wrl", "wb")
-writeVRML(out, front, (-boardCn[0], -boardCn[1]), "back.png")
-writeVRML(out, back, (-boardCn[0], -boardCn[1]), "front.png")
+#TODO Fix order
+writeVRML(out, front, (-boardCn[0], -boardCn[1]), layerList["back"])
+writeVRML(out, back, (-boardCn[0], -boardCn[1]), layerList["front"])
 writeVRML(out, inner, (-boardCn[0], -boardCn[1]))
 writeVRML(out, borders, (-boardCn[0], -boardCn[1]))
 colorData.show()

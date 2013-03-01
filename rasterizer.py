@@ -160,15 +160,14 @@ if options.output == "":
 else:
     outPath = options.output
 
-layerNames = [("Front", "F"), ("Back", "B")]
 layerList = []
-for layer in layerNames:
+for layer in [("Front", "F"), ("Back", "B")]:
     if os.path.isfile("%s%s-%s.svg" % (options.path, options.project, layer[0])):
         layerCu = "%s-%s" % (options.project, layer[0])
         layerSilk = "%s-%s_SilkS" % (options.project, layer[1])
         layerMask = "%s-%s_Mask" % (options.project, layer[1])
         layerDiffuse = "%s-%s_Diffuse" % (options.project, layer[0]) #Diffuse texture
-        layerNormal = "%s-%s_Normal" % (options.project, layer[0]) #Normal map
+        layerNormal = "%s-%s_Normals" % (options.project, layer[0]) #Normal map
         #TODO Improve error handling
         try:
             for entry in (layerCu, layerSilk, layerMask):
@@ -178,7 +177,7 @@ for layer in layerNames:
                     raise Exception()
         except:
             continue
-        layerList.append(((layerCu, layerSilk, layerMask), {"diffuse": layerDiffuse, "map": layerNormal}))
+        layerList.append(((layerCu, layerSilk, layerMask), {"diffuse": layerDiffuse, "normals": layerNormal}))
 
 rend = Render()
 for layer in layerList:
@@ -210,5 +209,5 @@ for layer in layerList:
     processed.save("%s%s.png" % (outPath, layer[1]["diffuse"]), "PNG")
     #Normal map
     processed = rend.processImage((width, height), [images[0], images[1], images[2]], "normalmap")
-    processed.save("%s%s.png" % (outPath, layer[1]["map"]), "PNG")
+    processed.save("%s%s.png" % (outPath, layer[1]["normals"]), "PNG")
     print "Image size: %dx%d" % (width, height)
