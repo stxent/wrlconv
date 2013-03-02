@@ -97,7 +97,8 @@ class Render:
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, self.colorOutput, 0)
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
-    def processImage(self, size, textures, shader):
+    #TODO Split into two different functions for diffuse texture and normal map
+    def processImage(self, size, textures, shader, colors):
         layers = [GL_TEXTURE0, GL_TEXTURE1, GL_TEXTURE2, GL_TEXTURE3]
         texList = []
         position = 0
@@ -132,11 +133,11 @@ class Render:
         tex = glGetUniformLocation(self.shaders[shader], "mask")
         glUniform1i(tex, 2)
         color = glGetUniformLocation(self.shaders[shader], "padColor")
-        glUniform3f(color, 1.0, 0.890, 0.0) #FIXME
+        glUniform3f(color, colors["plating"][0], colors["plating"][1], colors["plating"][2])
         color = glGetUniformLocation(self.shaders[shader], "maskColor")
-        glUniform3f(color, 0.039, 0.138, 0.332) #FIXME
+        glUniform3f(color, colors["mask"][0], colors["mask"][1], colors["mask"][2])
         color = glGetUniformLocation(self.shaders[shader], "silkColor")
-        glUniform3f(color, 1.0, 1.0, 1.0)
+        glUniform3f(color, colors["silk"][0], colors["silk"][1], colors["silk"][2])
 
         glViewport(0, 0, size[0], size[1])
         glMatrixMode(GL_PROJECTION)
@@ -153,12 +154,24 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-i", dest="path", help="project directory", default="")
 parser.add_argument("-p", dest="project", help="project name", default="")
 parser.add_argument("-o", dest="output", help="output directory", default="")
+parser.add_argument("--mask", dest="mask", help="mask color", default="10,35,85")
+parser.add_argument("--silk", dest="silk", help="silk color", default="255,255,255")
+parser.add_argument("--plating", dest="plating", help="plating color", default="255,228,0")
 options = parser.parse_args()
 
 if options.output == "":
     outPath = options.path
 else:
     outPath = options.output
+
+colors = {"mask": (), "silk": (), "plating": ()}
+for color in [("mask", options.mask), ("silk", options.silk), ("plating", options.plating)]:
+    splitted = color[1].split(",")
+    #TODO Add value checking
+    try:
+        colors[color[0]] = (float(splitted[0]) / 256, float(splitted[1]) / 256, float(splitted[2]) / 256)
+    except ValueError:
+        print "Wrong color parameter: %s" % color[1]
 
 layerList = []
 for layer in [("Front", "F"), ("Back", "B")]:
@@ -205,9 +218,9 @@ for layer in layerList:
     width, height = images[0].size
     #TODO dpi=(dpi[0] * 5.0, dpi[1] * 5.0)
     #Diffuse texture
-    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "diffuse")
+    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "diffuse", colors)
     processed.save("%s%s.png" % (outPath, layer[1]["diffuse"]), "PNG")
     #Normal map
-    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "normalmap")
+    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "normalmap", colors)
     processed.save("%s%s.png" % (outPath, layer[1]["normals"]), "PNG")
     print "Image size: %dx%d" % (width, height)
