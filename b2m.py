@@ -271,48 +271,55 @@ class DrillParser:
             self.number = number
             self.diameter = diameter
 
-    def __init__(self, path = ""):
-        self.path = path
+    def __init__(self):
+        self.files = []
         self.tools = []
         self.holes = {}
         self.scale = 10.0
 
+    #Add new file to drill file list
+    def add(self, path):
+        self.files.append(path)
+
     def readTools(self, stream):
+        offset = len(self.tools) #FIXME Rewrite
         while True:
             data = stream.readline()
             eoh = re.search("^%$", data)
             if not len(data) or data[0] == "%":
                 break
             tool = re.search("T(\d+)C([\.\d]+).*$", data, re.S)
-            if tool:
+            if tool and int(tool.group(1)) != 0:
                 num, diam = int(tool.group(1)), (float(tool.group(2)) / 2) * self.scale
-                self.tools.append(DrillParser.Tool(num, diam))
+                self.tools.append(DrillParser.Tool(num + offset, diam))
+        return offset
 
-    def readSegments(self, stream):
+    def readSegments(self, stream, offset):
         current = None
         while True:
             data = stream.readline()
             if not len(data):
                 break
             tool = re.search("T(\d+)$", data, re.S)
-            if tool:
+            if tool and int(tool.group(1)) != 0:
                 current = None
-                for item in self.tools: #FIXME Optimize
-                    if item.number == int(tool.group(1)):
+                for item in self.tools: #TODO Rewrite
+                    if item.number == int(tool.group(1)) + offset:
                         current = item
+                        print current.number
                         self.holes[current.number] = []
+                        break
             hole = re.search("X([\.\d]+)Y([\.\d]+)", data)
             if current is not None and hole:
                 self.holes[current.number].append((float(hole.group(1)) * self.scale, \
                         float(hole.group(2)) * self.scale))
 
     def read(self):
-        if self.path == "":
-            return
-        stream = open(self.path, "rb")
-        self.readTools(stream)
-        self.readSegments(stream)
-        stream.close()
+        for path in self.files:
+            stream = open(path, "rb")
+            offset = self.readTools(stream)
+            self.readSegments(stream, offset)
+            stream.close()
 
 
 def optimizeVertices(vertices, polygons):
@@ -497,10 +504,11 @@ test = Rect(((0, 0), boardSize), ((0, 0), (0, 0), (0, 0), (0, 0)))
 borders = model.Mesh()
 borders.vertices, borders.polygons = test.borders()
 
-if os.path.isfile("%s%s.drl" % (outPath, options.project)):
-    dp = DrillParser("%s%s.drl" % (outPath, options.project))
-else:
-    dp = DrillParser()
+dp = DrillParser()
+for drillFile in ["", "-NPTH"]:
+    filePath = "%s%s%s.drl" % (outPath, options.project, drillFile)
+    if os.path.isfile(filePath):
+        dp.add(filePath)
 dp.read()
 
 holeModels = {}
