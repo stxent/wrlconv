@@ -1008,14 +1008,14 @@ class render:
         glutMainLoop()
 
     def initGraphics(self):
-        glClearColor(0.0, 0.0, 0.0, 0.0)
+        glClearColor(0.8, 0.8, 0.8, 0.0)
         glClearDepth(1.0)
         glDepthFunc(GL_LESS)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT1)
         #Setup global lighting
-        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.2, 0.2, 0.2, 1.])
+        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.4, 0.4, 0.4, 1.])
         glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL, GL_SEPARATE_SPECULAR_COLOR)
         #Setup light 0
         glEnable(GL_LIGHT0)
@@ -1119,6 +1119,7 @@ class render:
                 glTexImage2D(mapTarget[i], 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image)
         else:
             im = Image.open(arg.filePath + "/" + arg.fileName)
+            #im = Image.open(arg.fileName)
             try:
                 #Get image dimensions and data
                 width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)

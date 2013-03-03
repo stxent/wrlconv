@@ -306,7 +306,6 @@ class DrillParser:
                 for item in self.tools: #TODO Rewrite
                     if item.number == int(tool.group(1)) + offset:
                         current = item
-                        print current.number
                         self.holes[current.number] = []
                         break
             hole = re.search("X([\.\d]+)Y([\.\d]+)", data)
@@ -402,10 +401,7 @@ def createHole(radius):
             bottom.polygons.append([(i + 1) + mult * j, edges + j, (i + 0) + mult * j])
     return (top, hole, bottom)
 
-#def writeVRML(out, mesh, offset, img):
-def writeVRML(out, mesh, offset, img = None):
-    #print "Sizes xVert %u, xPoly %u, texVert %u, texPoly %u" % \
-            #(len(vertices), len(polygons), len(texVertices), len(texPolygons))
+def writeVRML(out, mesh, offset, colors, img = None):
     scale = (0.03937, 0.03937)
     out.write("#VRML V2.0 utf8\n#Created by b2m.py\n")
     out.write("DEF OB_%u Transform {\n" % random.randint(1000, 9999))
@@ -421,7 +417,7 @@ def writeVRML(out, mesh, offset, img = None):
     if img != None:
         out.write("\t\t\t\t\t\t\tdiffuseColor 1.0 1.0 1.0\n")
     else:
-        out.write("\t\t\t\t\t\t\tdiffuseColor 0.039 0.138 0.332\n")
+        out.write("\t\t\t\t\t\t\tdiffuseColor %f %f %f\n" % (colors["mask"][0], colors["mask"][1], colors["mask"][2]))
     out.write("\t\t\t\t\t\t\tambientIntensity 0.2\n"
               "\t\t\t\t\t\t\tspecularColor 1.0 1.0 1.0\n"
               "\t\t\t\t\t\t\temissiveColor  0.0 0.0 0.0\n"
@@ -489,15 +485,24 @@ if options.output == "":
 else:
     outPath = options.output
 
+colors = {"mask": (), "silk": (), "plating": ()}
+for color in [("mask", options.mask), ("silk", options.silk), ("plating", options.plating)]:
+    splitted = color[1].split(",")
+    #TODO Add value checking
+    try:
+        colors[color[0]] = (float(splitted[0]) / 256, float(splitted[1]) / 256, float(splitted[2]) / 256)
+    except ValueError:
+        print "Wrong color parameter: %s" % color[1]
+
 layerList = {}
 for layer in [("Front", "F", "front"), ("Back", "B", "back")]:
     if os.path.isfile("%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0])):
-        layerList[layer[2]] = ({"diffuse": "%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0]), \
-                "normals": "%s%s-%s_Normals.png" % (outPath, options.project, layer[0])})
+        layerList[layer[2]] = ({"diffuse": "%s-%s_Diffuse.png" % (options.project, layer[0]), \
+                "normals": "%s-%s_Normals.png" % (options.project, layer[0])})
 
 boardSize = (0, 0)
 if layerList["front"] is not None: #FIXME Rewrite
-    tmp = Image.open(layerList["front"]["diffuse"])
+    tmp = Image.open(outPath + layerList["front"]["diffuse"])
     #TODO Add variable DPI
     boardSize = (float(tmp.size[0]) / 900.0 * 254, float(tmp.size[1]) / 900.0 * 254)
 
@@ -564,10 +569,10 @@ wrapTexture(back)
 #wrapTexture(inner)
 #wrapTexture(borders)
 
-out = open("board.wrl", "wb")
+out = open("%sboard.wrl" % outPath, "wb")
 #TODO Fix order
-writeVRML(out, front, (-boardCn[0], -boardCn[1]), layerList["back"])
-writeVRML(out, back, (-boardCn[0], -boardCn[1]), layerList["front"])
-writeVRML(out, inner, (-boardCn[0], -boardCn[1]))
-writeVRML(out, borders, (-boardCn[0], -boardCn[1]))
+writeVRML(out, front, (-boardCn[0], -boardCn[1]), colors, layerList["back"])
+writeVRML(out, back, (-boardCn[0], -boardCn[1]), colors, layerList["front"])
+writeVRML(out, inner, (-boardCn[0], -boardCn[1]), colors)
+writeVRML(out, borders, (-boardCn[0], -boardCn[1]), colors)
 colorData.show()
