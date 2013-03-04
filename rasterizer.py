@@ -121,8 +121,7 @@ class Render:
             glActiveTexture(layers[item[0]])
             glEnable(GL_TEXTURE_RECTANGLE)
             glTexParameterf(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            #glTexParameterf(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameterf(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+            glTexParameterf(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glBindTexture(GL_TEXTURE_RECTANGLE, item[1])
 
         glUseProgram(self.shaders[shader])
@@ -175,7 +174,8 @@ for color in [("mask", options.mask), ("silk", options.silk), ("plating", option
 
 layerList = []
 for layer in [("Front", "F"), ("Back", "B")]:
-    if os.path.isfile("%s%s-%s.svg" % (options.path, options.project, layer[0])):
+    layerFile = "%s%s-%s.svg" % (options.path, options.project, layer[0])
+    if os.path.isfile(layerFile):
         layerCu = "%s-%s" % (options.project, layer[0])
         layerSilk = "%s-%s_SilkS" % (options.project, layer[1])
         layerMask = "%s-%s_Mask" % (options.project, layer[1])
@@ -191,6 +191,8 @@ for layer in [("Front", "F"), ("Back", "B")]:
         except:
             continue
         layerList.append(((layerCu, layerSilk, layerMask), {"diffuse": layerDiffuse, "normals": layerNormal}))
+    else:
+        print "Layer file does not exist: %s" % layerFile
 
 rend = Render()
 for layer in layerList:

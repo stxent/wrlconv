@@ -496,15 +496,22 @@ for color in [("mask", options.mask), ("silk", options.silk), ("plating", option
 
 layerList = {}
 for layer in [("Front", "F", "front"), ("Back", "B", "back")]:
-    if os.path.isfile("%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0])):
+    layerFile = "%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0])
+    if os.path.isfile(layerFile):
         layerList[layer[2]] = ({"diffuse": "%s-%s_Diffuse.png" % (options.project, layer[0]), \
                 "normals": "%s-%s_Normals.png" % (options.project, layer[0])})
+    else:
+        print "Layer file does not exist: %s" % layerFile
 
 boardSize = (0, 0)
-if layerList["front"] is not None: #FIXME Rewrite
-    tmp = Image.open(outPath + layerList["front"]["diffuse"])
+if len(layerList) > 0:
+    layer = layerList.itervalues().next()
+    tmp = Image.open(outPath + layer["diffuse"])
     #TODO Add variable DPI
     boardSize = (float(tmp.size[0]) / 900.0 * 254, float(tmp.size[1]) / 900.0 * 254)
+else:
+    print "No copper layers exist"
+    exit()
 
 boardCn = (boardSize[0] / 2, boardSize[1] / 2)
 
