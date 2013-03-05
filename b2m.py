@@ -136,7 +136,7 @@ class Rect:
                 vert = vertices[vIndex[0]]
                 same = []
                 for i in range(0, len(vertices)):
-                    if vertices[i] == vert:
+                    if numpy.allclose(vertices[i], vert): #TODO Check precision
                         same.append(i)
                 last = len(rebuilded)
                 for poly in polygons:
@@ -147,9 +147,13 @@ class Rect:
                     vIndex.remove(ind)
                 rebuilded.append(vert)
             for i in range(len(polygons) - 1, -1, -1):
-                failed = False
                 for j in range(len(polygons[i]) - 1, -1, -1):
-                    if polygons[i].count(polygons[i][j]) > 1:
+                    prevInd = len(polygons[i]) - 1 if j == 0 else j - 1
+                    nextInd = 0 if j == len(polygons[i]) - 1 else j + 1
+                    prod = numpy.cross(rebuilded[polygons[i][prevInd]] - rebuilded[polygons[i][j]], \
+                            rebuilded[polygons[i][nextInd]] - rebuilded[polygons[i][j]])
+                    mod = prod[0] * prod[0] + prod[1] * prod[1] + prod[2] * prod[2]
+                    if mod < 1e-5: #TODO Check precision
                         polygons[i].pop(j)
                 if len(polygons[i]) < 3:
                     polygons.pop(i)
