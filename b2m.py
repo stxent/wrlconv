@@ -62,39 +62,37 @@ class Rect:
     def contain(self, points):
         return Rect.prCollision(self.coords, points[0]) and Rect.prCollision(self.coords, points[1])
 
-    def intersect(self, points):
-        #Returns intersected edge
+    def intersectEdge(self, points):
+        #Returns intersected edge: 0 top, 1 right, 2 bottom, 3 left
         #Horizontal edges
         if self.coords[0][0] <= points[0][0] and points[1][0] <= self.coords[1][0]:
             if points[0][1] <= self.coords[0][1] <= points[1][1]:
-                return (0, 1) #Top
+                return 0 #Top
             if points[0][1] <= self.coords[1][1] <= points[1][1]:
-                return (2, 3) #Bottom
+                return 2 #Bottom
         #Vertical edges
         if self.coords[0][1] <= points[0][1] and points[1][1] <= self.coords[1][1]:
             if points[0][0] <= self.coords[0][0] <= points[1][0]:
-                return (3, 0) #Left
+                return 3 #Left
             if points[0][0] <= self.coords[1][0] <= points[1][0]:
-                return (1, 2) #Right
-        #Top left
+                return 1 #Right
+        return None
+
+    def intersectCorner(self, points):
         if Rect.prCollision(points, self.coords[0]):
-            return (0)
-        #Top right
+            return 0 #Top left
         if Rect.prCollision(points, (self.coords[1][0], self.coords[0][1])):
-            return (1)
-        #Bottom left
+            return 1 #Top right
         if Rect.prCollision(points, self.coords[1]):
-            return (2)
-        #Bottom right
+            return 2 #Bottom left
         if Rect.prCollision(points, (self.coords[0][0], self.coords[1][1])):
-            return (3)
+            return 3 #Bottom right
         return None
 
     def tesselate(self):
         #Returns tuple with vertex and polygon lists
         if self.sub is None:
-            vertices = []
-            polygons = []
+            vertices, polygons = [], []
             vertices.extend(self.corners[0].generate(( 1,  1)))
             vertices.extend(self.corners[1].generate((-1,  1)))
             vertices.extend(self.corners[2].generate((-1, -1)))
@@ -157,8 +155,7 @@ class Rect:
                     polygons.pop(i)
             return (rebuilded, polygons)
         else:
-            vertices = []
-            polygons = []
+            vertices, polygons = [], []
             for entry in self.sub:
                 (vList, pList) = entry.tesselate()
                 for poly in pList:
@@ -212,40 +209,32 @@ class Rect:
                 chamfers = ((0, 0), (size[0] / 2, size[1] / 2), (0, 0), self.corners[3].chamfer)
                 self.sub.append(Rect(coords, chamfers))
             else:
-                edge = self.intersect(points)
-                orientation = None
-                if edge in ((0, 1), (2, 3)):
-                    orientation = (0, 1)
-                elif edge in ((1, 2), (3, 0)):
-                    orientation = (1, 0)
-                index = None
-                if edge in ((0, 1), (3, 0)):
-                    index = (1, 0)
-                elif edge in ((2, 3), (1, 2)):
-                    index = (0, 1)
-                if orientation is not None and index is not None:
+                edge = self.intersectEdge(points)
+                if edge is not None:
                     self.sub = []
-                    ach, bch = size[orientation[0]] / 2, self.coords[index[1]][orientation[1]] \
-                            - points[index[0]][orientation[1]]
-                    if orientation[0] == 1:
+                    pim = (0, 1) if edge in (0, 2) else (1, 0) #Imaginary part
+                    pre = (0, 1) if edge in (1, 2) else (1, 0) #Real part
+                    ach, bch = size[pim[0]] / 2, self.coords[pre[1]][pim[1]] - points[pre[0]][pim[1]]
+                    if pim[0] == 1:
                         ach, bch = bch, ach
-                    value = [(), ()]
-                    value[index[1]], value[index[0]] = (math.fabs(ach), math.fabs(bch)), (0, 0)
+                    value = {pre[1]: (math.fabs(ach), math.fabs(bch)), pre[0]: (0, 0)}
 
                     coords, chamfers = [], []
-                    if orientation[0] == 0:
-                        coords.append((self.coords[0], (center[orientation[0]], self.coords[1][orientation[1]])))
-                        coords.append(((center[orientation[0]], self.coords[0][orientation[1]]), self.coords[1]))
+                    varPart = ((center[pim[0]], self.coords[1][pim[1]]),
+                            (center[pim[0]], self.coords[0][pim[1]]))
+                    coords.append((self.coords[0], (varPart[0][pim[0]], varPart[0][pim[1]])))
+                    coords.append(((varPart[1][pim[0]], varPart[1][pim[1]]), self.coords[1]))
+
+                    if pim[0] == 0:
                         chamfers.append((self.corners[0].chamfer, value[0], value[1], self.corners[3].chamfer))
                         chamfers.append((value[0], self.corners[1].chamfer, self.corners[2].chamfer, value[1]))
                     else:
-                        coords.append((self.coords[0], (self.coords[1][orientation[1]], center[orientation[0]])))
-                        coords.append(((self.coords[0][orientation[1]], center[orientation[0]]), self.coords[1]))
                         chamfers.append((self.corners[0].chamfer, self.corners[1].chamfer, value[1], value[0]))
                         chamfers.append((value[0], value[1], self.corners[2].chamfer, self.corners[3].chamfer))
                     self.sub.extend([Rect(coords[0], chamfers[0]), Rect(coords[1], chamfers[1])])
-                if edge in ((0), (1), (2), (3)):
-                    corner = {(0): 0, (1): 1, (2): 2, (3): 3}[edge]
+
+                corner = self.intersectCorner(points)
+                if corner is not None:
                     index = ((1, 0, 1, 0), (0, 1, 1, 0), (0, 1, 0, 1), (1, 0, 0, 1))[corner]
                     self.corners[corner].chamfer = (math.fabs(points[index[0]][0] - self.coords[index[1]][0]),
                             math.fabs(points[index[2]][1] - self.coords[index[3]][1]))
