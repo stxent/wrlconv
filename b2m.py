@@ -213,54 +213,44 @@ class Rect:
                 self.sub.append(Rect(coords, chamfers))
             else:
                 edge = self.intersect(points)
+                orientation = None
                 if edge in ((0, 1), (2, 3)):
+                    orientation = (0, 1)
+                elif edge in ((1, 2), (3, 0)):
+                    orientation = (1, 0)
+                index = None
+                if edge in ((0, 1), (3, 0)):
+                    index = (1, 0)
+                elif edge in ((2, 3), (1, 2)):
+                    index = (0, 1)
+                if orientation is not None and index is not None:
                     self.sub = []
-                    if edge == (0, 1):
-                        topChamfer = (size[0] / 2, points[1][1] - self.coords[0][1])
-                        bottomChamfer = (0, 0)
+                    ach, bch = size[orientation[0]] / 2, self.coords[index[1]][orientation[1]] \
+                            - points[index[0]][orientation[1]]
+                    if orientation[0] == 1:
+                        ach, bch = bch, ach
+                    value = [(), ()]
+                    value[index[1]], value[index[0]] = (math.fabs(ach), math.fabs(bch)), (0, 0)
+
+                    coords, chamfers = [], []
+                    if orientation[0] == 0:
+                        coords.append((self.coords[0], (center[orientation[0]], self.coords[1][orientation[1]])))
+                        coords.append(((center[orientation[0]], self.coords[0][orientation[1]]), self.coords[1]))
+                        chamfers.append((self.corners[0].chamfer, value[0], value[1], self.corners[3].chamfer))
+                        chamfers.append((value[0], self.corners[1].chamfer, self.corners[2].chamfer, value[1]))
                     else:
-                        topChamfer = (0, 0)
-                        bottomChamfer = (size[0] / 2, self.coords[1][1] - points[0][1])
-                    #Left
-                    coords = (self.coords[0], (center[0], self.coords[1][1]))
-                    chamfers = (self.corners[0].chamfer, topChamfer, bottomChamfer, self.corners[3].chamfer)
-                    self.sub.append(Rect(coords, chamfers))
-                    #Right
-                    coords = ((center[0], self.coords[0][1]), self.coords[1])
-                    chamfers = (topChamfer, self.corners[1].chamfer, self.corners[2].chamfer, bottomChamfer)
-                    self.sub.append(Rect(coords, chamfers))
-                if edge in ((1, 2), (3, 0)):
-                    self.sub = []
-                    if edge == (3, 0):
-                        leftChamfer = (points[1][0] - self.coords[0][0], size[1] / 2)
-                        rightChamfer = (0, 0)
-                    else:
-                        leftChamfer = (0, 0)
-                        rightChamfer = (self.coords[1][0] - points[0][0], size[1] / 2)
-                    #Top
-                    coords = (self.coords[0], (self.coords[1][0], center[1]))
-                    chamfers = (self.corners[0].chamfer, self.corners[1].chamfer, rightChamfer, leftChamfer)
-                    self.sub.append(Rect(coords, chamfers))
-                    #Bottom
-                    coords = ((self.coords[0][0], center[1]), self.coords[1])
-                    chamfers = (leftChamfer, rightChamfer, self.corners[2].chamfer, self.corners[3].chamfer)
-                    self.sub.append(Rect(coords, chamfers))
+                        coords.append((self.coords[0], (self.coords[1][orientation[1]], center[orientation[0]])))
+                        coords.append(((self.coords[0][orientation[1]], center[orientation[0]]), self.coords[1]))
+                        chamfers.append((self.corners[0].chamfer, self.corners[1].chamfer, value[1], value[0]))
+                        chamfers.append((value[0], value[1], self.corners[2].chamfer, self.corners[3].chamfer))
+                    self.sub.extend([Rect(coords[0], chamfers[0]), Rect(coords[1], chamfers[1])])
                 if edge in ((0), (1), (2), (3)):
-                    pointToCorner = {(0): 0, (1): 1, (2): 2, (3): 3}
-                    corner = pointToCorner[edge]
-                    if edge == (0):
-                        self.corners[corner].chamfer = (points[1][0] - self.coords[0][0],
-                                points[1][1] - self.coords[0][1])
-                    elif edge == (1):
-                        self.corners[corner].chamfer = (self.coords[1][0] - points[0][0],
-                                points[1][1] - self.coords[0][1])
-                    elif edge == (2):
-                        self.corners[corner].chamfer = (self.coords[1][0] - points[0][0],
-                                self.coords[1][1] - points[0][1])
-                    elif edge == (3):
-                        self.corners[corner].chamfer = (points[1][0] - self.coords[0][0],
-                                self.coords[1][1] - points[0][1])
+                    corner = {(0): 0, (1): 1, (2): 2, (3): 3}[edge]
+                    index = ((1, 0, 1, 0), (0, 1, 1, 0), (0, 1, 0, 1), (1, 0, 0, 1))[corner]
+                    self.corners[corner].chamfer = (math.fabs(points[index[0]][0] - self.coords[index[1]][0]),
+                            math.fabs(points[index[2]][1] - self.coords[index[3]][1]))
         else:
+            #TODO Check intersection
             for entry in self.sub:
                 entry.subdivide(points)
 
@@ -510,7 +500,7 @@ if len(layerList) > 0:
     #TODO Add variable DPI
     boardSize = (float(tmp.size[0]) / 900.0 * 254, float(tmp.size[1]) / 900.0 * 254)
 else:
-    print "No copper layers exist"
+    print "No copper layers found"
     exit()
 
 boardCn = (boardSize[0] / 2, boardSize[1] / 2)

@@ -1118,8 +1118,9 @@ class render:
                 #gluBuild2DMipmaps(mapTarget[i], 4, width, height, GL_RGB, GL_UNSIGNED_BYTE, image)
                 glTexImage2D(mapTarget[i], 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image)
         else:
+            if not os.path.isfile(arg.filePath + "/" + arg.fileName):
+                return
             im = Image.open(arg.filePath + "/" + arg.fileName)
-            #im = Image.open(arg.fileName)
             try:
                 #Get image dimensions and data
                 width, height, image = im.size[0], im.size[1], im.tostring("raw", "RGBA", 0, -1)
