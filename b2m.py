@@ -233,7 +233,7 @@ class Rect:
                 pre = (0, 1) if edge in (1, 2) else (1, 0) #Real part
                 ach = size[pim[0]] / 2
                 bch = math.fabs(self.coords[pre[1]][pim[1]] - points[pre[0]][pim[1]])
-                bch = min(bch, self.coords[1][pre[0]] - self.coords[0][pre[0]])
+                bch = min(bch, self.coords[1][pim[1]] - self.coords[0][pim[1]])
                 if pim[0] == 1:
                     ach, bch = bch, ach
                 value = {pre[1]: (ach, bch), pre[0]: (0, 0)}
