@@ -30,23 +30,25 @@ class Rect:
 
         def generate(self, vect):
             vertices = []
-            vertices.append([self.position[0] + self.chamfer[0] * vect[0],
-                    self.position[1], Rect.THICKNESS])
-            vertices.append([self.position[0] + self.chamfer[0] * vect[0],
-                    self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS])
-            vertices.append([self.position[0],
-                    self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS])
+            vertices.append(numpy.array([self.position[0] + self.chamfer[0] * vect[0],
+                    self.position[1], Rect.THICKNESS]))
+            vertices.append(numpy.array([self.position[0] + self.chamfer[0] * vect[0],
+                    self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS]))
+            vertices.append(numpy.array([self.position[0],
+                    self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS]))
             return vertices
 
+    #Check intersection of rectangle and point
     @staticmethod
-    def prCollision(coords, point):
-        top, bottom = coords[0], coords[1]
+    def prCollision(rect, point):
+        top, bottom = rect[0], rect[1]
         return top[0] <= point[0] <= bottom[0] and top[1] <= point[1] <= bottom[1]
 
+    #Check intersection of two rectangles
     @staticmethod
-    def rCollision(ca, cb):
-        return (ca[0][0] <= cb[0][0] <= ca[1][0] or cb[0][0] <= ca[0][0] <= cb[1][0]) and \
-               (ca[0][1] <= cb[0][1] <= ca[1][1] or cb[0][1] <= ca[0][1] <= cb[1][1])
+    def rCollision(ra, rb):
+        return (ra[0][0] <= rb[0][0] <= ra[1][0] or rb[0][0] <= ra[0][0] <= rb[1][0]) and \
+               (ra[0][1] <= rb[0][1] <= ra[1][1] or rb[0][1] <= ra[0][1] <= rb[1][1])
 
     def __init__(self, points, chamfers):
         cpoints = [[points[0][0], points[0][1]],
@@ -212,40 +214,48 @@ class Rect:
                 coords = ((self.coords[0][0], center[1]), (center[0], self.coords[1][1]))
                 chamfers = ((0, 0), (size[0] / 2, size[1] / 2), (0, 0), self.corners[3].chamfer)
                 self.sub.append(Rect(coords, chamfers))
-            else:
-                edge = self.intersectEdge(points)
-                if edge is not None:
-                    self.sub = []
-                    pim = (0, 1) if edge in (0, 2) else (1, 0) #Imaginary part
-                    pre = (0, 1) if edge in (1, 2) else (1, 0) #Real part
-                    ach, bch = size[pim[0]] / 2, self.coords[pre[1]][pim[1]] - points[pre[0]][pim[1]]
-                    if pim[0] == 1:
-                        ach, bch = bch, ach
-                    value = {pre[1]: (math.fabs(ach), math.fabs(bch)), pre[0]: (0, 0)}
+                return
 
-                    coords, chamfers = [], []
-                    varPart = ((center[pim[0]], self.coords[1][pim[1]]),
-                            (center[pim[0]], self.coords[0][pim[1]]))
-                    coords.append((self.coords[0], (varPart[0][pim[0]], varPart[0][pim[1]])))
-                    coords.append(((varPart[1][pim[0]], varPart[1][pim[1]]), self.coords[1]))
+            corner = self.intersectCorner(points)
+            if corner is not None:
+                index = ((1, 0, 1, 0), (0, 1, 1, 0), (0, 1, 0, 1), (1, 0, 0, 1))[corner]
+                dx = max(self.corners[corner].chamfer[0], math.fabs(points[index[0]][0] - self.coords[index[1]][0]))
+                dx = min(dx, self.coords[1][0] - self.coords[0][0])
+                dy = max(self.corners[corner].chamfer[1], math.fabs(points[index[2]][1] - self.coords[index[3]][1]))
+                dy = min(dy, self.coords[1][1] - self.coords[0][1])
+                self.corners[corner].chamfer = (dx, dy)
+                return
 
-                    if pim[0] == 0:
-                        chamfers.append((self.corners[0].chamfer, value[0], value[1], self.corners[3].chamfer))
-                        chamfers.append((value[0], self.corners[1].chamfer, self.corners[2].chamfer, value[1]))
-                    else:
-                        chamfers.append((self.corners[0].chamfer, self.corners[1].chamfer, value[1], value[0]))
-                        chamfers.append((value[0], value[1], self.corners[2].chamfer, self.corners[3].chamfer))
-                    self.sub.extend([Rect(coords[0], chamfers[0]), Rect(coords[1], chamfers[1])])
+            edge = self.intersectEdge(points)
+            if edge is not None:
+                self.sub = []
+                pim = (0, 1) if edge in (0, 2) else (1, 0) #Imaginary part
+                pre = (0, 1) if edge in (1, 2) else (1, 0) #Real part
+                ach = size[pim[0]] / 2
+                bch = math.fabs(self.coords[pre[1]][pim[1]] - points[pre[0]][pim[1]])
+                bch = min(bch, self.coords[1][pre[0]] - self.coords[0][pre[0]])
+                if pim[0] == 1:
+                    ach, bch = bch, ach
+                value = {pre[1]: (ach, bch), pre[0]: (0, 0)}
 
-                corner = self.intersectCorner(points)
-                if corner is not None:
-                    index = ((1, 0, 1, 0), (0, 1, 1, 0), (0, 1, 0, 1), (1, 0, 0, 1))[corner]
-                    self.corners[corner].chamfer = (math.fabs(points[index[0]][0] - self.coords[index[1]][0]),
-                            math.fabs(points[index[2]][1] - self.coords[index[3]][1]))
+                coords, chamfers = [], []
+                varPart = ((center[pim[0]], self.coords[1][pim[1]]),
+                        (center[pim[0]], self.coords[0][pim[1]]))
+                coords.append((self.coords[0], (varPart[0][pim[0]], varPart[0][pim[1]])))
+                coords.append(((varPart[1][pim[0]], varPart[1][pim[1]]), self.coords[1]))
+
+                if pim[0] == 0:
+                    chamfers.append((self.corners[0].chamfer, value[0], value[1], self.corners[3].chamfer))
+                    chamfers.append((value[0], self.corners[1].chamfer, self.corners[2].chamfer, value[1]))
+                else:
+                    chamfers.append((self.corners[0].chamfer, self.corners[1].chamfer, value[1], value[0]))
+                    chamfers.append((value[0], value[1], self.corners[2].chamfer, self.corners[3].chamfer))
+                self.sub.extend([Rect(coords[0], chamfers[0]), Rect(coords[1], chamfers[1])])
+                return
         else:
-            #TODO Check intersection
-            for entry in self.sub:
-                entry.subdivide(points)
+            if Rect.rCollision(self.coords, points):
+                for entry in self.sub:
+                    entry.subdivide(points)
 
 
 class DrillParser:
