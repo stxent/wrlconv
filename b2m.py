@@ -192,10 +192,137 @@ class Rect:
         else:
             return ([], [])
 
+    def simplify(self):
+        print
+        print "Source coords: ", self.coords
+        size = (self.coords[1][0] - self.coords[0][0], self.coords[1][1] - self.coords[0][1])
+        #TODO Check precision
+        if math.fabs(self.corners[0].chamfer[1] - size[1]) < 1e-5:
+            print "Case 1"
+            self.coords = ((self.coords[0][0] + self.corners[0].chamfer[0], self.coords[0][1]), self.coords[1])
+            self.corners[0].position = ((self.coords[0][0], self.coords[0][1]))
+            self.corners[0].chamfer = (0, 0)
+            self.corners[3].position = ((self.coords[0][0], self.coords[1][1]))
+            self.corners[3].chamfer = (0, 0)
+        elif math.fabs(self.corners[3].chamfer[1] - size[1]) < 1e-5:
+            print "Case 2"
+            self.coords = ((self.coords[0][0] + self.corners[3].chamfer[0], self.coords[0][1]), self.coords[1])
+            self.corners[0].position = ((self.coords[0][0], self.coords[0][1]))
+            self.corners[0].chamfer = (0, 0)
+            self.corners[3].position = ((self.coords[0][0], self.coords[1][1]))
+            self.corners[3].chamfer = (0, 0)
+
+        elif math.fabs(self.corners[1].chamfer[1] - size[1]) < 1e-5:
+            print "Case 3"
+            self.coords = (self.coords[0], (self.coords[1][0] - self.corners[1].chamfer[0], self.coords[1][1]))
+            self.corners[1].position = ((self.coords[1][0], self.coords[0][1]))
+            self.corners[1].chamfer = (0, 0)
+            self.corners[2].position = ((self.coords[1][0], self.coords[1][1]))
+            self.corners[2].chamfer = (0, 0)
+        elif math.fabs(self.corners[2].chamfer[1] - size[1]) < 1e-5:
+            print "Case 4"
+            self.coords = (self.coords[0], (self.coords[1][0] - self.corners[2].chamfer[0], self.coords[1][1]))
+            self.corners[1].position = ((self.coords[1][0], self.coords[0][1]))
+            self.corners[1].chamfer = (0, 0)
+            self.corners[2].position = ((self.coords[1][0], self.coords[1][1]))
+            self.corners[2].chamfer = (0, 0)
+
+
+        elif math.fabs(self.corners[0].chamfer[0] - size[0]) < 1e-5:
+            print "Case 5"
+            self.coords = ((self.coords[0][0], self.coords[0][1] + self.corners[0].chamfer[1]), self.coords[1])
+            self.corners[0].position = ((self.coords[0][0], self.coords[0][1]))
+            self.corners[0].chamfer = (0, 0)
+            self.corners[1].position = ((self.coords[1][0], self.coords[0][1]))
+            self.corners[1].chamfer = (0, 0)
+        elif math.fabs(self.corners[1].chamfer[0] - size[0]) < 1e-5:
+            print "Case 6"
+            self.coords = ((self.coords[0][0], self.coords[0][1] + self.corners[1].chamfer[1]), self.coords[1])
+            self.corners[0].position = ((self.coords[0][0], self.coords[0][1]))
+            self.corners[0].chamfer = (0, 0)
+            self.corners[1].position = ((self.coords[1][0], self.coords[0][1]))
+            self.corners[1].chamfer = (0, 0)
+
+        elif math.fabs(self.corners[2].chamfer[0] - size[0]) < 1e-5:
+            print "Case 7"
+            self.coords = (self.coords[0], (self.coords[1][0], self.coords[1][1] - self.corners[2].chamfer[1]))
+            self.corners[2].position = ((self.coords[1][0], self.coords[1][1]))
+            self.corners[2].chamfer = (0, 0)
+            self.corners[3].position = ((self.coords[0][0], self.coords[1][1]))
+            self.corners[3].chamfer = (0, 0)
+        elif math.fabs(self.corners[3].chamfer[0] - size[0]) < 1e-5:
+            print "Case 8"
+            self.coords = (self.coords[0], (self.coords[1][0], self.coords[1][1] - self.corners[3].chamfer[1]))
+            self.corners[2].position = ((self.coords[1][0], self.coords[1][1]))
+            self.corners[2].chamfer = (0, 0)
+            self.corners[3].position = ((self.coords[0][0], self.coords[1][1]))
+            self.corners[3].chamfer = (0, 0)
+
+        print "Dest coords: ", self.coords
+
+
     def subdivide(self, points):
         size = (points[1][0] - points[0][0], points[1][1] - points[0][1])
         center = (points[0][0] + size[0] / 2, points[0][1] + size[1] / 2)
         if self.sub is None:
+            #TODO Add case when the hole contains full rectangle
+            inner = ((self.coords[0][0] + max(self.corners[0].chamfer[0], self.corners[3].chamfer[0]), \
+                    self.coords[0][1] + max(self.corners[0].chamfer[1], self.corners[1].chamfer[1])),
+                    (self.coords[1][0] - max(self.corners[1].chamfer[0], self.corners[2].chamfer[0]), \
+                    self.coords[1][1] - max(self.corners[2].chamfer[1], self.corners[3].chamfer[1])))
+            if Rect.prCollision(self.coords, center) and not Rect.prCollision(inner, center):
+                #Dead zone
+                rLeft = (self.coords[0], (inner[0][0], self.coords[1][1]))
+                rRight = ((inner[1][0], self.coords[0][1]), self.coords[1])
+                rTop = (self.coords[0], (self.coords[1][0], inner[0][1]))
+                rBottom = ((self.coords[0][0], inner[1][1]), self.coords[1])
+
+                if Rect.prCollision(rTop, center):
+                    edge = 0
+                if Rect.prCollision(rRight, center):
+                    edge = 1
+                if Rect.prCollision(rBottom, center):
+                    edge = 2
+                if Rect.prCollision(rLeft, center):
+                    edge = 3
+
+                print "Dead zone: ", edge
+
+                pim = (0, 1) if edge in (1, 3) else (1, 0) #Imaginary part
+                pre = (0, 1) if edge in (2, 0) else (1, 0) #Real part
+
+                coords, chamfers = [], []
+                if edge == 0:
+                    val = self.coords[0][1] + max(self.corners[0].chamfer[1], self.corners[1].chamfer[1])
+                if edge == 1:
+                    val = self.coords[1][0] - max(self.corners[1].chamfer[0], self.corners[2].chamfer[0])
+                if edge == 2:
+                    val = self.coords[1][1] - max(self.corners[2].chamfer[1], self.corners[3].chamfer[1])
+                if edge == 3:
+                    val = self.coords[0][0] + max(self.corners[3].chamfer[0], self.corners[0].chamfer[0])
+
+                pts = (self.coords[0][pim[0]], val, self.coords[1][pim[0]])
+                #TODO Check precision
+                print center, pts
+                if pts[1] - pts[0] > 1e-5 and pts[2] - pts[1] > 1e-5:
+                    self.sub = []
+                    if pim[0] == 1:
+                        chamfers.append((self.corners[0].chamfer, self.corners[1].chamfer, (0, 0), (0, 0)))
+                        chamfers.append(((0, 0), (0, 0), self.corners[2].chamfer, self.corners[3].chamfer))
+                        coords.append(((self.coords[0][0], pts[0]), (self.coords[1][0], pts[1])))
+                        coords.append(((self.coords[0][0], pts[1]), (self.coords[1][0], pts[2])))
+                    else:
+                        chamfers.append((self.corners[0].chamfer, (0, 0), (0, 0), self.corners[3].chamfer))
+                        chamfers.append(((0, 0), self.corners[1].chamfer, self.corners[2].chamfer, (0, 0)))
+                        coords.append(((pts[0], self.coords[0][1]), (pts[1], self.coords[1][1])))
+                        coords.append(((pts[1], self.coords[0][1]), (pts[2], self.coords[1][1])))
+                    self.sub.extend([Rect(coords[0], chamfers[0]), Rect(coords[1], chamfers[1])])
+
+                    for entry in self.sub:
+                        entry.simplify()
+                        entry.subdivide(points)
+                    return
+
             if self.contain(points):
                 self.sub = []
                 #Top left
