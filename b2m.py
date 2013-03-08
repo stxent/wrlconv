@@ -109,6 +109,8 @@ class Rect:
         #Returns tuple with vertex and polygon lists
         if self.sub is None:
             vertices, polygons = [], []
+            #if not self.contain(((150, 110), (150,110))):
+                #return (vertices, polygons)
             #sign = [[1, 1], [-1, 1], [-1, -1], [1, -1]]
             #for i in range(0, 4):
                 #vertices.extend(self.corners[i].generate(numpy.array(sign[i])))
@@ -117,10 +119,12 @@ class Rect:
             #Left edges
             inList = []
             offsetTop, offsetBottom = 0, 0
+            #if self.corners[0].chamfer[0] > 1e-5 and self.corners[0].chamfer[1] > 1e-5:
             if self.corners[0].chamfer[0] > 0 and self.corners[0].chamfer[1] > 0:
                 inList.append((self.coords[0] + self.corners[0].chamfer * numpy.array([1, 0]), \
                         self.coords[0] + self.corners[0].chamfer))
                 offsetTop = self.corners[0].chamfer[1]
+            #if self.corners[3].chamfer[0] > 1e-5 and self.corners[3].chamfer[1] > 1e-5:
             if self.corners[3].chamfer[0] > 0 and self.corners[3].chamfer[1] > 0:
                 inList.append((numpy.array([self.coords[0][0] + self.corners[3].chamfer[0], \
                         self.coords[1][1] - self.corners[3].chamfer[1]]), \
@@ -132,12 +136,12 @@ class Rect:
             #Right edges
             outList = []
             offsetTop, offsetBottom = 0, 0
-            if self.corners[1].chamfer[0] > 0 and self.corners[1].chamfer[1] > 0:
+            if self.corners[1].chamfer[0] > 1e-5 and self.corners[1].chamfer[1] > 1e-5:
                 outList.append((numpy.array([self.coords[1][0] - self.corners[1].chamfer[0], \
                         self.coords[0][1]]), numpy.array([self.coords[1][0] - self.corners[1].chamfer[0], \
                         self.coords[0][1] + self.corners[1].chamfer[1]])))
                 offsetTop = self.corners[1].chamfer[1]
-            if self.corners[2].chamfer[0] > 0 and self.corners[2].chamfer[1] > 0:
+            if self.corners[2].chamfer[0] > 1e-5 and self.corners[2].chamfer[1] > 1e-5:
                 outList.append((self.coords[1] - self.corners[2].chamfer, \
                         self.coords[1] + self.corners[2].chamfer * numpy.array([-1, 0])))
                 offsetBottom = self.corners[2].chamfer[1]
@@ -146,17 +150,8 @@ class Rect:
 
             #Possible intersections
             hPoints = []
-            #hPoints.extend([self.coords[0][0], self.coords[1][0]])
             hPoints.append(self.coords[1][0])
             #TODO Check precision
-            #if math.fabs(self.corners[0].chamfer[0] - self.corners[3].chamfer[0]) < 1e-5:
-                #if self.corners[0].chamfer[0] > 1e-5:
-                    #hPoints.append(self.coords[0][0] + self.corners[0].chamfer[0])
-            #else:
-                #if self.corners[0].chamfer[0] > 1e-5:
-                    #hPoints.extend(self.coords[0][0] + self.corners[0].chamfer[0])
-                #if self.corners[3].chamfer[0] > 1e-5:
-                    #hPoints.append(self.coords[0][0] + self.corners[3].chamfer[0])
             if math.fabs(self.corners[1].chamfer[0] - self.corners[2].chamfer[0]) < 1e-5:
                 if self.corners[1].chamfer[0] > 1e-5:
                     hPoints.append(self.coords[1][0] - self.corners[1].chamfer[0])
@@ -167,8 +162,17 @@ class Rect:
                     hPoints.append(self.coords[1][0] - self.corners[2].chamfer[0])
             hPoints = sorted(hPoints)
 
-            #print "Out", outList
-            #print "In", inList
+            #sign = [[1, 1], [-1, 1], [-1, -1], [1, -1]]
+            #for i in range(0, 4):
+                #vertices.extend(self.corners[i].generate(numpy.array(sign[i])))
+            #polygons = [[ 1,  0,  3,  4],
+                        #[ 4,  5,  8,  7],
+                        #[ 7,  6,  9, 10],
+                        #[10, 11,  2,  1],
+                        #[ 1,  4,  7, 10]]
+
+            print "Out", outList
+            print "In", inList
             #for pt in outList:
                 #vList = range(len(vertices), len(vertices) + 4)
                 #vertices.append(numpy.array([pt[0][0], pt[0][1], Rect.THICKNESS]))
@@ -187,11 +191,14 @@ class Rect:
             while True:
                 edgeDivided = False
                 endOfPoints = False
-                for i in range(0, len(inList)):
+                i = 0
+                while i < len(inList):
+                #for i in range(0, len(inList)):
                     j = 0
                     while j < len(hPoints):
                         outIndex = 0
                         while outIndex < len(outList):
+                            #print "Index", outIndex
                             edge = inList[i]
                             gap = outList[outIndex]
                             mEdge = (numpy.array([gap[0][0], edge[0][1]]), numpy.array([gap[1][0], edge[1][1]]))
@@ -236,17 +243,21 @@ class Rect:
                                     polygons.append([vList[0], vList[1], vList[2], vList[3]])
                                 break
                             outIndex += 1
-                        if outIndex == len(outList):
-                            endOfPoints = True
-                            break
+                        #if outIndex == len(outList):
+                            #endOfPoints = True
+                            #break
                         if edgeDivided:
+                            print "Break 2"
                             break
                         j += 1
-                    if j == len(hPoints):
-                        endOfPoints = True
+                    #if j == len(hPoints):
+                        #endOfPoints = True
                     if endOfPoints or edgeDivided:
+                        print "Break 1"
                         break
-                if endOfPoints or not len(inList):
+                    i += 1
+                if endOfPoints or i == len(inList):
+                    print "Break 0"
                     break
 
             #rebuilded = []
