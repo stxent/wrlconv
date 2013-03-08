@@ -25,8 +25,8 @@ class Rect:
     THICKNESS = 0.2
     class RectCorner:
         def __init__(self, position, chamfer):
-            self.position = position #Tuple of two elements: x and y
-            self.chamfer = chamfer #Tuple of two elements: x and y chamfers
+            self.position = numpy.array([position[0], position[1]])
+            self.chamfer = numpy.array([chamfer[0], chamfer[1]])
 
         def generate(self, vect):
             vertices = []
@@ -55,7 +55,7 @@ class Rect:
         self.corners = []
         self.sub = None
         for i in range(0, 4):
-            self.corners.append(Rect.RectCorner((0, 0), chamfers[i]))
+            self.corners.append(Rect.RectCorner(numpy.array([0, 0]), numpy.array([chamfers[i][0], chamfers[i][1]])))
         self.recalcCorners()
 
     def recalcCorners(self):
@@ -64,7 +64,7 @@ class Rect:
                    [self.coords[1][0], self.coords[1][1]],
                    [self.coords[0][0], self.coords[1][1]]]
         for i in range(0, len(self.corners)):
-            self.corners[i].position = cpoints[i]
+            self.corners[i].position = numpy.array(cpoints[i])
 
     def contain(self, points):
         return Rect.prCollision(self.coords, points[0]) and Rect.prCollision(self.coords, points[1])
@@ -100,10 +100,9 @@ class Rect:
         #Returns tuple with vertex and polygon lists
         if self.sub is None:
             vertices, polygons = [], []
-            vertices.extend(self.corners[0].generate(( 1,  1)))
-            vertices.extend(self.corners[1].generate((-1,  1)))
-            vertices.extend(self.corners[2].generate((-1, -1)))
-            vertices.extend(self.corners[3].generate(( 1, -1)))
+            sign = [[1, 1], [-1, 1], [-1, -1], [1, -1]]
+            for i in range(0, 4):
+                vertices.extend(self.corners[i].generate(numpy.array(sign[i])))
             amorph0 = self.coords[1][1] - self.corners[2].chamfer[1] < self.coords[0][1] + self.corners[0].chamfer[1]
             amorph1 = self.coords[1][1] - self.corners[3].chamfer[1] < self.coords[0][1] + self.corners[1].chamfer[1]
             amorph2 = self.coords[1][0] - self.corners[2].chamfer[0] < self.coords[0][0] + self.corners[0].chamfer[0]
@@ -203,17 +202,17 @@ class Rect:
             if math.fabs(self.corners[i].chamfer[1] - size[1]) < 1e-5:
                 if i in (0, 3):
                     self.coords = ((self.coords[0][0] + self.corners[i].chamfer[0], self.coords[0][1]), self.coords[1])
-                    self.corners[0].chamfer, self.corners[3].chamfer = (0, 0), (0, 0)
+                    self.corners[0].chamfer, self.corners[3].chamfer = numpy.array([0, 0]), numpy.array([0, 0])
                 if i in (1, 2):
                     self.coords = (self.coords[0], (self.coords[1][0] - self.corners[i].chamfer[0], self.coords[1][1]))
-                    self.corners[1].chamfer, self.corners[2].chamfer = (0, 0), (0, 0)
+                    self.corners[1].chamfer, self.corners[2].chamfer = numpy.array([0, 0]), numpy.array([0, 0])
             if math.fabs(self.corners[i].chamfer[0] - size[0]) < 1e-5:
                 if i in (0, 1):
                     self.coords = ((self.coords[0][0], self.coords[0][1] + self.corners[i].chamfer[1]), self.coords[1])
-                    self.corners[0].chamfer, self.corners[1].chamfer = (0, 0), (0, 0)
+                    self.corners[0].chamfer, self.corners[1].chamfer = numpy.array([0, 0]), numpy.array([0, 0])
                 if i in (2, 3):
                     self.coords = (self.coords[0], (self.coords[1][0], self.coords[1][1] - self.corners[i].chamfer[1]))
-                    self.corners[2].chamfer, self.corners[3].chamfer = (0, 0), (0, 0)
+                    self.corners[2].chamfer, self.corners[3].chamfer = numpy.array([0, 0]), numpy.array([0, 0])
         self.recalcCorners()
 
     def subdivide(self, points):
@@ -225,7 +224,9 @@ class Rect:
                     self.coords[0][1] + max(self.corners[0].chamfer[1], self.corners[1].chamfer[1])),
                     (self.coords[1][0] - max(self.corners[1].chamfer[0], self.corners[2].chamfer[0]), \
                     self.coords[1][1] - max(self.corners[2].chamfer[1], self.corners[3].chamfer[1])))
-            if Rect.prCollision(self.coords, center) and not Rect.prCollision(inner, center):
+            if inner[0][0] > inner[1][0] or inner[0][1] > inner[1][1]:
+                inner = None
+            if inner is not None and Rect.prCollision(self.coords, center) and not Rect.prCollision(inner, center):
                 #Dead zone
                 rLeft = (self.coords[0], (inner[0][0], self.coords[1][1]))
                 rRight = ((inner[1][0], self.coords[0][1]), self.coords[1])
@@ -293,6 +294,8 @@ class Rect:
                 coords = ((self.coords[0][0], center[1]), (center[0], self.coords[1][1]))
                 chamfers = ((0, 0), (size[0] / 2, size[1] / 2), (0, 0), self.corners[3].chamfer)
                 self.sub.append(Rect(coords, chamfers))
+                for entry in self.sub:
+                    entry.simplify()
                 return
 
             corner = self.intersectCorner(points)
@@ -302,7 +305,8 @@ class Rect:
                 dx = min(dx, self.coords[1][0] - self.coords[0][0])
                 dy = max(self.corners[corner].chamfer[1], math.fabs(points[index[2]][1] - self.coords[index[3]][1]))
                 dy = min(dy, self.coords[1][1] - self.coords[0][1])
-                self.corners[corner].chamfer = (dx, dy)
+                self.corners[corner].chamfer = numpy.array([dx, dy])
+                self.simplify()
                 return
 
             edge = self.intersectEdge(points)
@@ -330,6 +334,8 @@ class Rect:
                     chamfers.append((self.corners[0].chamfer, self.corners[1].chamfer, value[1], value[0]))
                     chamfers.append((value[0], value[1], self.corners[2].chamfer, self.corners[3].chamfer))
                 self.sub.extend([Rect(coords[0], chamfers[0]), Rect(coords[1], chamfers[1])])
+                for entry in self.sub:
+                    entry.simplify()
                 return
         else:
             if Rect.rCollision(self.coords, points):
