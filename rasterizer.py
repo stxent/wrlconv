@@ -149,6 +149,41 @@ class Render:
         return Image.fromstring("RGBA", size, pix, "raw", "RGBA", 0, -1)
 
 
+#FIXME Move to separate module
+def calcBorders(path):
+    stream = open(path, "rb")
+    edgeCuts = stream.read()
+    stream.close()
+    lineSearch = re.compile("<path.+?d=\"(.*?)\".*?>", re.S)
+    pos = 0
+    position = [None, None]
+    while 1:
+        content = lineSearch.search(edgeCuts, pos)
+        if content is None:
+            break
+        data = []
+        unformatted = content.group(1).replace("M", "").replace("L", "").splitlines()
+        for part in unformatted:
+            data.extend(part.split(' '))
+        coords = ((float(data[0]), float(data[1])), (float(data[2]), float(data[3])))
+        for point in coords:
+            if position[0] is None:
+                position[0] = [point[0], point[1]]
+            else:
+                if position[0][0] > point[0]:
+                    position[0][0] = point[0]
+                if position[0][1] > point[1]:
+                    position[0][1] = point[1]
+            if position[1] is None:
+                position[1] = [point[0], point[1]]
+            else:
+                if position[1][0] < point[0]:
+                    position[1][0] = point[0]
+                if position[1][1] < point[1]:
+                    position[1][1] = point[1]
+        pos = content.end()
+    return position
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", dest="path", help="project directory", default="")
 parser.add_argument("-p", dest="project", help="project name", default="")
@@ -162,6 +197,19 @@ if options.output == "":
     outPath = options.path
 else:
     outPath = options.output
+
+boardPos = [[0, 0], [0, 0]]
+edgeFile = "%s%s-Edge_Cuts.svg" % (options.path, options.project)
+if os.path.isfile(edgeFile):
+    boardPos = calcBorders(edgeFile)
+    for i in range(0, len(boardPos)):
+        for j in range(0, len(boardPos[i])):
+            boardPos[i][j] = boardPos[i][j] / 10000
+        boardPos[i][1] = 8.26799 - boardPos[i][1] #FIXME Remove hardcoded values
+    print boardPos
+else:
+    print "% not found" % edgeFile
+    exit()
 
 colors = {"mask": (), "silk": (), "plating": ()}
 for color in [("mask", options.mask), ("silk", options.silk), ("plating", options.plating)]:
@@ -208,10 +256,12 @@ for layer in layerList:
             convert = True
         if convert:
             #TODO Replace with something command-line
-            subprocess.call(["inkscape", "%s%s.svg" % (options.path, entry), "--verb", "FitCanvasToDrawing", "--verb", \
-                    "FileSave", "--verb", "FileClose"])
+            #subprocess.call(["inkscape", "%s%s.svg" % (options.path, entry), "--verb", "FitCanvasToDrawing", "--verb", \
+                    #"FileSave", "--verb", "FileClose"])
             subprocess.call(["inkscape", "-f", "%s%s.svg" % (options.path, entry), "--export-dpi", "900", "-e", \
-                    "%s%s.png" % (outPath, entry)])
+                    "%s%s.png" % (outPath, entry), "-a", "%u:%u:%u:%u" % \
+                    (int(boardPos[0][0] * 90), int(boardPos[0][1] * 90), \
+                    int(boardPos[1][0] * 90), int(boardPos[1][1] * 90))])
             #stdout=subprocess.PIPE
             #subprocess.call(["rsvg", "--x-zoom=10.0", "--y-zoom=10.0", "--format=png", "%s.svg", "%s.png"])
         tmp = Image.open("%s%s.png" % (outPath, entry))

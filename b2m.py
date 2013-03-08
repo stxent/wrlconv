@@ -275,19 +275,16 @@ class Rect:
                 inner = None
             if inner is not None and Rect.prCollision(self.coords, center) and not Rect.prCollision(inner, center):
                 #Dead zone
-                rLeft = (self.coords[0], (inner[0][0], self.coords[1][1]))
-                rRight = ((inner[1][0], self.coords[0][1]), self.coords[1])
-                rTop = (self.coords[0], (self.coords[1][0], inner[0][1]))
-                rBottom = ((self.coords[0][0], inner[1][1]), self.coords[1])
+                sideRects = [(self.coords[0], (inner[0][0], self.coords[1][1])), \
+                        ((inner[1][0], self.coords[0][1]), self.coords[1]), \
+                        (self.coords[0], (self.coords[1][0], inner[0][1])), \
+                        ((self.coords[0][0], inner[1][1]), self.coords[1])]
 
-                if Rect.prCollision(rTop, center):
-                    edge = 0
-                if Rect.prCollision(rRight, center):
-                    edge = 1
-                if Rect.prCollision(rBottom, center):
-                    edge = 2
-                if Rect.prCollision(rLeft, center):
-                    edge = 3
+                edge = None
+                for i in range(0, len(sideRects)):
+                    if Rect.prCollision(sideRects[i], center):
+                        edge = i
+                        break
 
                 pim = (0, 1) if edge in (1, 3) else (1, 0) #Imaginary part
                 pre = (0, 1) if edge in (2, 0) else (1, 0) #Real part
@@ -399,7 +396,7 @@ class DrillParser:
         self.files = []
         self.tools = []
         self.holes = {}
-        self.scale = 10.0
+        self.scale = 10.0 #FIXME
 
     #Add new file to drill file list
     def add(self, path):
@@ -444,6 +441,41 @@ class DrillParser:
             self.readSegments(stream, offset)
             stream.close()
 
+
+#FIXME Move to separate module
+def calcBorders(path):
+    stream = open(path, "rb")
+    edgeCuts = stream.read()
+    stream.close()
+    lineSearch = re.compile("<path.+?d=\"(.*?)\".*?>", re.S)
+    pos = 0
+    position = [None, None]
+    while 1:
+        content = lineSearch.search(edgeCuts, pos)
+        if content is None:
+            break
+        data = []
+        unformatted = content.group(1).replace("M", "").replace("L", "").splitlines()
+        for part in unformatted:
+            data.extend(part.split(' '))
+        coords = ((float(data[0]), float(data[1])), (float(data[2]), float(data[3])))
+        for point in coords:
+            if position[0] is None:
+                position[0] = numpy.array([point[0], point[1]])
+            else:
+                if position[0][0] > point[0]:
+                    position[0][0] = point[0]
+                if position[0][1] > point[1]:
+                    position[0][1] = point[1]
+            if position[1] is None:
+                position[1] = numpy.array([point[0], point[1]])
+            else:
+                if position[1][0] < point[0]:
+                    position[1][0] = point[0]
+                if position[1][1] < point[1]:
+                    position[1][1] = point[1]
+        pos = content.end()
+    return position
 
 def optimizeVertices(vertices, polygons):
     retVert = []
@@ -593,8 +625,6 @@ def writeVRML(out, mesh, offset, colors, img = None):
               "\t]\n"
               "}\n")
 
-#random.seed()
-
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", dest="path", help="project directory", default="")
 parser.add_argument("-p", dest="project", help="project name", default="")
@@ -628,6 +658,14 @@ for layer in [("Front", "F", "front"), ("Back", "B", "back")]:
         print "Layer file does not exist: %s" % layerFile
 
 boardSize = (0, 0)
+edgeFile = "%s%s-Edge_Cuts.svg" % (options.path, options.project)
+if os.path.isfile(edgeFile):
+    boardPos = calcBorders(edgeFile)
+    boardSize = (boardPos[1] - boardPos[0]) / 1000 * 2.54 #FIXME Scale
+else:
+    print "% not found" % edgeFile
+    exit()
+
 if len(layerList) > 0:
     layer = layerList.itervalues().next()
     tmp = Image.open(outPath + layer["diffuse"])
