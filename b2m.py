@@ -17,12 +17,12 @@ import Image
 import ImageDraw
 
 import model
-#import sys
 #import time
 #import subprocess
 
 class Rect:
     THICKNESS = 0.2
+    TOL = 1e-5 #Floating point values tolerance
     class RectCorner:
         def __init__(self, position, chamfer):
             self.position = numpy.array([position[0], position[1]])
@@ -43,15 +43,6 @@ class Rect:
     def prCollision(rect, point):
         top, bottom = rect[0], rect[1]
         return top[0] <= point[0] <= bottom[0] and top[1] <= point[1] <= bottom[1]
-
-    #Check intersection of line and point, only for vertical lines
-    @staticmethod
-    def lpCollision(line, point):
-        if line[0][0] == point[0] and line[0][1] <= point[1] <= line[1][1]:
-            return True
-        #if line[0][1] == point[1] and line[0][0] <= point[0] <= line[1][0]:
-            #return True
-        return False
 
     #Check intersection of two rectangles
     @staticmethod
@@ -109,23 +100,15 @@ class Rect:
         #Returns tuple with vertex and polygon lists
         if self.sub is None:
             vertices, polygons = [], []
-            #if not self.contain(((150, 110), (150,110))):
-                #return (vertices, polygons)
-            #sign = [[1, 1], [-1, 1], [-1, -1], [1, -1]]
-            #for i in range(0, 4):
-                #vertices.extend(self.corners[i].generate(numpy.array(sign[i])))
-            #TODO Rewrite to more consistent view
 
             #Left edges
             inList = []
             offsetTop, offsetBottom = 0, 0
-            #if self.corners[0].chamfer[0] > 1e-5 and self.corners[0].chamfer[1] > 1e-5:
-            if self.corners[0].chamfer[0] > 0 and self.corners[0].chamfer[1] > 0:
+            if self.corners[0].chamfer[0] > Rect.TOL and self.corners[0].chamfer[1] > Rect.TOL:
                 inList.append((self.coords[0] + self.corners[0].chamfer * numpy.array([1, 0]), \
                         self.coords[0] + self.corners[0].chamfer))
                 offsetTop = self.corners[0].chamfer[1]
-            #if self.corners[3].chamfer[0] > 1e-5 and self.corners[3].chamfer[1] > 1e-5:
-            if self.corners[3].chamfer[0] > 0 and self.corners[3].chamfer[1] > 0:
+            if self.corners[3].chamfer[0] > Rect.TOL and self.corners[3].chamfer[1] > Rect.TOL:
                 inList.append((numpy.array([self.coords[0][0] + self.corners[3].chamfer[0], \
                         self.coords[1][1] - self.corners[3].chamfer[1]]), \
                         numpy.array([self.coords[0][0] + self.corners[3].chamfer[0], self.coords[1][1]])))
@@ -136,14 +119,12 @@ class Rect:
             #Right edges
             outList = []
             offsetTop, offsetBottom = 0, 0
-            #if self.corners[1].chamfer[0] > 1e-5 and self.corners[1].chamfer[1] > 1e-5:
-            if self.corners[1].chamfer[0] > 0 and self.corners[1].chamfer[1] > 0:
+            if self.corners[1].chamfer[0] > Rect.TOL and self.corners[1].chamfer[1] > Rect.TOL:
                 outList.append((numpy.array([self.coords[1][0] - self.corners[1].chamfer[0], \
                         self.coords[0][1]]), numpy.array([self.coords[1][0] - self.corners[1].chamfer[0], \
                         self.coords[0][1] + self.corners[1].chamfer[1]])))
                 offsetTop = self.corners[1].chamfer[1]
-            #if self.corners[2].chamfer[0] > 1e-5 and self.corners[2].chamfer[1] > 1e-5:
-            if self.corners[2].chamfer[0] > 0 and self.corners[2].chamfer[1] > 0:
+            if self.corners[2].chamfer[0] > Rect.TOL and self.corners[2].chamfer[1] > Rect.TOL:
                 outList.append((self.coords[1] - self.corners[2].chamfer, \
                         self.coords[1] + self.corners[2].chamfer * numpy.array([-1, 0])))
                 offsetBottom = self.corners[2].chamfer[1]
@@ -153,16 +134,21 @@ class Rect:
             #Possible intersections
             hPoints = []
             hPoints.append(self.coords[1][0])
-            #TODO Check precision
-            if math.fabs(self.corners[1].chamfer[0] - self.corners[2].chamfer[0]) < 1e-5:
-                if self.corners[1].chamfer[0] > 1e-5:
+            if math.fabs(self.corners[1].chamfer[0] - self.corners[2].chamfer[0]) < Rect.TOL:
+                if self.corners[1].chamfer[0] > Rect.TOL:
                     hPoints.append(self.coords[1][0] - self.corners[1].chamfer[0])
             else:
-                if self.corners[1].chamfer[0] > 1e-5:
+                if self.corners[1].chamfer[0] > Rect.TOL:
                     hPoints.append(self.coords[1][0] - self.corners[1].chamfer[0])
-                if self.corners[2].chamfer[0] > 1e-5:
+                if self.corners[2].chamfer[0] > Rect.TOL:
                     hPoints.append(self.coords[1][0] - self.corners[2].chamfer[0])
             hPoints = sorted(hPoints)
+
+            #Check intersection of line and point, only for vertical lines
+            def lpCollision(line, point):
+                if line[0][0] == point[0] and line[0][1] <= point[1] <= line[1][1]:
+                    return True
+                return False
 
             while True:
                 edgeDivided = False
@@ -171,39 +157,31 @@ class Rect:
                     for gap in outList:
                         edge = inList[i]
                         mEdge = (numpy.array([gap[0][0], edge[0][1]]), numpy.array([gap[1][0], edge[1][1]]))
-                        print "edge: ", edge, "gap: ", gap
-                        if Rect.lpCollision(gap, mEdge[0]) or Rect.lpCollision(gap, mEdge[1]):
-                            print "Difference", min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1])
-                            if min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1]) < 1e-5:
+                        if lpCollision(gap, mEdge[0]) or lpCollision(gap, mEdge[1]):
+                            if min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1]) < Rect.TOL:
                                 continue
                             inList.pop(i)
                             edgeDivided = True
                             start, end = None, None
 
                             offset = gap[0][1] - edge[0][1]
-                            if offset > 1e-5:
-                                #if offset < edge[1][1] - edge[0][1]:
+                            if offset > Rect.TOL:
                                 inList.append((numpy.array([edge[0][0], edge[0][1]]), \
                                         numpy.array([edge[0][0], edge[0][1] + offset])))
                                 start = numpy.array([gap[0][0], edge[0][1] + offset])
-                                print "Append up", inList[-1]
                             else:
                                 start = numpy.array([gap[0][0], edge[0][1]])
 
                             offset = edge[1][1] - gap[1][1]
-                            if offset > 1e-5:
-                                #if offset < edge[1][1] - edge[0][1]:
+                            if offset > Rect.TOL:
                                 inList.append((numpy.array([edge[1][0], edge[1][1] - offset]), \
                                         numpy.array([edge[1][0], edge[1][1]])))
                                 end = numpy.array([gap[1][0], edge[1][1] - offset])
-                                print "Append down", inList[-1]
                             else:
                                 end = numpy.array([gap[1][0], edge[1][1]])
 
                             if not numpy.allclose(end - start, 0.):
                                 vList = range(len(vertices), len(vertices) + 4)
-                                print "Left", ([edge[0][0], start[1]], [edge[1][0], end[1]]),
-                                print "Right", ([start, end])
                                 vertices.append(numpy.array([edge[0][0], start[1], Rect.THICKNESS]))
                                 vertices.append(numpy.array([start[0], start[1], Rect.THICKNESS]))
                                 vertices.append(numpy.array([end[0], end[1], Rect.THICKNESS]))
@@ -214,38 +192,25 @@ class Rect:
                         break
                     i += 1
                 if i == len(inList):
-                    print "Break 0"
                     break
 
-            #rebuilded = []
-            #vIndex = range(0, len(vertices))
-            #while len(vIndex):
-                #vert = vertices[vIndex[0]]
-                #same = []
-                #for i in range(0, len(vertices)):
-                    #if numpy.allclose(vertices[i], vert): #TODO Check precision
-                        #same.append(i)
-                #last = len(rebuilded)
-                #for poly in polygons:
-                    #for i in range(0, len(poly)):
-                        #if poly[i] in same:
-                            #poly[i] = last
-                #for ind in same:
-                    #vIndex.remove(ind)
-                #rebuilded.append(vert)
-            #for i in range(len(polygons) - 1, -1, -1):
-                #for j in range(len(polygons[i]) - 1, -1, -1):
-                    #prevInd = len(polygons[i]) - 1 if j == 0 else j - 1
-                    #nextInd = 0 if j == len(polygons[i]) - 1 else j + 1
-                    #prod = numpy.cross(rebuilded[polygons[i][prevInd]] - rebuilded[polygons[i][j]], \
-                            #rebuilded[polygons[i][nextInd]] - rebuilded[polygons[i][j]])
-                    #mod = prod[0] * prod[0] + prod[1] * prod[1] + prod[2] * prod[2]
-                    #if mod < 1e-5: #TODO Check precision
-                        #polygons[i].pop(j)
-                #if len(polygons[i]) < 3:
-                    #polygons.pop(i)
-            #return (rebuilded, polygons)
-            return (vertices, polygons)
+            rebuilded = []
+            vIndex = range(0, len(vertices))
+            while len(vIndex):
+                vert = vertices[vIndex[0]]
+                same = []
+                for i in range(0, len(vertices)):
+                    if numpy.allclose(vertices[i], vert):
+                        same.append(i)
+                last = len(rebuilded)
+                for poly in polygons:
+                    for i in range(0, len(poly)):
+                        if poly[i] in same:
+                            poly[i] = last
+                for ind in same:
+                    vIndex.remove(ind)
+                rebuilded.append(vert)
+            return (rebuilded, polygons)
         else:
             vertices, polygons = [], []
             for entry in self.sub:
@@ -281,14 +246,14 @@ class Rect:
     def simplify(self):
         size = (self.coords[1][0] - self.coords[0][0], self.coords[1][1] - self.coords[0][1])
         for i in range(0, len(self.corners)):
-            if math.fabs(self.corners[i].chamfer[1] - size[1]) < 1e-5:
+            if math.fabs(self.corners[i].chamfer[1] - size[1]) < Rect.TOL:
                 if i in (0, 3):
                     self.coords = ((self.coords[0][0] + self.corners[i].chamfer[0], self.coords[0][1]), self.coords[1])
                     self.corners[0].chamfer, self.corners[3].chamfer = numpy.array([0, 0]), numpy.array([0, 0])
                 if i in (1, 2):
                     self.coords = (self.coords[0], (self.coords[1][0] - self.corners[i].chamfer[0], self.coords[1][1]))
                     self.corners[1].chamfer, self.corners[2].chamfer = numpy.array([0, 0]), numpy.array([0, 0])
-            if math.fabs(self.corners[i].chamfer[0] - size[0]) < 1e-5:
+            if math.fabs(self.corners[i].chamfer[0] - size[0]) < Rect.TOL:
                 if i in (0, 1):
                     self.coords = ((self.coords[0][0], self.coords[0][1] + self.corners[i].chamfer[1]), self.coords[1])
                     self.corners[0].chamfer, self.corners[1].chamfer = numpy.array([0, 0]), numpy.array([0, 0])
@@ -338,8 +303,7 @@ class Rect:
                     val = self.coords[0][0] + max(self.corners[3].chamfer[0], self.corners[0].chamfer[0])
 
                 pts = (self.coords[0][pim[0]], val, self.coords[1][pim[0]])
-                #TODO Check precision
-                if pts[1] - pts[0] > 1e-5 and pts[2] - pts[1] > 1e-5:
+                if pts[1] - pts[0] > Rect.TOL and pts[2] - pts[1] > Rect.TOL:
                     self.sub = []
                     if pim[0] == 1:
                         chamfers.append((self.corners[0].chamfer, self.corners[1].chamfer, (0, 0), (0, 0)))
