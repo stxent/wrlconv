@@ -136,12 +136,14 @@ class Rect:
             #Right edges
             outList = []
             offsetTop, offsetBottom = 0, 0
-            if self.corners[1].chamfer[0] > 1e-5 and self.corners[1].chamfer[1] > 1e-5:
+            #if self.corners[1].chamfer[0] > 1e-5 and self.corners[1].chamfer[1] > 1e-5:
+            if self.corners[1].chamfer[0] > 0 and self.corners[1].chamfer[1] > 0:
                 outList.append((numpy.array([self.coords[1][0] - self.corners[1].chamfer[0], \
                         self.coords[0][1]]), numpy.array([self.coords[1][0] - self.corners[1].chamfer[0], \
                         self.coords[0][1] + self.corners[1].chamfer[1]])))
                 offsetTop = self.corners[1].chamfer[1]
-            if self.corners[2].chamfer[0] > 1e-5 and self.corners[2].chamfer[1] > 1e-5:
+            #if self.corners[2].chamfer[0] > 1e-5 and self.corners[2].chamfer[1] > 1e-5:
+            if self.corners[2].chamfer[0] > 0 and self.corners[2].chamfer[1] > 0:
                 outList.append((self.coords[1] - self.corners[2].chamfer, \
                         self.coords[1] + self.corners[2].chamfer * numpy.array([-1, 0])))
                 offsetBottom = self.corners[2].chamfer[1]
@@ -162,101 +164,56 @@ class Rect:
                     hPoints.append(self.coords[1][0] - self.corners[2].chamfer[0])
             hPoints = sorted(hPoints)
 
-            #sign = [[1, 1], [-1, 1], [-1, -1], [1, -1]]
-            #for i in range(0, 4):
-                #vertices.extend(self.corners[i].generate(numpy.array(sign[i])))
-            #polygons = [[ 1,  0,  3,  4],
-                        #[ 4,  5,  8,  7],
-                        #[ 7,  6,  9, 10],
-                        #[10, 11,  2,  1],
-                        #[ 1,  4,  7, 10]]
-
-            print "Out", outList
-            print "In", inList
-            #for pt in outList:
-                #vList = range(len(vertices), len(vertices) + 4)
-                #vertices.append(numpy.array([pt[0][0], pt[0][1], Rect.THICKNESS]))
-                #vertices.append(numpy.array([pt[1][0], pt[0][1], Rect.THICKNESS]))
-                #vertices.append(numpy.array([pt[1][0], pt[1][1], Rect.THICKNESS]))
-                #vertices.append(numpy.array([pt[0][0], pt[1][1], Rect.THICKNESS]))
-                #polygons.append([vList[0], vList[1], vList[2], vList[3]])
-            #for pt in inList:
-                #vList = range(len(vertices), len(vertices) + 4)
-                #vertices.append(numpy.array([pt[0][0] + 2, pt[0][1], Rect.THICKNESS]))
-                #vertices.append(numpy.array([pt[1][0] + 2, pt[0][1], Rect.THICKNESS]))
-                #vertices.append(numpy.array([pt[1][0] + 2, pt[1][1], Rect.THICKNESS]))
-                #vertices.append(numpy.array([pt[0][0] + 2, pt[1][1], Rect.THICKNESS]))
-                #polygons.append([vList[0], vList[1], vList[2], vList[3]])
-
             while True:
                 edgeDivided = False
-                endOfPoints = False
                 i = 0
                 while i < len(inList):
-                #for i in range(0, len(inList)):
-                    j = 0
-                    while j < len(hPoints):
-                        outIndex = 0
-                        while outIndex < len(outList):
-                            #print "Index", outIndex
-                            edge = inList[i]
-                            gap = outList[outIndex]
-                            mEdge = (numpy.array([gap[0][0], edge[0][1]]), numpy.array([gap[1][0], edge[1][1]]))
-                            print "edge: ", edge, "gap: ", gap
-                            if Rect.lpCollision(gap, mEdge[0]) or Rect.lpCollision(gap, mEdge[1]):
-                                print "Difference", min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1])
-                                if min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1]) < 1e-5:
-                                    outIndex += 1
-                                    continue
-                                inList.pop(i)
-                                edgeDivided = True
-                                start, end = None, None
+                    for gap in outList:
+                        edge = inList[i]
+                        mEdge = (numpy.array([gap[0][0], edge[0][1]]), numpy.array([gap[1][0], edge[1][1]]))
+                        print "edge: ", edge, "gap: ", gap
+                        if Rect.lpCollision(gap, mEdge[0]) or Rect.lpCollision(gap, mEdge[1]):
+                            print "Difference", min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1])
+                            if min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1]) < 1e-5:
+                                continue
+                            inList.pop(i)
+                            edgeDivided = True
+                            start, end = None, None
 
-                                offset = gap[0][1] - edge[0][1]
-                                if offset > 1e-5:
-                                    #if offset < edge[1][1] - edge[0][1]:
-                                    inList.append((numpy.array([edge[0][0], edge[0][1]]), \
-                                            numpy.array([edge[0][0], edge[0][1] + offset])))
-                                    start = numpy.array([gap[0][0], edge[0][1] + offset])
-                                    print "Append up", inList[-1]
-                                else:
-                                    start = numpy.array([gap[0][0], edge[0][1]])
+                            offset = gap[0][1] - edge[0][1]
+                            if offset > 1e-5:
+                                #if offset < edge[1][1] - edge[0][1]:
+                                inList.append((numpy.array([edge[0][0], edge[0][1]]), \
+                                        numpy.array([edge[0][0], edge[0][1] + offset])))
+                                start = numpy.array([gap[0][0], edge[0][1] + offset])
+                                print "Append up", inList[-1]
+                            else:
+                                start = numpy.array([gap[0][0], edge[0][1]])
 
-                                offset = edge[1][1] - gap[1][1]
-                                if offset > 1e-5:
-                                    #if offset < edge[1][1] - edge[0][1]:
-                                    inList.append((numpy.array([edge[1][0], edge[1][1] - offset]), \
-                                            numpy.array([edge[1][0], edge[1][1]])))
-                                    end = numpy.array([gap[1][0], edge[1][1] - offset])
-                                    print "Append down", inList[-1]
-                                else:
-                                    end = numpy.array([gap[1][0], edge[1][1]])
+                            offset = edge[1][1] - gap[1][1]
+                            if offset > 1e-5:
+                                #if offset < edge[1][1] - edge[0][1]:
+                                inList.append((numpy.array([edge[1][0], edge[1][1] - offset]), \
+                                        numpy.array([edge[1][0], edge[1][1]])))
+                                end = numpy.array([gap[1][0], edge[1][1] - offset])
+                                print "Append down", inList[-1]
+                            else:
+                                end = numpy.array([gap[1][0], edge[1][1]])
 
-                                if not numpy.allclose(end - start, 0.):
-                                    vList = range(len(vertices), len(vertices) + 4)
-                                    print "Left", ([edge[0][0], start[1]], [edge[1][0], end[1]]),
-                                    print "Right", ([start, end])
-                                    vertices.append(numpy.array([edge[0][0], start[1], Rect.THICKNESS]))
-                                    vertices.append(numpy.array([start[0], start[1], Rect.THICKNESS]))
-                                    vertices.append(numpy.array([end[0], end[1], Rect.THICKNESS]))
-                                    vertices.append(numpy.array([edge[1][0], end[1], Rect.THICKNESS]))
-                                    polygons.append([vList[0], vList[1], vList[2], vList[3]])
-                                break
-                            outIndex += 1
-                        #if outIndex == len(outList):
-                            #endOfPoints = True
-                            #break
-                        if edgeDivided:
-                            print "Break 2"
+                            if not numpy.allclose(end - start, 0.):
+                                vList = range(len(vertices), len(vertices) + 4)
+                                print "Left", ([edge[0][0], start[1]], [edge[1][0], end[1]]),
+                                print "Right", ([start, end])
+                                vertices.append(numpy.array([edge[0][0], start[1], Rect.THICKNESS]))
+                                vertices.append(numpy.array([start[0], start[1], Rect.THICKNESS]))
+                                vertices.append(numpy.array([end[0], end[1], Rect.THICKNESS]))
+                                vertices.append(numpy.array([edge[1][0], end[1], Rect.THICKNESS]))
+                                polygons.append([vList[0], vList[1], vList[2], vList[3]])
                             break
-                        j += 1
-                    #if j == len(hPoints):
-                        #endOfPoints = True
-                    if endOfPoints or edgeDivided:
-                        print "Break 1"
+                    if edgeDivided:
                         break
                     i += 1
-                if endOfPoints or i == len(inList):
+                if i == len(inList):
                     print "Break 0"
                     break
 
