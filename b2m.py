@@ -38,11 +38,20 @@ class Rect:
                     self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS]))
             return vertices
 
-    #Check intersection of rectangle and point
+    #Check intersection of rectanle and point
     @staticmethod
     def prCollision(rect, point):
         top, bottom = rect[0], rect[1]
         return top[0] <= point[0] <= bottom[0] and top[1] <= point[1] <= bottom[1]
+
+    #Check intersection of line and point, only for vertical lines
+    @staticmethod
+    def lpCollision(line, point):
+        if line[0][0] == point[0] and line[0][1] <= point[1] <= line[1][1]:
+            return True
+        #if line[0][1] == point[1] and line[0][0] <= point[0] <= line[1][0]:
+            #return True
+        return False
 
     #Check intersection of two rectangles
     @staticmethod
@@ -100,70 +109,175 @@ class Rect:
         #Returns tuple with vertex and polygon lists
         if self.sub is None:
             vertices, polygons = [], []
-            sign = [[1, 1], [-1, 1], [-1, -1], [1, -1]]
-            for i in range(0, 4):
-                vertices.extend(self.corners[i].generate(numpy.array(sign[i])))
-            amorph0 = self.coords[1][1] - self.corners[2].chamfer[1] < self.coords[0][1] + self.corners[0].chamfer[1]
-            amorph1 = self.coords[1][1] - self.corners[3].chamfer[1] < self.coords[0][1] + self.corners[1].chamfer[1]
-            amorph2 = self.coords[1][0] - self.corners[2].chamfer[0] < self.coords[0][0] + self.corners[0].chamfer[0]
-            amorph3 = self.coords[1][0] - self.corners[3].chamfer[0] < self.coords[0][0] + self.corners[1].chamfer[0]
-            if amorph0 or amorph1:
-                polygons.append([ 1, 10, 11,  2])
-                polygons.append([ 4,  5,  8,  7])
-                if amorph0:
-                    polygons.append([ 0,  3,  4,  7])
-                    polygons.append([ 0,  7,  6,  1])
-                    polygons.append([ 1,  6,  9, 10])
-                else:
-                    polygons.append([ 0,  3, 10,  1])
-                    polygons.append([ 3,  4,  9, 10])
-                    polygons.append([ 4,  7,  6,  9])
-            elif amorph2 or amorph3:
-                polygons.append([ 7,  6,  9, 10])
-                polygons.append([ 0,  3,  4,  1])
-                if amorph2:
-                    polygons.append([ 1,  4,  5,  8])
-                    polygons.append([ 2,  7, 10, 11])
-                    polygons.append([ 1,  8,  7,  2])
-                else:
-                    polygons.append([ 2,  1,  4, 11])
-                    polygons.append([ 4,  5, 10, 11])
-                    polygons.append([ 5,  8,  7, 10])
-            else:
-                polygons = [[ 1,  0,  3,  4],
-                            [ 4,  5,  8,  7],
-                            [ 7,  6,  9, 10],
-                            [10, 11,  2,  1],
-                            [ 1,  4,  7, 10]]
+            #sign = [[1, 1], [-1, 1], [-1, -1], [1, -1]]
+            #for i in range(0, 4):
+                #vertices.extend(self.corners[i].generate(numpy.array(sign[i])))
+            #TODO Rewrite to more consistent view
 
-            rebuilded = []
-            vIndex = range(0, len(vertices))
-            while len(vIndex):
-                vert = vertices[vIndex[0]]
-                same = []
-                for i in range(0, len(vertices)):
-                    if numpy.allclose(vertices[i], vert): #TODO Check precision
-                        same.append(i)
-                last = len(rebuilded)
-                for poly in polygons:
-                    for i in range(0, len(poly)):
-                        if poly[i] in same:
-                            poly[i] = last
-                for ind in same:
-                    vIndex.remove(ind)
-                rebuilded.append(vert)
-            for i in range(len(polygons) - 1, -1, -1):
-                for j in range(len(polygons[i]) - 1, -1, -1):
-                    prevInd = len(polygons[i]) - 1 if j == 0 else j - 1
-                    nextInd = 0 if j == len(polygons[i]) - 1 else j + 1
-                    prod = numpy.cross(rebuilded[polygons[i][prevInd]] - rebuilded[polygons[i][j]], \
-                            rebuilded[polygons[i][nextInd]] - rebuilded[polygons[i][j]])
-                    mod = prod[0] * prod[0] + prod[1] * prod[1] + prod[2] * prod[2]
-                    if mod < 1e-5: #TODO Check precision
-                        polygons[i].pop(j)
-                if len(polygons[i]) < 3:
-                    polygons.pop(i)
-            return (rebuilded, polygons)
+            #Left edges
+            inList = []
+            offsetTop, offsetBottom = 0, 0
+            if self.corners[0].chamfer[0] > 0 and self.corners[0].chamfer[1] > 0:
+                inList.append((self.coords[0] + self.corners[0].chamfer * numpy.array([1, 0]), \
+                        self.coords[0] + self.corners[0].chamfer))
+                offsetTop = self.corners[0].chamfer[1]
+            if self.corners[3].chamfer[0] > 0 and self.corners[3].chamfer[1] > 0:
+                inList.append((numpy.array([self.coords[0][0] + self.corners[3].chamfer[0], \
+                        self.coords[1][1] - self.corners[3].chamfer[1]]), \
+                        numpy.array([self.coords[0][0] + self.corners[3].chamfer[0], self.coords[1][1]])))
+                offsetBottom = self.corners[3].chamfer[1]
+            inList.append((numpy.array([self.coords[0][0], self.coords[0][1] + offsetTop]), \
+                    numpy.array([self.coords[0][0], self.coords[1][1] - offsetBottom])))
+
+            #Right edges
+            outList = []
+            offsetTop, offsetBottom = 0, 0
+            if self.corners[1].chamfer[0] > 0 and self.corners[1].chamfer[1] > 0:
+                outList.append((numpy.array([self.coords[1][0] - self.corners[1].chamfer[0], \
+                        self.coords[0][1]]), numpy.array([self.coords[1][0] - self.corners[1].chamfer[0], \
+                        self.coords[0][1] + self.corners[1].chamfer[1]])))
+                offsetTop = self.corners[1].chamfer[1]
+            if self.corners[2].chamfer[0] > 0 and self.corners[2].chamfer[1] > 0:
+                outList.append((self.coords[1] - self.corners[2].chamfer, \
+                        self.coords[1] + self.corners[2].chamfer * numpy.array([-1, 0])))
+                offsetBottom = self.corners[2].chamfer[1]
+            outList.append((numpy.array([self.coords[1][0], self.coords[0][1] + offsetTop]), \
+                    numpy.array([self.coords[1][0], self.coords[1][1] - offsetBottom])))
+
+            #Possible intersections
+            hPoints = []
+            #hPoints.extend([self.coords[0][0], self.coords[1][0]])
+            hPoints.append(self.coords[1][0])
+            #TODO Check precision
+            #if math.fabs(self.corners[0].chamfer[0] - self.corners[3].chamfer[0]) < 1e-5:
+                #if self.corners[0].chamfer[0] > 1e-5:
+                    #hPoints.append(self.coords[0][0] + self.corners[0].chamfer[0])
+            #else:
+                #if self.corners[0].chamfer[0] > 1e-5:
+                    #hPoints.extend(self.coords[0][0] + self.corners[0].chamfer[0])
+                #if self.corners[3].chamfer[0] > 1e-5:
+                    #hPoints.append(self.coords[0][0] + self.corners[3].chamfer[0])
+            if math.fabs(self.corners[1].chamfer[0] - self.corners[2].chamfer[0]) < 1e-5:
+                if self.corners[1].chamfer[0] > 1e-5:
+                    hPoints.append(self.coords[1][0] - self.corners[1].chamfer[0])
+            else:
+                if self.corners[1].chamfer[0] > 1e-5:
+                    hPoints.append(self.coords[1][0] - self.corners[1].chamfer[0])
+                if self.corners[2].chamfer[0] > 1e-5:
+                    hPoints.append(self.coords[1][0] - self.corners[2].chamfer[0])
+            hPoints = sorted(hPoints)
+
+            #print "Out", outList
+            #print "In", inList
+            #for pt in outList:
+                #vList = range(len(vertices), len(vertices) + 4)
+                #vertices.append(numpy.array([pt[0][0], pt[0][1], Rect.THICKNESS]))
+                #vertices.append(numpy.array([pt[1][0], pt[0][1], Rect.THICKNESS]))
+                #vertices.append(numpy.array([pt[1][0], pt[1][1], Rect.THICKNESS]))
+                #vertices.append(numpy.array([pt[0][0], pt[1][1], Rect.THICKNESS]))
+                #polygons.append([vList[0], vList[1], vList[2], vList[3]])
+            #for pt in inList:
+                #vList = range(len(vertices), len(vertices) + 4)
+                #vertices.append(numpy.array([pt[0][0] + 2, pt[0][1], Rect.THICKNESS]))
+                #vertices.append(numpy.array([pt[1][0] + 2, pt[0][1], Rect.THICKNESS]))
+                #vertices.append(numpy.array([pt[1][0] + 2, pt[1][1], Rect.THICKNESS]))
+                #vertices.append(numpy.array([pt[0][0] + 2, pt[1][1], Rect.THICKNESS]))
+                #polygons.append([vList[0], vList[1], vList[2], vList[3]])
+
+            while True:
+                edgeDivided = False
+                endOfPoints = False
+                for i in range(0, len(inList)):
+                    j = 0
+                    while j < len(hPoints):
+                        outIndex = 0
+                        while outIndex < len(outList):
+                            edge = inList[i]
+                            gap = outList[outIndex]
+                            mEdge = (numpy.array([gap[0][0], edge[0][1]]), numpy.array([gap[1][0], edge[1][1]]))
+                            print "edge: ", edge, "gap: ", gap
+                            if Rect.lpCollision(gap, mEdge[0]) or Rect.lpCollision(gap, mEdge[1]):
+                                print "Difference", min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1])
+                                if min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1]) < 1e-5:
+                                    outIndex += 1
+                                    continue
+                                inList.pop(i)
+                                edgeDivided = True
+                                start, end = None, None
+
+                                offset = gap[0][1] - edge[0][1]
+                                if offset > 1e-5:
+                                    #if offset < edge[1][1] - edge[0][1]:
+                                    inList.append((numpy.array([edge[0][0], edge[0][1]]), \
+                                            numpy.array([edge[0][0], edge[0][1] + offset])))
+                                    start = numpy.array([gap[0][0], edge[0][1] + offset])
+                                    print "Append up", inList[-1]
+                                else:
+                                    start = numpy.array([gap[0][0], edge[0][1]])
+
+                                offset = edge[1][1] - gap[1][1]
+                                if offset > 1e-5:
+                                    #if offset < edge[1][1] - edge[0][1]:
+                                    inList.append((numpy.array([edge[1][0], edge[1][1] - offset]), \
+                                            numpy.array([edge[1][0], edge[1][1]])))
+                                    end = numpy.array([gap[1][0], edge[1][1] - offset])
+                                    print "Append down", inList[-1]
+                                else:
+                                    end = numpy.array([gap[1][0], edge[1][1]])
+
+                                if not numpy.allclose(end - start, 0.):
+                                    vList = range(len(vertices), len(vertices) + 4)
+                                    print "Left", ([edge[0][0], start[1]], [edge[1][0], end[1]]),
+                                    print "Right", ([start, end])
+                                    vertices.append(numpy.array([edge[0][0], start[1], Rect.THICKNESS]))
+                                    vertices.append(numpy.array([start[0], start[1], Rect.THICKNESS]))
+                                    vertices.append(numpy.array([end[0], end[1], Rect.THICKNESS]))
+                                    vertices.append(numpy.array([edge[1][0], end[1], Rect.THICKNESS]))
+                                    polygons.append([vList[0], vList[1], vList[2], vList[3]])
+                                break
+                            outIndex += 1
+                        if outIndex == len(outList):
+                            endOfPoints = True
+                            break
+                        if edgeDivided:
+                            break
+                        j += 1
+                    if j == len(hPoints):
+                        endOfPoints = True
+                    if endOfPoints or edgeDivided:
+                        break
+                if endOfPoints or not len(inList):
+                    break
+
+            #rebuilded = []
+            #vIndex = range(0, len(vertices))
+            #while len(vIndex):
+                #vert = vertices[vIndex[0]]
+                #same = []
+                #for i in range(0, len(vertices)):
+                    #if numpy.allclose(vertices[i], vert): #TODO Check precision
+                        #same.append(i)
+                #last = len(rebuilded)
+                #for poly in polygons:
+                    #for i in range(0, len(poly)):
+                        #if poly[i] in same:
+                            #poly[i] = last
+                #for ind in same:
+                    #vIndex.remove(ind)
+                #rebuilded.append(vert)
+            #for i in range(len(polygons) - 1, -1, -1):
+                #for j in range(len(polygons[i]) - 1, -1, -1):
+                    #prevInd = len(polygons[i]) - 1 if j == 0 else j - 1
+                    #nextInd = 0 if j == len(polygons[i]) - 1 else j + 1
+                    #prod = numpy.cross(rebuilded[polygons[i][prevInd]] - rebuilded[polygons[i][j]], \
+                            #rebuilded[polygons[i][nextInd]] - rebuilded[polygons[i][j]])
+                    #mod = prod[0] * prod[0] + prod[1] * prod[1] + prod[2] * prod[2]
+                    #if mod < 1e-5: #TODO Check precision
+                        #polygons[i].pop(j)
+                #if len(polygons[i]) < 3:
+                    #polygons.pop(i)
+            #return (rebuilded, polygons)
+            return (vertices, polygons)
         else:
             vertices, polygons = [], []
             for entry in self.sub:
