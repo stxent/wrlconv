@@ -17,11 +17,14 @@ import Image
 import ImageDraw
 
 import model
+import vrml_export
 #import time
 #import subprocess
 
+THICKNESS = 0.2
+
+
 class Rect:
-    THICKNESS = 0.2
     TOL = 1e-5 #Floating point values tolerance
     class RectCorner:
         def __init__(self, position, chamfer):
@@ -30,12 +33,10 @@ class Rect:
 
         def generate(self, vect):
             vertices = []
+            vertices.append(numpy.array([self.position[0] + self.chamfer[0] * vect[0], self.position[1], 0]))
             vertices.append(numpy.array([self.position[0] + self.chamfer[0] * vect[0],
-                    self.position[1], Rect.THICKNESS]))
-            vertices.append(numpy.array([self.position[0] + self.chamfer[0] * vect[0],
-                    self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS]))
-            vertices.append(numpy.array([self.position[0],
-                    self.position[1] + self.chamfer[1] * vect[1], Rect.THICKNESS]))
+                    self.position[1] + self.chamfer[1] * vect[1], 0]))
+            vertices.append(numpy.array([self.position[0], self.position[1] + self.chamfer[1] * vect[1], 0]))
             return vertices
 
     #Check intersection of rectanle and point
@@ -182,10 +183,10 @@ class Rect:
 
                             if not numpy.allclose(end - start, 0.):
                                 vList = range(len(vertices), len(vertices) + 4)
-                                vertices.append(numpy.array([edge[0][0], start[1], Rect.THICKNESS]))
-                                vertices.append(numpy.array([start[0], start[1], Rect.THICKNESS]))
-                                vertices.append(numpy.array([end[0], end[1], Rect.THICKNESS]))
-                                vertices.append(numpy.array([edge[1][0], end[1], Rect.THICKNESS]))
+                                vertices.append(numpy.array([edge[0][0], start[1], 0]))
+                                vertices.append(numpy.array([start[0], start[1], 0]))
+                                vertices.append(numpy.array([end[0], end[1], 0]))
+                                vertices.append(numpy.array([edge[1][0], end[1], 0]))
                                 polygons.append([vList[0], vList[1], vList[2], vList[3]])
                             break
                     if edgeDivided:
@@ -233,12 +234,15 @@ class Rect:
             vertices.extend(self.corners[1].generate((-1,  1)))
             vertices.extend(self.corners[2].generate((-1, -1)))
             vertices.extend(self.corners[3].generate(( 1, -1)))
-            for vert in vertices:
-                vert[2] = -Rect.THICKNESS
+            count = len(vertices)
             vertices.extend(self.corners[0].generate(( 1,  1)))
             vertices.extend(self.corners[1].generate((-1,  1)))
             vertices.extend(self.corners[2].generate((-1, -1)))
             vertices.extend(self.corners[3].generate(( 1, -1)))
+            for i in range(0, count):
+                vertices[i][2] = -THICKNESS
+            for i in range(count, count * 2):
+                vertices[i][2] = THICKNESS
             return (vertices, polygons)
         else:
             return ([], [])
@@ -431,8 +435,8 @@ class DrillParser:
                         break
             hole = re.search("X([\.\d]+)Y([\.\d]+)", data)
             if current is not None and hole:
-                self.holes[current.number].append((float(hole.group(1)) * self.scale, \
-                        float(hole.group(2)) * self.scale))
+                self.holes[current.number].append(numpy.array([float(hole.group(1)) * self.scale, \
+                        float(hole.group(2)) * self.scale]))
 
     def read(self):
         for path in self.files:
@@ -500,30 +504,11 @@ def optimizeVertices(vertices, polygons):
 def circleRect(position, radius):
     return ((position[0] - radius, position[1] - radius), (position[0] + radius, position[1] + radius))
 
-def wrapTexture(mesh):
-    bounds = [[mesh.vertices[0][0], mesh.vertices[0][1]], [mesh.vertices[0][0], mesh.vertices[0][1]]]
-    for vert in mesh.vertices:
-        if vert[0] < bounds[0][0]:
-            bounds[0][0] = vert[0]
-        if vert[0] > bounds[1][0]:
-            bounds[1][0] = vert[0]
-        if vert[1] < bounds[0][1]:
-            bounds[0][1] = vert[1]
-        if vert[1] > bounds[1][1]:
-            bounds[1][1] = vert[1]
-    print "Model boundaries: (%f, %f), (%f, %f)" % (bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1])
-    size = (bounds[1][0] - bounds[0][0], bounds[1][1] - bounds[0][1])
-    for poly in mesh.polygons:
-        for index in poly:
-            u = (mesh.vertices[index][0] - bounds[0][0]) / size[0]
-            v = 1.0 - (mesh.vertices[index][1] - bounds[0][1]) / size[1]
-            mesh.texels.append(numpy.array([u, v]))
-
 def createBoard(vertices, polygons):
     top, bottom = model.Mesh(), model.Mesh()
     for vert in vertices:
-        top.vertices.append(numpy.array([vert[0], vert[1], Rect.THICKNESS]))
-        bottom.vertices.append(numpy.array([vert[0], vert[1], -Rect.THICKNESS]))
+        top.vertices.append(numpy.array([vert[0], vert[1], THICKNESS]))
+        bottom.vertices.append(numpy.array([vert[0], vert[1], -THICKNESS]))
     for poly in polygons:
         top.polygons.append(poly[::])
         bottom.polygons.append(poly[::-1])
@@ -536,9 +521,9 @@ def createHole(radius):
     angle, delta = 0, math.pi * 2 / edges
     for i in range(0, edges):
         xPos, yPos = radius * math.cos(angle), radius * math.sin(angle)
-        top.vertices.append(numpy.array([xPos, yPos, Rect.THICKNESS]))
-        bottom.vertices.append(numpy.array([xPos, yPos, -Rect.THICKNESS]))
-        hole.vertices.extend([numpy.array([xPos, yPos, Rect.THICKNESS]), numpy.array([xPos, yPos, -Rect.THICKNESS])])
+        top.vertices.append(numpy.array([xPos, yPos, THICKNESS]))
+        bottom.vertices.append(numpy.array([xPos, yPos, -THICKNESS]))
+        hole.vertices.extend([numpy.array([xPos, yPos, THICKNESS]), numpy.array([xPos, yPos, -THICKNESS])])
         angle += delta
 
     hole.polygons.append([(edges - 1) * 2, 0, 1, (edges - 1) * 2 + 1])
@@ -547,8 +532,8 @@ def createHole(radius):
 
     planarCoords = [[radius, radius], [-radius, radius], [-radius, -radius], [radius, -radius]]
     for pair in planarCoords:
-        top.vertices.append(numpy.array([pair[0], pair[1], Rect.THICKNESS]))
-        bottom.vertices.append(numpy.array([pair[0], pair[1], -Rect.THICKNESS]))
+        top.vertices.append(numpy.array([pair[0], pair[1], THICKNESS]))
+        bottom.vertices.append(numpy.array([pair[0], pair[1], -THICKNESS]))
 
     mult = edges / 4
     for i in range(0, mult):
@@ -556,74 +541,6 @@ def createHole(radius):
             top.polygons.append([(i + 0) + mult * j, edges + j, (i + 1) + mult * j])
             bottom.polygons.append([(i + 1) + mult * j, edges + j, (i + 0) + mult * j])
     return (top, hole, bottom)
-
-def writeVRML(out, mesh, offset, colors, img = None):
-    scale = (0.03937, 0.03937)
-    out.write("#VRML V2.0 utf8\n#Created by b2m.py\n")
-    out.write("DEF OB_%u Transform {\n" % random.randint(1000, 9999))
-    out.write("\ttranslation 0 0 0\n")
-    out.write("\trotation 1 0 0 0\n")
-    out.write("\tscale 1 1 1\n")
-    out.write("\tchildren [\n"
-              "\t\tDEF ME_%u Group {\n"
-              "\t\t\tchildren [\n"
-              "\t\t\t\tShape {\n" % random.randint(1000, 9999))
-    out.write("\t\t\t\t\tappearance Appearance {\n"
-              "\t\t\t\t\t\tmaterial DEF MAT_%u Material {\n" % random.randint(1000, 9999))
-    if img != None:
-        out.write("\t\t\t\t\t\t\tdiffuseColor 1.0 1.0 1.0\n")
-    else:
-        out.write("\t\t\t\t\t\t\tdiffuseColor %f %f %f\n" % (colors["mask"][0], colors["mask"][1], colors["mask"][2]))
-    out.write("\t\t\t\t\t\t\tambientIntensity 0.2\n"
-              "\t\t\t\t\t\t\tspecularColor 1.0 1.0 1.0\n"
-              "\t\t\t\t\t\t\temissiveColor  0.0 0.0 0.0\n"
-              "\t\t\t\t\t\t\tshininess 0.5\n"
-              "\t\t\t\t\t\t\ttransparency 0.0\n"
-              "\t\t\t\t\t\t}\n");
-    if img != None:
-        out.write("\t\t\t\t\t\ttexture DEF diffusemap ImageTexture {\n"
-                "\t\t\t\t\t\t\turl \"%s\"\n"
-                "\t\t\t\t\t\t}\n" % img["diffuse"])
-        out.write("\t\t\t\t\t\ttexture DEF normalmap ImageTexture {\n"
-                "\t\t\t\t\t\t\turl \"%s\"\n"
-                "\t\t\t\t\t\t}\n" % img["normals"])
-    out.write("\t\t\t\t\t}\n")
-    out.write("\t\t\t\t\tgeometry IndexedFaceSet {\n"
-              "\t\t\t\t\t\tsolid FALSE\n"
-              "\t\t\t\t\t\tcoord DEF coord_Cube Coordinate {\n"
-              "\t\t\t\t\t\t\tpoint [\n")
-    for v in mesh.vertices:
-        out.write("%f %f %f\n" % ((v[0] + offset[0]) * scale[0], (v[1] + offset[1]) * scale[1], v[2]))
-    out.write("\t\t\t\t\t\t\t]\n"
-              "\t\t\t\t\t\t}\n"
-              "\t\t\t\t\t\tcoordIndex [\n")
-    for p in mesh.polygons:
-        for index in p:
-            out.write("%u " % index)
-        out.write("-1,\n")
-
-    if img != None:
-        out.write("\t\t\t\t\t\t]\n");
-        out.write("\t\t\t\t\t\ttexCoord TextureCoordinate {\n"
-                "\t\t\t\t\t\tpoint [\n");
-        for v in mesh.texels:
-            out.write("%f %f,\n" % (v[0], v[1]))
-        out.write("\t\t\t\t\t\t]\n");
-        out.write("\t\t\t\t\t}\n");
-        out.write("\t\t\t\t\ttexCoordIndex [\n");
-        i = 0
-        for p in mesh.polygons:
-            for index in p:
-                out.write("%u " % i)
-                i += 1
-            out.write("-1\n")
-    out.write("\t\t\t\t\t\t]\n"
-              "\t\t\t\t\t}\n"
-              "\t\t\t\t}\n"
-              "\t\t\t]\n"
-              "\t\t}\n"
-              "\t]\n"
-              "}\n")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", dest="path", help="project directory", default="")
@@ -644,7 +561,7 @@ for color in [("mask", options.mask), ("silk", options.silk), ("plating", option
     splitted = color[1].split(",")
     #TODO Add value checking
     try:
-        colors[color[0]] = (float(splitted[0]) / 256, float(splitted[1]) / 256, float(splitted[2]) / 256)
+        colors[color[0]] = numpy.array([float(splitted[0]) / 256, float(splitted[1]) / 256, float(splitted[2]) / 256])
     except ValueError:
         print "Wrong color parameter: %s" % color[1]
 
@@ -653,7 +570,7 @@ for layer in [("Front", "F", "front"), ("Back", "B", "back")]:
     layerFile = "%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0])
     if os.path.isfile(layerFile):
         layerList[layer[2]] = ({"diffuse": "%s-%s_Diffuse.png" % (options.project, layer[0]), \
-                "normals": "%s-%s_Normals.png" % (options.project, layer[0])})
+                "normalmap": "%s-%s_Normals.png" % (options.project, layer[0])})
     else:
         print "Layer file does not exist: %s" % layerFile
 
@@ -675,9 +592,9 @@ else:
     print "No copper layers found"
     exit()
 
-boardCn = (boardSize[0] / 2, boardSize[1] / 2)
+boardCn = numpy.array([boardSize[0] / 2, boardSize[1] / 2])
 
-test = Rect(((0, 0), boardSize), ((0, 0), (0, 0), (0, 0), (0, 0)))
+test = Rect((-boardCn, +boardCn), ((0, 0), (0, 0), (0, 0), (0, 0)))
 borders = model.Mesh()
 borders.vertices, borders.polygons = test.borders()
 
@@ -694,7 +611,7 @@ for tool in dp.tools:
 
 for tool in dp.tools:
     for hole in dp.holes[tool.number]:
-        test.subdivide(circleRect(hole, tool.diameter))
+        test.subdivide(circleRect(hole - boardCn, tool.diameter))
 
 vert, poly = test.tesselate()
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
@@ -725,23 +642,55 @@ for tool in dp.tools:
         holeCylinder = model.Mesh(holeModels[tool.number][1])
         holeBottom = model.Mesh(holeModels[tool.number][2])
 
-        holeTop.translate((hole[0], hole[1], 0));
-        holeCylinder.translate((hole[0], hole[1], 0));
-        holeBottom.translate((hole[0], hole[1], 0));
+        holeTop.translate((hole[0] - boardCn[0], hole[1] - boardCn[1], 0));
+        holeCylinder.translate((hole[0] - boardCn[0], hole[1] - boardCn[1], 0));
+        holeBottom.translate((hole[0] - boardCn[0], hole[1] - boardCn[1], 0));
 
         inner.append(holeCylinder)
         front.append(holeTop)
         back.append(holeBottom)
 
-wrapTexture(front)
-wrapTexture(back)
-#wrapTexture(inner)
-#wrapTexture(borders)
+model.uvWrapPlanar(front)
+model.uvWrapPlanar(back)
+model.uvWrapPlanar(inner, (-boardCn, +boardCn))
 
-out = open("%sboard.wrl" % outPath, "wb")
+boardColor = model.Material.Color()
+boardColor.diffuse = colors["mask"]
+boardColor.ambient = colors["mask"] / 5
+boardColor.shininess = 0.95
+boardColor.specular = boardColor.diffuse
+borders.material.color = boardColor
+
+texColor = model.Material.Color()
+texColor.shininess = 0.95
+texColor.specular = texColor.diffuse
+front.material.color = texColor
+back.material.color = texColor
+inner.material.color = texColor
+
 #TODO Fix order
-writeVRML(out, front, (-boardCn[0], -boardCn[1]), colors, layerList["back"])
-writeVRML(out, back, (-boardCn[0], -boardCn[1]), colors, layerList["front"])
-writeVRML(out, inner, (-boardCn[0], -boardCn[1]), colors)
-writeVRML(out, borders, (-boardCn[0], -boardCn[1]), colors)
+if "back" in layerList:
+    front.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
+    front.material.normalmap = model.Material.Texture(layerList["back"]["normalmap"])
+else:
+    front.material.color = boardColor
+if "front" in layerList:
+    back.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
+    back.material.normalmap = model.Material.Texture(layerList["front"]["normalmap"])
+else:
+    back.material.color = boardColor
+
+if "front" in layerList:
+    inner.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
+elif "back" in layerList:
+    inner.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
+else:
+    inner.material.color = boardColor
+
+exportList = [front, back, inner, borders]
+for entry in exportList:
+    entry.scale((0.025, 0.025, 1.0))
+
+vrml_export.exportVRML("%s%s.wrl" % (outPath, options.project), exportList)
+
 colorData.show()

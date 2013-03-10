@@ -11,20 +11,35 @@ import math
 
 class Material:
     class Color:
-        def __init__(self):
-            self.diffuse = [1., 1., 1., 1.]
-            self.ambient = [1., 1., 1., 1.]
-            self.specular = [0., 0., 0., 1.]
-            self.emissive = [0., 0., 0., 1.]
+        IDENT = 0
+        def __init__(self, name = None):
+            self.diffuse = [1., 1., 1.]
+            self.ambient = [1., 1., 1.]
+            self.specular = [0., 0., 0.]
+            self.emissive = [0., 0., 0.]
             self.shininess = 0.
             self.transparency = 0.
+            if name is None:
+                self.ident = str(Material.Color.IDENT)
+                Material.Color.IDENT += 1
+            else:
+                self.ident = name
 
     class Texture:
-        def __init__(self):
-            self.name = ""
+        IDENT = 0
+        def __init__(self, path, name = None):
+            self.path = path
+            if name is None:
+                self.ident = str(Material.Texture.IDENT)
+                Material.Texture.IDENT += 1
+            else:
+                self.ident = name
 
     def __init__(self):
-        self.shader = ""
+        self.color = Material.Color()
+        self.diffuse = None
+        self.normalmap = None
+        self.specular = None
 
 
 class Transform:
@@ -48,15 +63,23 @@ class Transform:
                             [0., 0., 0., 1.]])
         self.value = self.value * mat
 
-    def scale(self, value):
-        mat = numpy.matrix([[value[0], 0., 0., 0.], [0., value[1], 0., 0.], [0., 0., value[2], 0.], [0., 0., 0., 1.]])
-        self.value = self.value * scale
+    def scale(self, scale):
+        mat = numpy.matrix([[scale[0], 0., 0., 0.], [0., scale[1], 0., 0.], [0., 0., scale[2], 0.], [0., 0., 0., 1.]])
+        self.value = self.value * mat
 
 
 class Mesh:
-    def __init__(self, parent = None):
+    IDENT = 0
+
+    def __init__(self, parent = None, name = None):
         self.transform = None
         self.parent = parent
+
+        if name is None:
+            self.ident = str(Mesh.IDENT)
+            Mesh.IDENT += 1
+        else:
+            self.ident = name
 
         if self.parent is None:
             self.vertices = []
@@ -97,3 +120,23 @@ class Mesh:
         if self.transform is None:
             self.transform = Transform()
         self.transform.scale(arg)
+
+
+def uvWrapPlanar(mesh, borders = None):
+    if borders is None:
+        borders = [[mesh.vertices[0][0], mesh.vertices[0][1]], [mesh.vertices[0][0], mesh.vertices[0][1]]]
+        for vert in mesh.vertices:
+            if vert[0] < borders[0][0]:
+                borders[0][0] = vert[0]
+            if vert[0] > borders[1][0]:
+                borders[1][0] = vert[0]
+            if vert[1] < borders[0][1]:
+                borders[0][1] = vert[1]
+            if vert[1] > borders[1][1]:
+                borders[1][1] = vert[1]
+    size = (borders[1][0] - borders[0][0], borders[1][1] - borders[0][1])
+    for poly in mesh.polygons:
+        for index in poly:
+            u = (mesh.vertices[index][0] - borders[0][0]) / size[0]
+            v = 1.0 - (mesh.vertices[index][1] - borders[0][1]) / size[1]
+            mesh.texels.append(numpy.array([u, v]))
