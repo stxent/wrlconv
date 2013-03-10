@@ -51,7 +51,10 @@ def getNormal(v1, v2):
                          [float(v1[0] * v2[1] - v1[1] * v2[0])]])
 
 def getTangent(v1, v2, st1, st2):
-    coef = 1. / (st1[1] * st2[0] - st1[0] * st2[1])
+    div = st1[1] * st2[0] - st1[0] * st2[1]
+    if div == 0:
+        return numpy.array([0.0, 0.0, 1.0])
+    coef = 1. / div
     return numpy.array([coef * (v1[0] * -st2[1] + v2[0] * st1[1]),
                         coef * (v1[1] * -st2[1] + v2[1] * st1[1]),
                         coef * (v1[2] * -st2[1] + v2[2] * st1[1])])

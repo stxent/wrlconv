@@ -138,5 +138,5 @@ def uvWrapPlanar(mesh, borders = None):
     for poly in mesh.polygons:
         for index in poly:
             u = (mesh.vertices[index][0] - borders[0][0]) / size[0]
-            v = 1.0 - (mesh.vertices[index][1] - borders[0][1]) / size[1]
+            v = (mesh.vertices[index][1] - borders[0][1]) / size[1]
             mesh.texels.append(numpy.array([u, v]))

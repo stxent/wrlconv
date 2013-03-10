@@ -21,7 +21,7 @@ import vrml_export
 #import time
 #import subprocess
 
-THICKNESS = 0.2
+THICKNESS = 0.1
 
 
 class Rect:
@@ -611,7 +611,7 @@ for tool in dp.tools:
 
 for tool in dp.tools:
     for hole in dp.holes[tool.number]:
-        test.subdivide(circleRect(hole - boardCn, tool.diameter))
+        test.subdivide(circleRect((hole[0] - boardCn[0], -(hole[1] - boardCn[1])), tool.diameter))
 
 vert, poly = test.tesselate()
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
@@ -642,9 +642,9 @@ for tool in dp.tools:
         holeCylinder = model.Mesh(holeModels[tool.number][1])
         holeBottom = model.Mesh(holeModels[tool.number][2])
 
-        holeTop.translate((hole[0] - boardCn[0], hole[1] - boardCn[1], 0));
-        holeCylinder.translate((hole[0] - boardCn[0], hole[1] - boardCn[1], 0));
-        holeBottom.translate((hole[0] - boardCn[0], hole[1] - boardCn[1], 0));
+        holeTop.translate((hole[0] - boardCn[0], -(hole[1] - boardCn[1]), 0));
+        holeCylinder.translate((hole[0] - boardCn[0], -(hole[1] - boardCn[1]), 0));
+        holeBottom.translate((hole[0] - boardCn[0], -(hole[1] - boardCn[1]), 0));
 
         inner.append(holeCylinder)
         front.append(holeTop)
@@ -669,14 +669,14 @@ back.material.color = texColor
 inner.material.color = texColor
 
 #TODO Fix order
-if "back" in layerList:
-    front.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
-    front.material.normalmap = model.Material.Texture(layerList["back"]["normalmap"])
+if "front" in layerList:
+    front.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
+    front.material.normalmap = model.Material.Texture(layerList["front"]["normalmap"])
 else:
     front.material.color = boardColor
-if "front" in layerList:
-    back.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
-    back.material.normalmap = model.Material.Texture(layerList["front"]["normalmap"])
+if "back" in layerList:
+    back.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
+    back.material.normalmap = model.Material.Texture(layerList["back"]["normalmap"])
 else:
     back.material.color = boardColor
 
@@ -692,5 +692,3 @@ for entry in exportList:
     entry.scale((0.025, 0.025, 1.0))
 
 vrml_export.exportVRML("%s%s.wrl" % (outPath, options.project), exportList)
-
-colorData.show()

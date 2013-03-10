@@ -98,7 +98,7 @@ class Render:
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
     #TODO Split into two different functions for diffuse texture and normal map
-    def processImage(self, size, textures, shader, colors):
+    def processImage(self, size, textures, shader, colors, mirror = False):
         layers = [GL_TEXTURE0, GL_TEXTURE1, GL_TEXTURE2, GL_TEXTURE3]
         texList = []
         position = 0
@@ -137,6 +137,10 @@ class Render:
         glUniform3f(color, colors["mask"][0], colors["mask"][1], colors["mask"][2])
         color = glGetUniformLocation(self.shaders[shader], "silkColor")
         glUniform3f(color, colors["silk"][0], colors["silk"][1], colors["silk"][2])
+
+        orient = glGetUniformLocation(self.shaders[shader], "orientation")
+        val = -1.0 if mirror else 1.0
+        glUniform1f(orient, val)
 
         glViewport(0, 0, size[0], size[1])
         glMatrixMode(GL_PROJECTION)
@@ -206,7 +210,6 @@ if os.path.isfile(edgeFile):
         for j in range(0, len(boardPos[i])):
             boardPos[i][j] = boardPos[i][j] / 10000
         boardPos[i][1] = 8.26799 - boardPos[i][1] #FIXME Remove hardcoded values
-    print boardPos
 else:
     print "% not found" % edgeFile
     exit()
@@ -238,7 +241,8 @@ for layer in [("Front", "F"), ("Back", "B")]:
                     raise Exception()
         except:
             continue
-        layerList.append(((layerCu, layerSilk, layerMask), {"diffuse": layerDiffuse, "normals": layerNormal}))
+        mirror = True if layer[0] == "Front" else False
+        layerList.append(((layerCu, layerSilk, layerMask), {"diffuse": layerDiffuse, "normals": layerNormal}, mirror))
     else:
         print "Layer file does not exist: %s" % layerFile
 
@@ -255,24 +259,19 @@ for layer in layerList:
         else:
             convert = True
         if convert:
-            #TODO Replace with something command-line
-            #subprocess.call(["inkscape", "%s%s.svg" % (options.path, entry), "--verb", "FitCanvasToDrawing", "--verb", \
-                    #"FileSave", "--verb", "FileClose"])
             subprocess.call(["inkscape", "-f", "%s%s.svg" % (options.path, entry), "--export-dpi", "900", "-e", \
                     "%s%s.png" % (outPath, entry), "-a", "%u:%u:%u:%u" % \
                     (int(boardPos[0][0] * 90), int(boardPos[0][1] * 90), \
                     int(boardPos[1][0] * 90), int(boardPos[1][1] * 90))])
-            #stdout=subprocess.PIPE
-            #subprocess.call(["rsvg", "--x-zoom=10.0", "--y-zoom=10.0", "--format=png", "%s.svg", "%s.png"])
         tmp = Image.open("%s%s.png" % (outPath, entry))
         tmp.load()
         images.append(tmp)
     width, height = images[0].size
     #TODO dpi=(dpi[0] * 5.0, dpi[1] * 5.0)
     #Diffuse texture
-    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "diffuse", colors)
+    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "diffuse", colors, layer[2])
     processed.save("%s%s.png" % (outPath, layer[1]["diffuse"]), "PNG")
     #Normal map
-    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "normalmap", colors)
+    processed = rend.processImage((width, height), [images[0], images[1], images[2]], "normalmap", colors, layer[2])
     processed.save("%s%s.png" % (outPath, layer[1]["normals"]), "PNG")
     print "Image size: %dx%d" % (width, height)
