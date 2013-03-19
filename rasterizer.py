@@ -197,6 +197,14 @@ parser.add_argument("--silk", dest="silk", help="silk color", default="255,255,2
 parser.add_argument("--plating", dest="plating", help="plating color", default="255,228,0")
 options = parser.parse_args()
 
+if options.path[-1] != '/':
+    options.path += '/'
+if options.project == "":
+    options.project = os.path.basename(options.path[0:-1])
+    if options.project == "":
+        print "Project name is empty"
+        exit()
+    print "Detected project name: %s" % options.project
 if options.output == "":
     outPath = options.path
 else:
@@ -211,7 +219,7 @@ if os.path.isfile(edgeFile):
             boardPos[i][j] = boardPos[i][j] / 10000
         boardPos[i][1] = 8.26799 - boardPos[i][1] #FIXME Remove hardcoded values
 else:
-    print "% not found" % edgeFile
+    print "%s not found" % edgeFile
     exit()
 
 colors = {"mask": (), "silk": (), "plating": ()}

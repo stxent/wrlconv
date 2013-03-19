@@ -551,6 +551,14 @@ parser.add_argument("--silk", dest="silk", help="silk color", default="255,255,2
 parser.add_argument("--plating", dest="plating", help="plating color", default="255,228,0")
 options = parser.parse_args()
 
+if options.path[-1] != '/':
+    options.path += '/'
+if options.project == "":
+    options.project = os.path.basename(options.path[0:-1])
+    if options.project == "":
+        print "Project name is empty"
+        exit()
+    print "Detected project name: %s" % options.project
 if options.output == "":
     outPath = options.path
 else:
@@ -580,7 +588,7 @@ if os.path.isfile(edgeFile):
     boardPos = calcBorders(edgeFile)
     boardSize = (boardPos[1] - boardPos[0]) / 1000 * 2.54 #FIXME Scale
 else:
-    print "% not found" % edgeFile
+    print "%s not found" % edgeFile
     exit()
 
 if len(layerList) > 0:
@@ -669,7 +677,6 @@ front.material.color = texColor
 back.material.color = texColor
 inner.material.color = texColor
 
-#TODO Fix order
 if "front" in layerList:
     front.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
     front.material.normalmap = model.Material.Texture(layerList["front"]["normalmap"])
