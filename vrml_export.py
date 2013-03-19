@@ -52,8 +52,13 @@ def exportVRML(path, data):
                      "Shape {\n")
         writeMaterial(spec, stream, shape.material)
         stream.write("geometry IndexedFaceSet {\n"
-                     "solid FALSE\n"
-                     "coord DEF FS_%s Coordinate {\n" % shape.ident +
+                     "solid FALSE\n")
+        if spec == VRML_EXT:
+            if shape.smooth:
+                stream.write("smooth TRUE\n")
+            else:
+                stream.write("smooth FALSE\n")
+        stream.write("coord DEF FS_%s Coordinate {\n" % shape.ident +
                      "point [\n")
         for srcVert in shape.vertices:
             if shape.transform is not None:

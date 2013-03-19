@@ -635,6 +635,7 @@ for i in range(0, len(vert)):
 
 front, back = createBoard(vert, poly)
 inner = model.Mesh()
+inner.smooth = True
 
 for tool in dp.tools:
     for hole in dp.holes[tool.number]:

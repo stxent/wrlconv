@@ -655,7 +655,6 @@ class vrmlGeometry(vrmlEntry):
     def __init__(self, parent):
         vrmlEntry.__init__(self, parent)
         self.smooth     = False
-        #self.smooth     = True
         self.solid      = False
         self.polygons   = None
         self.triCount   = 0
@@ -665,10 +664,14 @@ class vrmlGeometry(vrmlEntry):
     def readSpecific(self, fd, string):
         #print "%sTry geo read: %s" % (' ' * self._level, string.replace("\n", "").replace("\t", ""))
         initialPos = fd.tell()
+
         paramSearch = re.search("solid\s+(TRUE|FALSE)", string, re.S)
-        if paramSearch:
-            if paramSearch.group(1) == "TRUE":
-                self.solid = True
+        if paramSearch and paramSearch.group(1) == "TRUE":
+            self.solid = True
+        paramSearch = re.search("smooth\s+(TRUE|FALSE)", string, re.S)
+        if paramSearch and paramSearch.group(1) == "TRUE":
+            self.smooth = True
+
         coordSearch = re.search("coordIndex\s*\[", string, re.S)
         texSearch = re.search("texCoordIndex\s*\[", string, re.S)
         if not coordSearch and not texSearch:

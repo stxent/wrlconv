@@ -86,11 +86,13 @@ class Mesh:
             self.polygons = []
             self.texels = []
             self.material = Material()
+            self.smooth = False #Smooth or flat shading
         else:
             self.vertices = parent.vertices
             self.polygons = parent.polygons
             self.texels = parent.texels
             self.material = parent.material #FIXME Separate material?
+            self.smooth = parent.smooth
 
     def append(self, other):
         size = len(self.vertices)
