@@ -594,8 +594,11 @@ else:
 if len(layerList) > 0:
     layer = layerList.itervalues().next()
     tmp = Image.open(outPath + layer["diffuse"])
-    #TODO Add variable DPI
-    boardSize = (float(tmp.size[0]) / 900.0 * 254, float(tmp.size[1]) / 900.0 * 254)
+    if not "dpi" in tmp.info:
+        print "DPI in image metadata not set"
+        exit()
+    dpi = tmp.info["dpi"]
+    boardSize = (float(tmp.size[0]) / float(dpi[0]) * 254.0, float(tmp.size[1]) / float(dpi[1]) * 254.0)
 else:
     print "No copper layers found"
     exit()

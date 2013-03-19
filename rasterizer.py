@@ -18,10 +18,6 @@ from OpenGL.GLUT import *
 from OpenGL.GL.shaders import *
 from OpenGL.GL.framebufferobjects import *
 
-#TODO
-dpi = (90, 90) #Destination dpi
-
-
 def createShader(vertSource, fragSource):
     try:
         program = compileProgram(compileShader(vertSource, GL_VERTEX_SHADER), 
@@ -192,6 +188,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-i", dest="path", help="project directory", default="")
 parser.add_argument("-p", dest="project", help="project name", default="")
 parser.add_argument("-o", dest="output", help="output directory", default="")
+parser.add_argument("--dpi", dest="dpi", help="resulting texture DPI", type=int, default=900)
 parser.add_argument("--mask", dest="mask", help="mask color", default="10,35,85")
 parser.add_argument("--silk", dest="silk", help="silk color", default="255,255,255")
 parser.add_argument("--plating", dest="plating", help="plating color", default="255,228,0")
@@ -240,7 +237,6 @@ for layer in [("Front", "F"), ("Back", "B")]:
         layerMask = "%s-%s_Mask" % (options.project, layer[1])
         layerDiffuse = "%s-%s_Diffuse" % (options.project, layer[0]) #Diffuse texture
         layerNormal = "%s-%s_Normals" % (options.project, layer[0]) #Normal map
-        #TODO Improve error handling
         try:
             for entry in (layerCu, layerSilk, layerMask):
                 filePath = "%s%s.svg" % (options.path, layerCu)
@@ -258,28 +254,28 @@ rend = Render()
 for layer in layerList:
     images = []
     for entry in layer[0]:
-        convert = False
-        if os.path.isfile("%s%s.png" % (outPath, entry)):
-            srcTime = os.path.getctime("%s%s.svg" % (options.path, entry))
-            dstTime = os.path.getctime("%s%s.png" % (outPath, entry))
-            if srcTime > dstTime:
-                convert = True
-        else:
-            convert = True
+        convert = True
+        #convert = False
+        #if os.path.isfile("%s%s.png" % (outPath, entry)):
+            #srcTime = os.path.getctime("%s%s.svg" % (options.path, entry))
+            #dstTime = os.path.getctime("%s%s.png" % (outPath, entry))
+            #if srcTime > dstTime:
+                #convert = True
+        #else:
+            #convert = True
         if convert:
-            subprocess.call(["inkscape", "-f", "%s%s.svg" % (options.path, entry), "--export-dpi", "900", "-e", \
-                    "%s%s.png" % (outPath, entry), "-a", "%u:%u:%u:%u" % \
+            subprocess.call(["inkscape", "-f", "%s%s.svg" % (options.path, entry), "--export-dpi", str(options.dpi), \
+                    "-e", "%s%s.png" % (outPath, entry), "-a", "%u:%u:%u:%u" % \
                     (int(boardPos[0][0] * 90), int(boardPos[0][1] * 90), \
                     int(boardPos[1][0] * 90), int(boardPos[1][1] * 90))])
         tmp = Image.open("%s%s.png" % (outPath, entry))
         tmp.load()
         images.append(tmp)
     width, height = images[0].size
-    #TODO dpi=(dpi[0] * 5.0, dpi[1] * 5.0)
     #Diffuse texture
     processed = rend.processImage((width, height), [images[0], images[1], images[2]], "diffuse", colors, layer[2])
-    processed.save("%s%s.png" % (outPath, layer[1]["diffuse"]), "PNG")
+    processed.save("%s%s.png" % (outPath, layer[1]["diffuse"]), "PNG", dpi=(options.dpi, options.dpi))
     #Normal map
     processed = rend.processImage((width, height), [images[0], images[1], images[2]], "normalmap", colors, layer[2])
-    processed.save("%s%s.png" % (outPath, layer[1]["normals"]), "PNG")
+    processed.save("%s%s.png" % (outPath, layer[1]["normals"]), "PNG", dpi=(options.dpi, options.dpi))
     print "Image size: %dx%d" % (width, height)
