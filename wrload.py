@@ -165,7 +165,8 @@ class vrmlEntry:
                 entryType = regexp.group(3)
                 try:
                     if isinstance(self, vrmlScene) or isinstance(self, vrmlTransform) or isinstance(self, vrmlInline):
-                        if entryType in ("Transform", "Group", "Collision"):
+                        #Collision and Switch nodes functionality unimplemented
+                        if entryType in ("Transform", "Group", "Collision", "Switch"):
                             entry = vrmlTransform(self)
                             #Transform filtering
                             if namePattern and len(regexp.group(2)) != 0:
@@ -872,11 +873,12 @@ class vrmlMaterial(vrmlEntry):
         self.diffuseColor[3] = 1. - self.transparency
 
     def write(self, fd, compList):
-        if not self.name in compList:
+        matName = self.name if self.name != "" else "Unnamed_%d" % self.id
+        if not matName in compList:
             ambInt = self.ambientIntensity * 3.
             if ambInt > 1.:
                 ambInt = 1.
-            fd.write("      appearance Appearance {\n        material DEF %s Material {\n" % self.name)
+            fd.write("      appearance Appearance {\n        material DEF %s Material {\n" % matName)
             fd.write("          diffuseColor %f %f %f\n" % (self.diffuseColor[0], self.diffuseColor[1], self.diffuseColor[2]))
             fd.write("          emissiveColor %f %f %f\n" % (self.emissiveColor[0], self.emissiveColor[1], self.emissiveColor[2]))
             fd.write("          specularColor %f %f %f\n" % (self.specularColor[0], self.specularColor[1], self.specularColor[2]))
@@ -884,9 +886,9 @@ class vrmlMaterial(vrmlEntry):
             fd.write("          transparency %f\n" % self.transparency)
             fd.write("          shininess %f\n" % self.shininess)
             fd.write("        }\n      }\n")
-            compList.append(self.name)
+            compList.append(matName)
         else:
-            fd.write("      appearance Appearance {\n        material USE %s\n      }\n" % self.name)
+            fd.write("      appearance Appearance {\n        material USE %s\n      }\n" % matName)
 
 
 class vrmlTexture(vrmlEntry):
