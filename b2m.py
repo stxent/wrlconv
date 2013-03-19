@@ -546,9 +546,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-i", dest="path", help="project directory", default="")
 parser.add_argument("-p", dest="project", help="project name", default="")
 parser.add_argument("-o", dest="output", help="output directory", default="")
+parser.add_argument("--format", dest="format", help="VRML format", type=str, choices=["extended", "strict", "kicad"], \
+        default="extended")
 parser.add_argument("--mask", dest="mask", help="mask color", default="38,104,68")
 parser.add_argument("--silk", dest="silk", help="silk color", default="255,255,255")
 parser.add_argument("--plating", dest="plating", help="plating color", default="255,228,0")
+parser.add_argument("--disable-textures", dest="disable_textures", help="remove textures from exported board model", \
+        default=False, action="store_true")
+parser.add_argument("--disable-packages", dest="disable_packages", \
+        help="remove 3D packages from exported board model", default=False, action="store_true")
 options = parser.parse_args()
 
 if options.path[-1] != '/':
@@ -662,9 +668,13 @@ for tool in dp.tools:
         front.append(holeTop)
         back.append(holeBottom)
 
-model.uvWrapPlanar(front)
-model.uvWrapPlanar(back)
-model.uvWrapPlanar(inner, (-boardCn, +boardCn))
+expType = {"extended": vrml_export.VRML_EXT, "strict": vrml_export.VRML_STRICT, \
+        "kicad": vrml_export.VRML_KICAD}[options.format]
+
+if expType != vrml_export.VRML_KICAD:
+    model.uvWrapPlanar(front)
+    model.uvWrapPlanar(back)
+    model.uvWrapPlanar(inner, (-boardCn, +boardCn))
 
 boardColor = model.Material.Color()
 boardColor.diffuse = colors["mask"]
@@ -673,33 +683,38 @@ boardColor.shininess = 0.95
 boardColor.specular = boardColor.diffuse
 borders.material.color = boardColor
 
-texColor = model.Material.Color()
-texColor.shininess = 0.95
-texColor.specular = texColor.diffuse
-front.material.color = texColor
-back.material.color = texColor
-inner.material.color = texColor
+if expType != vrml_export.VRML_KICAD:
+    texColor = model.Material.Color()
+    texColor.shininess = 0.95
+    texColor.specular = texColor.diffuse
+    front.material.color = texColor
+    back.material.color = texColor
+    inner.material.color = texColor
 
-if "front" in layerList:
-    front.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
-    front.material.normalmap = model.Material.Texture(layerList["front"]["normalmap"])
+    if "front" in layerList:
+        front.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
+        front.material.normalmap = model.Material.Texture(layerList["front"]["normalmap"])
+    else:
+        front.material.color = boardColor
+    if "back" in layerList:
+        back.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
+        back.material.normalmap = model.Material.Texture(layerList["back"]["normalmap"])
+    else:
+        back.material.color = boardColor
+
+    if "front" in layerList:
+        inner.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
+    elif "back" in layerList:
+        inner.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
+    else:
+        inner.material.color = boardColor
 else:
     front.material.color = boardColor
-if "back" in layerList:
-    back.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
-    back.material.normalmap = model.Material.Texture(layerList["back"]["normalmap"])
-else:
     back.material.color = boardColor
-
-if "front" in layerList:
-    inner.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
-elif "back" in layerList:
-    inner.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
-else:
     inner.material.color = boardColor
 
 exportList = [front, back, inner, borders]
 for entry in exportList:
     entry.scale((0.025, 0.025, 1.0))
 
-vrml_export.exportVRML("%s%s.wrl" % (outPath, options.project), exportList)
+vrml_export.exportVRML(expType, "%s%s.wrl" % (outPath, options.project), exportList)

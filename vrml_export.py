@@ -12,12 +12,12 @@ import model
 
 VRML_STRICT, VRML_KICAD, VRML_EXT = range(0, 3)
 
-def exportVRML(path, data):
+def exportVRML(spec, path, data):
     def writeMaterial(spec, stream, app):
         #ambIntensity = sum[map(lambda i: app.color.diffuse[i] / app.color.ambient[i] / 3, range(0, 3))]
         ambIntensity = 0.2
         stream.write("appearance Appearance {\n"
-                     "material DEF %s Material {\n" % app.color.ident +
+                     "material DEF MAT_%s Material {\n" % app.color.ident +
                      "diffuseColor %f %f %f\n" % tuple(app.color.diffuse) +
                      "ambientIntensity %f\n" % ambIntensity +
                      "specularColor %f %f %f\n" % tuple(app.color.specular) +
@@ -98,5 +98,5 @@ def exportVRML(path, data):
     out = open(path, "wb")
     out.write("#VRML V2.0 utf8\n#Created by vrml_export.py\n")
     for shape in data:
-        writeShape(VRML_EXT, out, shape)
+        writeShape(spec, out, shape)
     out.close()
