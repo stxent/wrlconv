@@ -875,9 +875,11 @@ class vrmlMaterial(vrmlEntry):
     def write(self, fd, compList):
         matName = self.name if self.name != "" else "Unnamed_%d" % self.id
         if not matName in compList:
-            ambInt = self.ambientIntensity * 3.
-            if ambInt > 1.:
-                ambInt = 1.
+            #ambInt = self.ambientIntensity * 3.
+            #if ambInt > 1.:
+                #ambInt = 1.
+            #For KiCAD just set ambient intensity to 1.0
+            ambInt = 1.
             fd.write("      appearance Appearance {\n        material DEF %s Material {\n" % matName)
             fd.write("          diffuseColor %f %f %f\n" % (self.diffuseColor[0], self.diffuseColor[1], self.diffuseColor[2]))
             fd.write("          emissiveColor %f %f %f\n" % (self.emissiveColor[0], self.emissiveColor[1], self.emissiveColor[2]))
