@@ -1,4 +1,4 @@
-Script requires python-numpy and python-opengl packages. Optionally inkscape and xmlto packages should be installed.
+Script requires python-2.7, python-numpy, python-imaging and python-opengl packages. Optionally inkscape and xmlto packages should be installed.
 Viewer now supports direct import from FreeCAD and import from Blender through X3D format. For Blender "Export X3D Hierarchy" option should be disabled.
 
 
