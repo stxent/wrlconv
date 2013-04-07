@@ -630,22 +630,6 @@ vert, poly = test.tesselate()
 print "Complexity: vertices %u, polygons %u" % (len(vert), len(poly))
 #vert, poly = optimizeVertices(vert, poly)
 
-sizeX, sizeY = 800, 800
-colorData = Image.new("RGB", (sizeX, sizeY))
-drawing = ImageDraw.Draw(colorData)
-col = ((255, 0, 0), (0, 255, 0), (255, 255, 0))
-
-for i in range(0, len(poly)):
-    for j in range(0, len(poly[i]) - 1):
-        va, vb = poly[i][j], poly[i][j + 1]
-        drawing.line([(vert[va][0], vert[va][1]), (vert[vb][0], vert[vb][1])], (128, 128, 128))
-    va, vb = poly[i][len(poly[i]) - 1], poly[i][0]
-    drawing.line([(vert[va][0], vert[va][1]), (vert[vb][0], vert[vb][1])], (128, 128, 128))
-for i in range(0, len(vert)):
-    v = vert[i]
-    drawing.line([(v[0] - 2, v[1]), (v[0] + 2, v[1])], col[i % 3])
-    drawing.line([(v[0], v[1] - 2), (v[0], v[1] + 2)], col[i % 3])
-
 front, back = createBoard(vert, poly)
 inner = model.Mesh()
 inner.smooth = True
