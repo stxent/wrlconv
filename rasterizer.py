@@ -155,6 +155,13 @@ def calcBorders(path):
     edgeCuts = stream.read()
     stream.close()
     lineSearch = re.compile("<path.+?d=\"(.*?)\".*?>", re.S)
+    sizeSearch = re.compile("<svg.+?height=\"(.*?)cm\".*?>", re.S)
+
+    height = 21.0
+    content = sizeSearch.search(edgeCuts, 0)
+    if content is not None:
+        height = float(content.group(1))
+
     pos = 0
     position = [None, None]
     while 1:
@@ -182,7 +189,7 @@ def calcBorders(path):
                 if position[1][1] < point[1]:
                     position[1][1] = point[1]
         pos = content.end()
-    return position
+    return (position, height / 2.54)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", dest="path", help="project directory", default="")
@@ -210,11 +217,11 @@ else:
 boardPos = [[0, 0], [0, 0]]
 edgeFile = "%s%s-Edge_Cuts.svg" % (options.path, options.project)
 if os.path.isfile(edgeFile):
-    boardPos = calcBorders(edgeFile)
+    (boardPos, pageHeight) = calcBorders(edgeFile)
     for i in range(0, len(boardPos)):
         for j in range(0, len(boardPos[i])):
             boardPos[i][j] = boardPos[i][j] / 10000
-        boardPos[i][1] = 8.26799 - boardPos[i][1] #FIXME Remove hardcoded values
+        boardPos[i][1] = pageHeight - boardPos[i][1]
 else:
     print "%s not found" % edgeFile
     exit()
