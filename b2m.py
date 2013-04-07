@@ -145,11 +145,12 @@ class Rect:
                     hPoints.append(self.coords[1][0] - self.corners[2].chamfer[0])
             hPoints = sorted(hPoints)
 
-            #Check intersection of line and point, only for vertical lines
-            def lpCollision(line, point):
-                if line[0][0] == point[0] and line[0][1] <= point[1] <= line[1][1]:
-                    return True
-                return False
+            def getCommonPart(line1, line2):
+                if not line2[0] <= line1[1] and not line2[1] >= line1[0]:
+                    return None
+                topLength = max(0.0, line2[0] - line1[0])
+                bottomLength = max(0.0, line1[1] - line2[1])
+                return (line1[0] + topLength, line1[1] - bottomLength)
 
             while True:
                 edgeDivided = False
@@ -157,29 +158,24 @@ class Rect:
                 while i < len(inList):
                     for gap in outList:
                         edge = inList[i]
-                        mEdge = (numpy.array([gap[0][0], edge[0][1]]), numpy.array([gap[1][0], edge[1][1]]))
-                        if lpCollision(gap, mEdge[0]) or lpCollision(gap, mEdge[1]):
-                            if min(edge[1][1], gap[1][1]) - max(edge[0][1], gap[0][1]) < Rect.TOL:
-                                continue
+                        common = getCommonPart((edge[0][1], edge[1][1]), (gap[0][1], gap[1][1]))
+                        if common is not None and common[1] - common[0] > Rect.TOL:
                             inList.pop(i)
                             edgeDivided = True
                             start, end = None, None
 
-                            offset = gap[0][1] - edge[0][1]
+                            offset = common[0] - edge[0][1]
                             if offset > Rect.TOL:
                                 inList.append((numpy.array([edge[0][0], edge[0][1]]), \
                                         numpy.array([edge[0][0], edge[0][1] + offset])))
-                                start = numpy.array([gap[0][0], edge[0][1] + offset])
-                            else:
-                                start = numpy.array([gap[0][0], edge[0][1]])
 
-                            offset = edge[1][1] - gap[1][1]
+                            offset = edge[1][1] - common[1]
                             if offset > Rect.TOL:
                                 inList.append((numpy.array([edge[1][0], edge[1][1] - offset]), \
                                         numpy.array([edge[1][0], edge[1][1]])))
-                                end = numpy.array([gap[1][0], edge[1][1] - offset])
                             else:
                                 end = numpy.array([gap[1][0], edge[1][1]])
+                            start, end = numpy.array([gap[0][0], common[0]]), numpy.array([gap[1][0], common[1]])
 
                             if not numpy.allclose(end - start, 0.):
                                 vList = range(len(vertices), len(vertices) + 4)
