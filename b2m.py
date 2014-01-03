@@ -576,10 +576,10 @@ for color in [("mask", options.mask), ("silk", options.silk), ("plating", option
         print "Wrong color parameter: %s" % color[1]
 
 layerList = {}
-for layer in [("Front", "F", "front"), ("Back", "B", "back")]:
+for layer in [("F", "front"), ("B", "back")]:
     layerFile = "%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0])
     if os.path.isfile(layerFile):
-        layerList[layer[2]] = ({"diffuse": "%s-%s_Diffuse.png" % (options.project, layer[0]), \
+        layerList[layer[1]] = ({"diffuse": "%s-%s_Diffuse.png" % (options.project, layer[0]), \
                 "normalmap": "%s-%s_Normals.png" % (options.project, layer[0])})
     else:
         print "Layer file does not exist: %s" % layerFile

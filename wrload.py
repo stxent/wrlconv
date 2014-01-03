@@ -1018,7 +1018,7 @@ class render:
         glutMainLoop()
 
     def initGraphics(self):
-        glClearColor(0.8, 0.8, 0.8, 0.0)
+        glClearColor(0.0, 0.0, 0.0, 0.0)
         glClearDepth(1.0)
         glDepthFunc(GL_LESS)
         glEnable(GL_DEPTH_TEST)

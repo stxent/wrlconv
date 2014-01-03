@@ -116,8 +116,6 @@ class Render:
         for item in texList:
             glActiveTexture(layers[item[0]])
             glEnable(GL_TEXTURE_RECTANGLE)
-            glTexParameterf(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameterf(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glBindTexture(GL_TEXTURE_RECTANGLE, item[1])
 
         glUseProgram(self.shaders[shader])
@@ -236,14 +234,14 @@ for color in [("mask", options.mask), ("silk", options.silk), ("plating", option
         print "Wrong color parameter: %s" % color[1]
 
 layerList = []
-for layer in [("Front", "F"), ("Back", "B")]:
-    layerFile = "%s%s-%s.svg" % (options.path, options.project, layer[0])
+for layer in ["F", "B"]:
+    layerFile = "%s%s-%s_Cu.svg" % (options.path, options.project, layer)
     if os.path.isfile(layerFile):
-        layerCu = "%s-%s" % (options.project, layer[0])
-        layerSilk = "%s-%s_SilkS" % (options.project, layer[1])
-        layerMask = "%s-%s_Mask" % (options.project, layer[1])
-        layerDiffuse = "%s-%s_Diffuse" % (options.project, layer[0]) #Diffuse texture
-        layerNormal = "%s-%s_Normals" % (options.project, layer[0]) #Normal map
+        layerCu = "%s-%s_Cu" % (options.project, layer)
+        layerSilk = "%s-%s_SilkS" % (options.project, layer)
+        layerMask = "%s-%s_Mask" % (options.project, layer)
+        layerDiffuse = "%s-%s_Diffuse" % (options.project, layer) #Diffuse texture
+        layerNormal = "%s-%s_Normals" % (options.project, layer) #Normal map
         try:
             for entry in (layerCu, layerSilk, layerMask):
                 filePath = "%s%s.svg" % (options.path, layerCu)
@@ -252,7 +250,7 @@ for layer in [("Front", "F"), ("Back", "B")]:
                     raise Exception()
         except:
             continue
-        mirror = True if layer[0] == "Front" else False
+        mirror = True if layer == "F" else False
         layerList.append(((layerCu, layerSilk, layerMask), {"diffuse": layerDiffuse, "normals": layerNormal}, mirror))
     else:
         print "Layer file does not exist: %s" % layerFile
