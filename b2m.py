@@ -39,7 +39,7 @@ class Rect:
             vertices.append(numpy.array([self.position[0], self.position[1] + self.chamfer[1] * vect[1], 0]))
             return vertices
 
-    #Check intersection of rectanle and point
+    #Check intersection of rectangle and point
     @staticmethod
     def prCollision(rect, point):
         top, bottom = rect[0], rect[1]
@@ -697,4 +697,4 @@ exportList = [front, back, inner, borders]
 for entry in exportList:
     entry.scale((0.025, 0.025, 1.0))
 
-vrml_export.exportVRML(expType, "%s%s.wrl" % (outPath, options.project), exportList)
+vrml_export.exportVrml(expType, "%s%s.wrl" % (outPath, options.project), exportList)
