@@ -1,21 +1,12 @@
-// Vertex program
-#define LIGHTS 2
+#version 410 core
 
-varying vec3 normal, pos;
-varying vec3 ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
+layout(location = 0) in vec3 position;
+layout(location = 2) in vec2 texel;
 
-void main()
+out vec2 rawTexel;
+
+void main(void)
 {
-  pos = vec3(gl_ModelViewMatrix * gl_Vertex);
-  normal = normalize(gl_NormalMatrix * gl_Normal);
-  ambientGlobal = vec3(gl_FrontMaterial.ambient * gl_LightModel.ambient);
-
-  for (int i = 0; i < LIGHTS; i++)
-  {
-    diffuse[i] = vec3(gl_FrontMaterial.diffuse * gl_LightSource[i].diffuse);
-    ambient[i] = vec3(gl_FrontMaterial.ambient * gl_LightSource[i].ambient);
-    specular[i] = vec3(gl_FrontMaterial.specular * gl_LightSource[i].specular);
-  }
-
-  gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+  rawTexel = texel;
+  gl_Position = vec4(position, 1.0);
 }

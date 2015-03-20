@@ -1,23 +1,18 @@
-// Fragment program
-#define LIGHTS 2
+#version 410 core
+#extension GL_ARB_texture_rectangle : enable
+#define LIGHT_COUNT 2
 
-varying vec3 normal, pos;
-varying vec3 ambientGlobal, ambient[LIGHTS], specular[LIGHTS], diffuse[LIGHTS];
+uniform float dataSize;
 
-void main()
+in float height;
+in float srcOffset;
+
+layout(location = 0) out vec4 color;
+
+void main(void)
 {
-  vec4 color = vec4(ambientGlobal, gl_FrontMaterial.diffuse.a);
-  vec3 reflection, light, view = normalize(-pos.xyz);
+  color = vec4(height, height, height, 1.0);
 
-  for (int i = 0; i < LIGHTS; i++)
-  {
-    light = normalize(gl_LightSource[i].position.xyz - pos);
-    reflection = normalize(-reflect(light, normal));
-    color.rgb += ambient[i];
-    color.rgb += diffuse[i].rgb * max(0.0, dot(normal, light));
-    if (gl_FrontMaterial.shininess != 0.0)
-      color.rgb += specular[i] * pow(max(0.0, dot(reflection, view)), gl_FrontMaterial.shininess);
-  }
-
-  gl_FragColor = clamp(color, 0.0, 1.0);
+  if (srcOffset >= dataSize)
+    color.a = 0.0;
 }
