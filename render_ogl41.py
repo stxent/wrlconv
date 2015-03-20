@@ -49,15 +49,12 @@ class RenderAppearance:
             glTexImage2D(self.kind, 0, 3, self.size[0], self.size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
             debug("Texture loaded: %s, width: %d, height: %d, id: %d" % (path, self.size[0], self.size[1], self.buf))
 
-    def __init__(self, material, tessellate=False):
+    def __init__(self, material):
         self.material = material
         self.textures = []
 
         self.name = ""
-        if tessellate:
-            self.name = "tessel"
-            self.textures.append(RenderAppearance.Texture(material.diffuse.path))
-        elif material.diffuse is None:
+        if material.diffuse is None:
             self.name = "colored"
         else:
             self.name = "textured"
@@ -92,10 +89,8 @@ class RenderMesh:
         self.zbuffer = True
 
         self.solid = True
-#        self.tessellate = True
-        self.tessellate = False
         self.debug = False #Show normals
-        self.appearance = RenderAppearance(meshes[0].material, self.tessellate)
+        self.appearance = RenderAppearance(meshes[0].material)
 
         textured = len(meshes[0].texPolygons) != 0
         started = time.time()
@@ -186,13 +181,8 @@ class RenderMesh:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
 
         glBindVertexArray(self.vao)
-        if self.tessellate:
-            for entry in self.parts:
-                glPatchParameteri(GL_PATCH_VERTICES, 4 if entry.mode == GL_QUADS else 3)
-                glDrawArrays(GL_PATCHES, entry.index, entry.count)
-        else:
-            for entry in self.parts:
-                glDrawArrays(entry.mode, entry.index, entry.count)
+        for entry in self.parts:
+            glDrawArrays(entry.mode, entry.index, entry.count)
         glBindVertexArray(0)
 
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
@@ -237,23 +227,11 @@ class Shader:
         glUseProgram(self.program)
         self.scene.shader = self.ident
 
-    def create(self, vertex, fragment, control = None, evaluation = None):
+    def create(self, vertex, fragment):
         try:
             vertexShader = compileShader(vertex, GL_VERTEX_SHADER)
             fragmentShader = compileShader(fragment, GL_FRAGMENT_SHADER)
-            if control is not None:
-                controlShader = compileShader(tessControlSource, GL_TESS_CONTROL_SHADER)
-            if evaluation is not None:
-                evaluationShader = compileShader(evaluation, GL_TESS_EVALUATION_SHADER)
-
-            if control is None and evaluation is None:
-                self.program = compileProgram(vertexShader, fragmentShader)
-            elif evaluation is not None:
-                self.program = compileProgram(vertexShader, fragmentShader, evaluationShader)
-            elif control is not None:
-                self.program = compileProgram(vertexShader, fragmentShader, controlShader)
-            else:
-                self.program = compileProgram(vertexShader, fragmentShader, controlShader, evaluationShader)
+            self.program = compileProgram(vertexShader, fragmentShader)
         except RuntimeError as runError:
             print(runError.args[0]) #Print error log
             print("Shader compilation failed")
@@ -336,40 +314,6 @@ class TextureShader(ModelShader):
         glUniform1i(self.textureLoc, 0)
 
 
-class ColorTessellationShader(ColorShader):
-    def __init__(self, name, scene):
-        content = []
-        for path in ["./shaders/%s.vert", "./shaders/%s.frag", "./shaders/%s.teval"]:
-            desc = open(path % name, "rb")
-            content.append(desc.read())
-            desc.close()
-        self.create(vertex=content[0], fragment=content[1], evaluation=content[2])
-        ColorShader.__init__(self, name, scene)
-        self.textureLoc = glGetUniformLocation(self.program, "diffuseTexture")
-        self.sizeLoc = glGetUniformLocation(self.program, "textureSize")
-        self.dataOffsetLoc = glGetUniformLocation(self.program, "dataOffset")
-        self.dataSizeLoc = glGetUniformLocation(self.program, "dataSize")
-
-        #Rendering window
-        self.dataOffset, self.dataSize = 0.0, 0.0
-
-        #Inner and outer tessellation values
-        #Wireframe mode leads to significant performance loss
-        self.inner, self.outer = 20.0, 20.0
-
-    def enable(self, view):
-        ColorShader.enable(self, view)
-        #TODO Check patch size
-        inner = numpy.array([self.inner, self.inner], numpy.float32)
-        outer = numpy.array([self.outer, self.outer, self.outer, self.outer], numpy.float32)
-        glPatchParameterfv(GL_PATCH_DEFAULT_INNER_LEVEL, inner)
-        glPatchParameterfv(GL_PATCH_DEFAULT_OUTER_LEVEL, outer)
-        glUniform1i(self.textureLoc, 0)
-        glUniform2fv(self.sizeLoc, 1, numpy.array(list(view.textures[0].size), numpy.float32))
-        glUniform1f(self.dataOffsetLoc, self.dataOffset + 1)
-        glUniform1f(self.dataSizeLoc, self.dataSize - 1)
-
-
 class Render(Scene):
     def __init__(self, objects=[]):
         Scene.__init__(self)
@@ -382,6 +326,7 @@ class Render(Scene):
         self.moveCamera = False
         self.mousePos = [0., 0.]
         self.viewport = (640, 480)
+        self.wireframe = False
         self.frames = 0
         self.data = []
 
@@ -425,7 +370,6 @@ class Render(Scene):
             os.chdir(scriptDir)
         self.shaders = {}
         self.shaders["colored"] = ColorShader("colored", self)
-        self.shaders["tessel"] = ColorTessellationShader("light", self)
         self.shaders["textured"] = TextureShader("textured", self)
         os.chdir(oldDir)
 
@@ -446,7 +390,7 @@ class Render(Scene):
         self.resetShaders()
         for current in self.data:
             current.appearance.enable(self)
-            current.draw()
+            current.draw(self.wireframe)
 
         glutSwapBuffers()
         self.frames += 1
@@ -538,8 +482,10 @@ class Render(Scene):
     def keyHandler(self, key, xPos, yPos):
         if key in ("\x1b", "q", "Q"):
             exit()
-        if key in ("r", "R"):
+        elif key in ("r", "R"):
             self.camera = numpy.matrix([[0.], [20.], [0.], [1.]])
             self.pov = numpy.matrix([[0.], [0.], [0.], [1.]])
+        elif key in ("w", "W"):
+            self.wireframe = not self.wireframe
         self.updateModelView(self.camera, self.pov, self.axis)
         glutPostRedisplay()
