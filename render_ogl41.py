@@ -85,19 +85,19 @@ class RenderMesh:
         RenderMesh.IDENT += 1
 
         self.parts = []
-        self.smooth = meshes[0].smooth
+        self.smooth = meshes[0].appearance()["smooth"]
         self.zbuffer = True
 
         self.solid = True
         self.debug = False #Show normals
-        self.appearance = RenderAppearance(meshes[0].material)
+        self.appearance = RenderAppearance(meshes[0].appearance()["material"])
 
-        textured = len(meshes[0].texPolygons) != 0
+        textured = meshes[0].isTextured()
         started = time.time()
 
         polys = []
         for mesh in meshes:
-            polys.extend(map(lambda polygon: len(polygon), mesh.geoPolygons))
+            polys.extend(map(lambda polygon: len(polygon), mesh.geometry()[1]))
         triangles, quads = len(filter(lambda x: x == 3, polys)), len(filter(lambda x: x == 4, polys))
 
         length = triangles * 3 + quads * 4
@@ -115,38 +115,33 @@ class RenderMesh:
         index = [0, triangles * 3] #Initial positions for triangle and quad samples
 
         for mesh in meshes:
-            transformed = []
-            if mesh.transform is not None:
-                transformed = map(lambda x: mesh.transform.process(x), mesh.geoVertices)
-            else:
-                transformed = mesh.geoVertices
+            geoVertices, geoPolygons = mesh.geometry()
+            texVertices, texPolygons = mesh.texture()
 
-            vertexIndex = 0
-            for i in range(0, len(mesh.geoPolygons)):
-                poly = mesh.geoPolygons[i]
+            altered = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
 
-                normal = model.normalize(model.normal(transformed[poly[1]] - transformed[poly[0]],\
-                        transformed[poly[2]] - transformed[poly[0]]))
+            for i in range(0, len(geoPolygons)):
+                gp = geoPolygons[i]
+
+                normal = model.normalize(model.normal(altered[gp[1]] - altered[gp[0]],\
+                        altered[gp[2]] - altered[gp[0]]))
                 if textured:
+                    tp = texPolygons[i]
                     tangent = model.normalize(model.tangent(\
-                            transformed[poly[1]] - transformed[poly[0]],\
-                            transformed[poly[2]] - transformed[poly[0]],\
-                            mesh.texVertices[vertexIndex + 1] - mesh.texVertices[vertexIndex],\
-                            mesh.texVertices[vertexIndex + 2] - mesh.texVertices[vertexIndex]))
+                            altered[gp[1]] - altered[gp[0]], altered[gp[2]] - altered[gp[0]],\
+                            texVertices[tp[1]] - texVertices[tp[0]], texVertices[tp[2]] - texVertices[tp[0]]))
 
-                current = 0 if len(poly) == 3 else 1
+                current = 0 if len(gp) == 3 else 1
                 offset = index[current]
-                index[current] += len(poly)
+                index[current] += len(gp)
 
-                for j in range(0, len(poly)):
-                    vertex = transformed[poly[j]]
-                    self.vertices[3 * offset:3 * offset + 3] = numpy.array(numpy.swapaxes(vertex[0:3], 0, 1))
+                for j in range(0, len(gp)):
+                    self.vertices[3 * offset:3 * offset + 3] = numpy.array(numpy.swapaxes(altered[gp[j]][0:3], 0, 1))
                     self.normals[3 * offset:3 * offset + 3] = normal
                     if textured:
-                        self.texels[2 * offset:2 * offset + 2] = mesh.texVertices[vertexIndex]
+                        self.texels[2 * offset:2 * offset + 2] = texVertices[tp[j]]
                         self.tangents[3 * offset:3 * offset + 3] = tangent
                     offset += 1
-                    vertexIndex += 1
 
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
@@ -374,10 +369,10 @@ class Render(Scene):
         os.chdir(oldDir)
 
     def initScene(self, objects):
-        materials = []
-        [materials.append(item) for item in map(lambda x: x.material, objects) if item not in materials]
+        keys = []
+        [keys.append(item) for item in map(lambda x: x.appearance()["material"], objects) if item not in keys]
 
-        groups = map(lambda key: filter(lambda mesh: mesh.material == key, objects), materials)
+        groups = map(lambda key: filter(lambda mesh: mesh.appearance()["material"] == key, objects), keys)
         [self.data.append(RenderMesh(meshes)) for meshes in groups]
 
     def idleScene(self):

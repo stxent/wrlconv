@@ -212,9 +212,9 @@ class Transform:
 class Mesh:
     IDENT = 0
 
-    def __init__(self, group=None, name=None):
+    def __init__(self, parent=None, name=None):
         self.transform = None
-        self.group = group
+        self.parent = parent
 
         if name is None:
             self.ident = str(Mesh.IDENT)
@@ -222,19 +222,29 @@ class Mesh:
         else:
             self.ident = name
 
-        if self.group is None:
+        if self.parent is None:
             self.geoVertices, self.geoPolygons = [], []
             self.texVertices, self.texPolygons = [], []
             self.material = Material()
-            self.smooth = False #Smooth or flat shading
-            self.solid = True
+            self.smooth, self.solid = False, False
+
+    def appearance(self):
+        if self.parent is None:
+            return {"material": self.material, "smooth": self.smooth, "solid": self.solid}
         else:
-            self.vertices = group.vertices
-            self.polygons = group.polygons
-            self.texels = group.texels
-            self.material = group.material #FIXME Separate material?
-            self.smooth = group.smooth
-            self.solid = group.solid
+            return self.parent.appearance()
+
+    def geometry(self):
+        return (self.geoVertices, self.geoPolygons) if self.parent is None else self.parent.geometry()
+
+    def texture(self):
+        return (self.texVertices, self.texPolygons) if self.parent is None else self.parent.texture()
+
+    def isTextured(self):
+        if self.parent is None:
+            return len(self.texPolygons) > 0 and len(self.geoPolygons) == len(self.texPolygons)
+        else:
+            self.parent.isTextured()
 
     def append(self, other):
         geoSize = len(self.geoVertices)

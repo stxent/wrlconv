@@ -174,6 +174,9 @@ class VrmlEntry:
                         stream.seek(-offset, os.SEEK_CUR)
                     break
 
+    def demangled(self):
+        return self.name
+
     def finalize(self):
         pass
 
@@ -196,37 +199,79 @@ class VrmlScene(VrmlEntry):
         inputFile.close()
 
     def extract(self):
-        def squash(entry, transform, top=""):
+        exportedMaterials, exportedMeshes = [], []
+
+        def createMesh(geometry, appearance, name):
+            #Create abstract mesh object
+            mesh = model.Mesh(name=name)
+            mesh.geoPolygons = geometry.geoPolygons
+            mesh.texPolygons = geometry.texPolygons
+            if appearance is not None:
+                newMaterial = appearance.squash()
+                materials = filter(lambda mat: mat == newMaterial, exportedMaterials)
+                if len(materials) > 0:
+                    debug("Squash: reused material %s" % materials[0].color.ident)
+                    mesh.material = materials[0]
+                else:
+                    mesh.material = newMaterial
+                    exportedMaterials.append(newMaterial)
+            mesh.smooth = geometry.smooth
+            mesh.solid = geometry.solid
+            for subentry in geometry.objects:
+                if isinstance(subentry, VrmlGeoCoords):
+                    mesh.geoVertices = subentry.vertices
+                elif isinstance(subentry, VrmlTexCoords):
+                    mesh.texVertices = subentry.vertices
+            return mesh
+
+        def reindexMesh(mesh):
+            used = []
+            [used.append(i) for poly in mesh.geoPolygons for i in poly if i not in used]
+            used.sort()
+
+            vertices = [mesh.geoVertices[i] for i in used]
+            translated = dict(zip(used, range(0, len(vertices))))
+            polygons = map(lambda poly: [translated[i] for i in poly], mesh.geoPolygons)
+
+            debug("Reindex: mesh %s, %d polygons, from %d to %d vertices" % (mesh.ident, len(polygons),\
+                    len(mesh.geoVertices), len(vertices)))
+            mesh.geoPolygons = polygons
+            mesh.geoVertices = vertices
+
+        def squash(entry, transform, name=[]):
             if isinstance(entry, VrmlTransform):
-                name = top if top != "" else entry.name
                 parts = []
                 for i in range(0, len(entry.objects)):
-                    subname = "%s_%u" % (name, i) if len(entry.objects) > 1 else name 
-                    parts.extend(squash(entry.objects[i], transform * entry.transform, subname))
+                    shape = entry.objects[i]
+                    demangled = entry.demangled() if entry.demangled() != "" else entry.name
+                    subname = name + [demangled] if demangled != "" else name
+                    subname[-1] += "_" + str(i) if len(entry.objects) > 1 else ""
+                    parts.extend(squash(shape, transform * entry.transform, subname))
                 return parts
             elif isinstance(entry, VrmlShape):
-                appearance = None
-                geometry = None
+                appearance, geometry = None, None
                 for subentry in entry.objects:
                     if isinstance(subentry, VrmlAppearance):
                         appearance = subentry
                     if isinstance(subentry, VrmlGeometry):
                         geometry = subentry
                 if geometry is not None:
-                    mesh = model.Mesh(name=top)
-                    mesh.geoPolygons = geometry.geoPolygons
-                    mesh.texPolygons = geometry.texPolygons
-                    if appearance is not None:
-                        mesh.material = appearance.squash() 
-                    mesh.smooth = geometry.smooth
-                    mesh.solid = geometry.solid
-                    mesh.transform = transform
-                    for subentry in geometry.objects:
-                        if isinstance(subentry, VrmlGeoCoords):
-                            mesh.geoVertices = subentry.vertices
-                        elif isinstance(subentry, VrmlTexCoords):
-                            mesh.texVertices = subentry.vertices
-                    return [mesh]
+                    alreadyExported = filter(lambda mesh: mesh.ident == name[-1], exportedMeshes)
+                    if len(alreadyExported) > 0:
+                        debug("Squash: reused mesh %s" % name[-1])
+                        #Create concrete shape
+                        currentMesh = model.Mesh(parent=alreadyExported[0], name=name[0])
+                        currentMesh.transform = transform
+                        return [currentMesh]
+                    else:
+                        mesh = createMesh(geometry, appearance, name[-1])
+                        if entry.parent is not None and entry.parent.name != "" and len(entry.parent.objects) > 1:
+                            reindexMesh(mesh)
+                        exportedMeshes.append(mesh)
+                        #Create concrete shape
+                        currentMesh = model.Mesh(parent=mesh, name=name[0])
+                        currentMesh.transform = transform
+                        return [currentMesh]
             return []
         entries = []
         map(entries.extend, map(lambda x: squash(x, self.transform), self.objects))
@@ -249,6 +294,10 @@ class VrmlTransform(VrmlEntry):
         result = re.search("scale\s+" + "\s+".join([key] * 3), string, re.I | re.S)
         if result:
             self.transform.scale(map(lambda x: float(result.group(x + 1)), range(0, 3)))
+
+    def demangled(self):
+        #Demangle Blender names
+        return self.name.replace("OB_", "").replace("group_ME_", "").replace("_ifs_TRANSFORM", "")
 
 
 class vrmlInline(VrmlTransform):
@@ -420,7 +469,7 @@ class VrmlAppearance(VrmlEntry):
     def __eq__(self, other):
         if not isinstance(other, VrmlAppearance):
             return False
-        if len(self.objects) != len(other.objects):
+        if len(self.objects) != len(other.objects) or len(self.objects) == 0:
             return False
         return reduce(lambda a, b: a and b, map(lambda c: c in other.objects, self.objects))
 
@@ -464,8 +513,12 @@ class VrmlMaterial(VrmlEntry):
                 values = list(map(lambda x: float(result.group(x + 1)), range(0, pattern[0])))
                 self.values[pattern[1]] = values[0] if len(values) == 1 else numpy.array(values)
 
+    def demangled(self):
+        #Demangle Blender names
+        return self.name.replace("MA_", "")
+
     def finalize(self):
-        self.color.ident = self.name
+        self.color.ident = self.demangled()
         if "shininess" in self.values.keys():
             self.color.shininess = self.values["shininess"]
         if "transparency" in self.values.keys():

@@ -12,78 +12,150 @@ import model
 
 VRML_STRICT, VRML_KICAD, VRML_EXT = range(0, 3)
 
-def exportVrml(spec, path, data):
-    def writeMaterial(spec, stream, app):
-        #ambIntensity = sum[map(lambda i: app.color.diffuse[i] / app.color.ambient[i] / 3, range(0, 3))]
-        ambIntensity = 0.2
-        stream.write("appearance Appearance {\n"
-                + "material DEF MAT_%s Material {\n" % app.color.ident
-                + "diffuseColor %f %f %f\n" % tuple(app.color.diffuse)
-                + "ambientIntensity %f\n" % ambIntensity
-                + "specularColor %f %f %f\n" % tuple(app.color.specular)
-                + "emissiveColor %f %f %f\n" % tuple(app.color.emissive)
-                + "shininess %f\n" % app.color.shininess
-                + "transparency %f\n" % app.color.transparency
-                + "}\n")
-        if spec != VRML_KICAD:
-            if app.diffuse is not None:
-                stream.write("texture DEF diffuse_%s ImageTexture {\n" % app.diffuse.ident
-                        + "url \"%s\"\n" % app.diffuse.path + "}\n")
-            if spec == VRML_EXT:
-                if app.normalmap is not None:
-                    stream.write("texture DEF normalmap_%s ImageTexture {\n" % app.normalmap.ident
-                            + "url \"%s\"\n" % app.normalmap.path + "}\n")
-                if app.specular is not None:
-                    stream.write("texture DEF specular_%s ImageTexture {\n" % app.specular.ident
-                            + "url \"%s\"\n" % app.specular.path + "}\n")
-        stream.write("}\n")
+debugEnabled = False
 
-    def writeShape(spec, stream, shape):
-        stream.write("DEF OB_%s Transform {\n" % shape.ident
-                + "translation 0.0 0.0 0.0\n"
-                + "rotation 1.0 0.0 0.0 0.0\n"
-                + "scale 1.0 1.0 1.0\n"
-                + "children [\n")
-        stream.write("DEF ME_%s Group {\n" % shape.ident + "children [\n" + "Shape {\n")
-        writeMaterial(spec, stream, shape.material)
-        stream.write("geometry IndexedFaceSet {\n" + "solid FALSE\n")
-        if spec == VRML_EXT:
-            if shape.smooth:
-                stream.write("smooth TRUE\n")
-            else:
-                stream.write("smooth FALSE\n")
-        stream.write("coord DEF FS_%s Coordinate {\n" % shape.ident + "point [\n")
-        for srcVert in shape.geoVertices:
+def debug(text):
+    if debugEnabled:
+        print(text)
+
+def exportVrml(spec, path, data):
+    exportedGroups, exportedMaterials = [], []
+
+    def writeAppearance(spec, stream, material, level):
+        ambIntensity = sum(map(lambda i: material.color.ambient[i] / material.color.diffuse[i] / 3., range(0, 3)))
+        stream.write("%sappearance Appearance {\n" % ("\t" * level))
+
+        if material in exportedMaterials:
+            stream.write("%smaterial USE MA_%s\n" % ("\t" * (level + 1), material.color.ident))
+            debug("Export: reused material %s" % material.color.ident)
+        else:
+            stream.write("%smaterial DEF MA_%s Material {\n" % ("\t" * (level + 1), material.color.ident))
+            stream.write("%sdiffuseColor %f %f %f\n" % ("\t" * (level + 2), material.color.diffuse[0],\
+                    material.color.diffuse[1], material.color.diffuse[2]))
+            stream.write("%sambientIntensity %f\n" % ("\t" * (level + 2), ambIntensity))
+            stream.write("%sspecularColor %f %f %f\n" % ("\t" * (level + 2), material.color.specular[0],\
+                    material.color.specular[1], material.color.specular[2]))
+            stream.write("%semissiveColor %f %f %f\n" % ("\t" * (level + 2), material.color.emissive[0],\
+                    material.color.emissive[1], material.color.emissive[2]))
+            stream.write("%sshininess %f\n" % ("\t" * (level + 2), material.color.shininess))
+            stream.write("%stransparency %f\n" % ("\t" * (level + 2), material.color.transparency))
+            stream.write("%s}\n" % ("\t" * (level + 1)))
+            exportedMaterials.append(material)
+
+        if spec != VRML_KICAD:
+            #FIXME Print relative path
+            if material.diffuse is not None:
+                stream.write("%stexture DEF %s ImageTexture {\n"\
+                        % ("\t" * (level + 1), material.diffuse.ident))
+                stream.write("%surl \"%s\"\n" % ("\t" * (level + 2), material.diffuse.path))
+                stream.write("%s}\n" % ("\t" * (level + 1)))
+            if spec == VRML_EXT:
+                if material.normalmap is not None:
+                    stream.write("%stexture DEF normalmap_%s ImageTexture {\n"\
+                            % ("\t" * (level + 1), material.normalmap.ident))
+                    stream.write("%surl \"%s\"\n" % ("\t" * (level + 2), material.normalmap.path))
+                    stream.write("%s}\n" % ("\t" * (level + 1)))
+                if material.specular is not None:
+                    stream.write("%stexture DEF specular_%s ImageTexture {\n"\
+                            % ("\t" * (level + 1), material.specular.ident))
+                    stream.write("%surl \"%s\"\n" % ("\t" * (level + 2), material.specular.path))
+                    stream.write("%s}\n" % ("\t" * (level + 1)))
+
+        stream.write("%s}\n" % ("\t" * level))
+
+    def writeGeometry(spec, stream, mesh, level):
+        stream.write("%sgeometry IndexedFaceSet {\n" % ("\t" * level))
+
+        appearance = mesh.appearance()
+        if spec == VRML_KICAD:
+            stream.write("%ssolid FALSE\n" % ("\t" * (level + 1)))
+        else:
+            stream.write("%ssolid %s\n" % ("\t" * (level + 1), "TRUE" if appearance["solid"] else "FALSE"))
+            stream.write("%ssmooth %s\n" % ("\t" * (level + 1), "TRUE" if appearance["smooth"] else "FALSE"))
+
+        geoVertices, geoPolygons = mesh.geometry()
+
+        stream.write("%scoord DEF FS_%s Coordinate {\n" % ("\t" * (level + 1), mesh.ident))
+        stream.write("%spoint [\n" % ("\t" * (level + 2)))
+        for srcVert in geoVertices:
             vert = numpy.matrix([[srcVert[0]], [srcVert[1]], [srcVert[2]], [1.]])
-            if shape.transform is not None:
-                vert = shape.transform.value * vert
-            stream.write("%f %f %f\n" % tuple(vert[0:3]))
-        stream.write("]\n}\ncoordIndex [\n")
-        for poly in shape.geoPolygons:
-            for index in poly:
-                stream.write("%u " % index)
-            stream.write("-1,\n")
-        stream.write("]\n")
-        #Write texture coordinates
-        #FIXME Print relative path
-        if (shape.material.diffuse, shape.material.normalmap, shape.material.specular) != (None, None, None):
-            stream.write("texCoord TextureCoordinate {\n" + "point [\n");
-            for vert in shape.texVertices:
-                stream.write("%f %f,\n" % tuple(vert))
-            stream.write("]\n}\n");
-            stream.write("texCoordIndex [\n");
-            i = 0
-            for poly in shape.texPolygons:
-                for index in poly:
-                    stream.write("%u " % i)
-                    i += 1
-                stream.write("-1\n")
-            stream.write("]\n")
-        stream.write("}\n")
-        stream.write("}\n]\n}\n]\n}\n")
+            if mesh.transform is not None:
+                vert = mesh.transform.value * vert
+            stream.write("%s%f %f %f\n" % ("\t" * (level + 3), vert[0], vert[1], vert[2]))
+        stream.write("%s]\n" % ("\t" * (level + 2)))
+        stream.write("%s}\n" % ("\t" * (level + 1)))
+
+        stream.write("%scoordIndex [\n" % ("\t" * (level + 1)))
+        for i in range(0, len(geoPolygons)):
+            poly = geoPolygons[i]
+            output = "\t" * (level + 2) + " ".join([str(index) for index in poly] + ["-1"])
+            output += ",\n" if i < len(geoPolygons) - 1 else "\n"
+            stream.write(output)
+        stream.write("%s]\n" % ("\t" * (level + 1)))
+
+        material = appearance["material"]
+        if any(texture is not None for texture in [material.diffuse, material.normalmap, material.specular]):
+            texVertices, texPolygons = mesh.texture()
+
+            stream.write("%stexCoord TextureCoordinate {\n" % ("\t" * (level + 1)))
+            stream.write("%spoint [\n" % ("\t" * (level + 2)))
+            for vert in texVertices:
+                stream.write("%s%f %f\n" % ("\t" * (level + 3), vert[0], vert[1]))
+            stream.write("%s]\n" % ("\t" * (level + 2)))
+            stream.write("%s}\n" % ("\t" * (level + 1)))
+
+            stream.write("%stexCoordIndex [\n" % ("\t" * (level + 1)))
+            for i in range(0, len(texPolygons)):
+                poly = texPolygons[i]
+                output = "\t" * (level + 2) + " ".join([str(index) for index in poly] + ["-1"])
+                output += ",\n" if i < len(texPolygons) - 1 else "\n"
+                stream.write(output)
+            stream.write("%s]\n" % ("\t" * (level + 1)))
+
+        stream.write("%s}\n" % ("\t" * level))
+
+    def writeShape(spec, stream, mesh, level):
+        stream.write("%sShape {\n" % ("\t" * level))
+
+        writeAppearance(spec, stream, mesh.appearance()["material"], level + 1)
+        writeGeometry(spec, stream, mesh, level + 1)
+
+        stream.write("%s}\n" % ("\t" * level))
+
+    def writeGroup(spec, stream, mesh, level):
+        if spec != VRML_KICAD:
+            alreadyExported = filter(lambda group: group.ident == mesh.ident, exportedGroups)
+        else:
+            alreadyExported = []
+
+        if spec == VRML_KICAD or len(alreadyExported) == 0:
+            stream.write("%sDEF ME_%s Group {\n" % ("\t" * level, mesh.ident))
+            stream.write("%schildren [\n" % ("\t" * (level + 1)))
+            writeShape(spec, stream, mesh, level + 2)
+            stream.write("%s]\n" % ("\t" * (level + 1)))
+            stream.write("%s}\n" % ("\t" * level))
+            if spec != VRML_KICAD:
+                exportedGroups.append(mesh)
+        else:
+            stream.write("%sUSE ME_%s\n" % ("\t" * level, mesh.ident))
+            debug("Export: reused group %s" % mesh.ident)
+
+    def writeTransform(spec, stream, mesh, level=0):
+        stream.write("%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident))
+        stream.write("%stranslation 0.0 0.0 0.0\n" % ("\t" * (level + 1)))
+        stream.write("%srotation 1.0 0.0 0.0 0.0\n" % ("\t" * (level + 1)))
+        stream.write("%sscale 1.0 1.0 1.0\n" % ("\t" * (level + 1)))
+        stream.write("%schildren [\n" % ("\t" * (level + 1)))
+
+        parent = mesh if mesh.parent is None else mesh.parent
+        writeGroup(spec, stream, parent, level + 2)
+
+        stream.write("%s]\n" % ("\t" * (level + 1)))
+        stream.write("%s}\n" % ("\t" * level))
+
 
     out = open(path, "wb")
     out.write("#VRML V2.0 utf8\n#Created by vrml_export.py\n")
     for shape in data:
-        writeShape(spec, out, shape)
+        writeTransform(spec, out, shape)
     out.close()
