@@ -58,7 +58,7 @@ class VrmlEntry:
         self.parent = parent
         self.name = ""
         self.objects = []
-        self.level = self.parent.level + 2 if self.parent else 0
+        self.level = self.parent.level + 2 if self.parent is not None else 0
 
     def chain(self, entryType):
         if isinstance(self, (VrmlScene, VrmlTransform, vrmlInline)):
@@ -334,7 +334,7 @@ class VrmlGeometry(VrmlEntry):
         self.geoPolygons = []
         self.texPolygons = []
         self.smooth = False
-        self.solid = True
+        self.solid = False
 
     def read(self, stream, string):
         initialPos = stream.tell()
@@ -497,8 +497,6 @@ class VrmlMaterial(VrmlEntry):
             (3, "diffuseColor"), (3, "emissiveColor"), (3, "specularColor")]
 
     def __init__(self, parent):
-        if not isinstance(parent, VrmlAppearance):
-            raise Exception()
         VrmlEntry.__init__(self, parent)
         self.color = model.Material.Color("DefaultVrmlMaterial_%u" % VrmlMaterial.IDENT)
         self.values = {}
@@ -546,8 +544,6 @@ class VrmlTexture(VrmlEntry):
     FAMILY_DIFFUSE, FAMILY_NORMAL, FAMILY_SPECULAR = range(0, 3)
 
     def __init__(self, parent):
-        if not isinstance(parent, VrmlAppearance):
-            raise Exception()
         VrmlEntry.__init__(self, parent)
         self.family = None
         self.texture = model.Material.Texture("DefaultVrmlTexture_%u" % VrmlTexture.IDENT)

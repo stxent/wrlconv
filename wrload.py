@@ -935,7 +935,7 @@ class mesh:
         glEnableClientState(GL_NORMAL_ARRAY)
         glBindBuffer(GL_ARRAY_BUFFER, self.normalVBO)
         glNormalPointer(GL_FLOAT, 0, None)
-        if self.texList != None:
+        if self.texList is not None:
             glEnableClientState(GL_TEXTURE_COORD_ARRAY)
             glEnableVertexAttribArray(1)
             glBindBuffer(GL_ARRAY_BUFFER, self.texVBO)
@@ -1083,7 +1083,7 @@ class render:
             meshEntry.normalVBO = glGenBuffers(1)
             glBindBuffer(GL_ARRAY_BUFFER, meshEntry.normalVBO)
             glBufferData(GL_ARRAY_BUFFER, meshEntry.normalList, GL_STATIC_DRAW)
-            if meshEntry.texList != None:
+            if meshEntry.texList is not None:
                 meshEntry.texVBO = glGenBuffers(1)
                 glBindBuffer(GL_ARRAY_BUFFER, meshEntry.texVBO)
                 glBufferData(GL_ARRAY_BUFFER, meshEntry.texList, GL_STATIC_DRAW)

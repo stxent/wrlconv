@@ -141,8 +141,13 @@ def exportVrml(spec, path, data):
             debug("Export: reused group %s" % mesh.ident)
 
     def writeTransform(spec, stream, mesh, level=0):
+        if mesh.transform is None:
+            translation = [0., 0., 0.]
+        else:
+            column = mesh.transform.value[:,3][0:3]
+            translation = [column[0], column[1], column[2]]
         stream.write("%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident))
-        stream.write("%stranslation 0.0 0.0 0.0\n" % ("\t" * (level + 1)))
+        stream.write("%stranslation %f %f %f\n" % ("\t" * (level + 1), translation[0], translation[1], translation[2]))
         stream.write("%srotation 1.0 0.0 0.0 0.0\n" % ("\t" * (level + 1)))
         stream.write("%sscale 1.0 1.0 1.0\n" % ("\t" * (level + 1)))
         stream.write("%schildren [\n" % ("\t" * (level + 1)))
