@@ -297,7 +297,11 @@ class VrmlTransform(VrmlEntry):
 
     def demangled(self):
         #Demangle Blender names
-        return self.name.replace("OB_", "").replace("group_ME_", "").replace("_ifs_TRANSFORM", "")
+        name = self.name.replace("OB_", "").replace("group_ME_", "").replace("_ifs_TRANSFORM", "")
+        #Demangle own names
+        name = name.replace("ME_", "")
+
+        return name
 
 
 class vrmlInline(VrmlTransform):

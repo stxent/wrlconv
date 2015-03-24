@@ -28,10 +28,10 @@ def exportX3d(path, data):
         ambIntensity = sum(map(lambda i: material.color.ambient[i] / material.color.diffuse[i] / 3., range(0, 3)))
 
         if material in exportedMaterials:
-            materialNode.attrib["USE"] = material.color.ident
+            materialNode.attrib["USE"] = "MA_%s" % material.color.ident
             debug("Export: reused material %s" % material.color.ident)
         else:
-            materialNode.attrib["DEF"] = material.color.ident
+            materialNode.attrib["DEF"] = "MA_%s" % material.color.ident
             materialNode.attrib["diffuseColor"] = "%f %f %f" % tuple(material.color.diffuse)
             materialNode.attrib["specularColor"] = "%f %f %f" % tuple(material.color.specular)
             materialNode.attrib["emissiveColor"] = "%f %f %f" % tuple(material.color.emissive)
@@ -84,11 +84,11 @@ def exportX3d(path, data):
 
         group = etree.SubElement(root, "Group")
         if len(alreadyExported) == 0:
-            group.attrib["DEF"] = mesh.ident
+            group.attrib["DEF"] = "ME_%s" % mesh.ident
             writeShape(group, mesh)
             exportedGroups.append(mesh)
         else:
-            group.attrib["USE"] = mesh.ident
+            group.attrib["USE"] = "ME_%s" % mesh.ident
             debug("Export: reused group %s" % mesh.ident)
 
     def writeTransform(root, mesh):
