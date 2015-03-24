@@ -6,7 +6,7 @@
 # Project is distributed under the terms of the GNU General Public License v3.0
 
 import numpy
-import math
+import time
 
 import model
 
@@ -77,20 +77,24 @@ def exportVrml(spec, path, data):
 
         stream.write("%scoord DEF FS_%s Coordinate {\n" % ("\t" * (level + 1), mesh.ident))
         stream.write("%spoint [\n" % ("\t" * (level + 2)))
+        stream.write("\t" * (level + 3))
+        vertices = []
         for srcVert in geoVertices:
             vert = numpy.matrix([[srcVert[0]], [srcVert[1]], [srcVert[2]], [1.]])
             if mesh.transform is not None:
                 vert = mesh.transform.value * vert
-            stream.write("%s%f %f %f\n" % ("\t" * (level + 3), vert[0], vert[1], vert[2]))
+            vertices.extend([vert[0, 0], vert[1, 0], vert[2, 0]])
+        stream.write(" ".join(map(str, vertices)))
+        stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 2)))
         stream.write("%s}\n" % ("\t" * (level + 1)))
 
         stream.write("%scoordIndex [\n" % ("\t" * (level + 1)))
-        for i in range(0, len(geoPolygons)):
-            poly = geoPolygons[i]
-            output = "\t" * (level + 2) + " ".join([str(index) for index in poly] + ["-1"])
-            output += ",\n" if i < len(geoPolygons) - 1 else "\n"
-            stream.write(output)
+        stream.write("\t" * (level + 2))
+        indices = []
+        [indices.extend(poly) for poly in map(lambda poly: poly + [-1], geoPolygons)]
+        stream.write(" ".join(map(str, indices)))
+        stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 1)))
 
         material = appearance["material"]
@@ -99,17 +103,20 @@ def exportVrml(spec, path, data):
 
             stream.write("%stexCoord TextureCoordinate {\n" % ("\t" * (level + 1)))
             stream.write("%spoint [\n" % ("\t" * (level + 2)))
-            for vert in texVertices:
-                stream.write("%s%f %f\n" % ("\t" * (level + 3), vert[0], vert[1]))
+            stream.write("\t" * (level + 3))
+            vertices = []
+            [vertices.extend(vertex) for vertex in texVertices]
+            stream.write(" ".join(map(str, vertices)))
+            stream.write("\n")
             stream.write("%s]\n" % ("\t" * (level + 2)))
             stream.write("%s}\n" % ("\t" * (level + 1)))
 
             stream.write("%stexCoordIndex [\n" % ("\t" * (level + 1)))
-            for i in range(0, len(texPolygons)):
-                poly = texPolygons[i]
-                output = "\t" * (level + 2) + " ".join([str(index) for index in poly] + ["-1"])
-                output += ",\n" if i < len(texPolygons) - 1 else "\n"
-                stream.write(output)
+            stream.write("\t" * (level + 2))
+            indices = []
+            [indices.extend(poly) for poly in map(lambda poly: poly + [-1], texPolygons)]
+            stream.write(" ".join(map(str, indices)))
+            stream.write("\n")
             stream.write("%s]\n" % ("\t" * (level + 1)))
 
         stream.write("%s}\n" % ("\t" * level))
@@ -141,6 +148,8 @@ def exportVrml(spec, path, data):
             debug("Export: reused group %s" % mesh.ident)
 
     def writeTransform(spec, stream, mesh, level=0):
+        started = time.time()
+
         if mesh.transform is None:
             translation = [0., 0., 0.]
         else:
@@ -158,6 +167,7 @@ def exportVrml(spec, path, data):
         stream.write("%s]\n" % ("\t" * (level + 1)))
         stream.write("%s}\n" % ("\t" * level))
 
+        debug("Mesh exported in %f, name %s" % (time.time() - started, mesh.ident))
 
     out = open(path, "wb")
     out.write("#VRML V2.0 utf8\n#Created by vrml_export.py\n")
