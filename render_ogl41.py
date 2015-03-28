@@ -10,7 +10,6 @@ import numpy
 import os
 import sys
 import time
-import Image
 
 import model
 
@@ -19,6 +18,7 @@ try:
     from OpenGL.GLU import *
     from OpenGL.GLUT import *
     from OpenGL.GL.shaders import *
+    from PIL import Image
 except:
     exit()
 
@@ -32,22 +32,24 @@ def debug(text):
 class RenderAppearance:
     class Texture:
         def __init__(self, path):
-            if not os.path.isfile(path):
+            if not os.path.isfile(path[1]):
                 raise Exception()
-            im = Image.open(path)
+            im = Image.open(path[1])
             try:
                 self.size, image = im.size, im.tostring("raw", "RGBA", 0, -1)
             except SystemError:
                 self.size, image = im.size, im.tostring("raw", "RGBX", 0, -1)
 
             self.buf = glGenTextures(1)
-            self.kind = GL_TEXTURE_RECTANGLE
-            #self.type = GL_TEXTURE_2D
+#            self.kind = GL_TEXTURE_RECTANGLE
+            self.kind = GL_TEXTURE_2D
 
             glBindTexture(self.kind, self.buf)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-            glTexImage2D(self.kind, 0, 3, self.size[0], self.size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
-            debug("Texture loaded: %s, width: %d, height: %d, id: %d" % (path, self.size[0], self.size[1], self.buf))
+#            glTexImage2D(self.kind, 0, 3, self.size[0], self.size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
+            gluBuild2DMipmaps(self.kind, 4, self.size[0], self.size[1], GL_RGBA, GL_UNSIGNED_BYTE, image)
+            debug("Texture loaded: %s, width: %d, height: %d, id: %d"\
+                    % (path[0], self.size[0], self.size[1], self.buf))
 
     def __init__(self, material):
         self.material = material
@@ -65,9 +67,9 @@ class RenderAppearance:
         for i in range(0, len(self.textures)):
             glActiveTexture(GL_TEXTURE0 + i)
             glEnable(self.textures[i].kind)
-            #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            #glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
             glBindTexture(self.textures[i].kind, self.textures[i].buf)
 
 
@@ -278,15 +280,14 @@ class ColorShader(ModelShader):
         self.shininessLoc = glGetUniformLocation(self.program, "materialShininess")
 
     def enable(self, view):
+        color = view.material.color
         loaded = self.scene.shader == self.ident
         if not loaded:
             ModelShader.enable(self, view)
-        diffuse = [view.material.color.diffuse[0], view.material.color.diffuse[1], view.material.color.diffuse[2],\
-                1. - view.material.color.transparency]
-        glUniform4fv(self.diffuseColorLoc, 1, diffuse)
-        glUniform3fv(self.specularColorLoc, 1, view.material.color.specular)
-        glUniform3fv(self.emissiveColorLoc, 1, view.material.color.emissive)
-        glUniform1f(self.shininessLoc, view.material.color.shininess * 128.0)
+        glUniform4fv(self.diffuseColorLoc, 1, list(color.diffuse) + [1. - color.transparency])
+        glUniform3fv(self.specularColorLoc, 1, color.specular)
+        glUniform3fv(self.emissiveColorLoc, 1, color.emissive)
+        glUniform1f(self.shininessLoc, color.shininess * 128.0)
 
 
 class TextureShader(ModelShader):
@@ -299,13 +300,14 @@ class TextureShader(ModelShader):
         self.textureLoc = glGetUniformLocation(self.program, "diffuseTexture")
 
     def enable(self, view):
+        color = view.material.color
         loaded = self.scene.shader == self.ident
         if not loaded:
             ModelShader.enable(self, view)
-        glUniform4fv(self.diffuseColorLoc, 1, view.material.color.diffuse)
-        glUniform3fv(self.specularColorLoc, 1, view.material.color.specular)
-        glUniform3fv(self.emissiveColorLoc, 1, view.material.color.emissive)
-        glUniform1f(self.shininessLoc, view.material.color.shininess * 128.0)
+        glUniform4fv(self.diffuseColorLoc, 1, list(color.diffuse) + [1. - color.transparency])
+        glUniform3fv(self.specularColorLoc, 1, color.specular)
+        glUniform3fv(self.emissiveColorLoc, 1, color.emissive)
+        glUniform1f(self.shininessLoc, color.shininess * 128.0)
         glUniform1i(self.textureLoc, 0)
 
 

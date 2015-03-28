@@ -266,13 +266,13 @@ class X3dTexture(X3dEntry):
     def __init__(self, parent):
         X3dEntry.__init__(self, parent)
         self.family = None
-        self.texture = model.Material.Texture("DefaultX3dTexture_%u" % X3dTexture.IDENT)
+        self.texture = model.Material.Texture("", "DefaultX3dTexture_%u" % X3dTexture.IDENT)
         X3dTexture.IDENT += 1
 
     def parse(self, attributes):
-        #TODO
+        if "url" in attributes.keys():
+            self.texture.path = attributes["url"][1:-1].split("\" \"")
         self.family = X3dTexture.FAMILY_DIFFUSE
-        pass
 
 
 class X3dParser:
@@ -366,7 +366,7 @@ class X3dParser:
         return self.scene.extract() if self.scene is not None else []
 
 
-def importX3d(path):
+def load(path):
     parser = X3dParser()
     xml = open(path, 'rb')
     content = xml.read()

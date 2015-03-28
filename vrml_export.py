@@ -18,7 +18,7 @@ def debug(text):
     if debugEnabled:
         print(text)
 
-def exportVrml(spec, path, data):
+def store(data, path, spec=VRML_STRICT):
     exportedGroups, exportedMaterials = [], []
 
     def writeAppearance(spec, stream, material, level):
@@ -30,36 +30,29 @@ def exportVrml(spec, path, data):
             debug("Export: reused material %s" % material.color.ident)
         else:
             stream.write("%smaterial DEF MA_%s Material {\n" % ("\t" * (level + 1), material.color.ident))
-            stream.write("%sdiffuseColor %f %f %f\n" % ("\t" * (level + 2), material.color.diffuse[0],\
-                    material.color.diffuse[1], material.color.diffuse[2]))
+            stream.write("%sdiffuseColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.diffuse.tolist()))
             stream.write("%sambientIntensity %f\n" % ("\t" * (level + 2), ambIntensity))
-            stream.write("%sspecularColor %f %f %f\n" % ("\t" * (level + 2), material.color.specular[0],\
-                    material.color.specular[1], material.color.specular[2]))
-            stream.write("%semissiveColor %f %f %f\n" % ("\t" * (level + 2), material.color.emissive[0],\
-                    material.color.emissive[1], material.color.emissive[2]))
+            stream.write("%sspecularColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.specular.tolist()))
+            stream.write("%semissiveColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.emissive.tolist()))
             stream.write("%sshininess %f\n" % ("\t" * (level + 2), material.color.shininess))
             stream.write("%stransparency %f\n" % ("\t" * (level + 2), material.color.transparency))
             stream.write("%s}\n" % ("\t" * (level + 1)))
             exportedMaterials.append(material)
 
-        if spec != VRML_KICAD:
-            #FIXME Print relative path
-            if material.diffuse is not None:
-                stream.write("%stexture DEF %s ImageTexture {\n"\
-                        % ("\t" * (level + 1), material.diffuse.ident))
-                stream.write("%surl \"%s\"\n" % ("\t" * (level + 2), material.diffuse.path))
-                stream.write("%s}\n" % ("\t" * (level + 1)))
-            if spec == VRML_EXT:
-                if material.normalmap is not None:
-                    stream.write("%stexture DEF normalmap_%s ImageTexture {\n"\
-                            % ("\t" * (level + 1), material.normalmap.ident))
-                    stream.write("%surl \"%s\"\n" % ("\t" * (level + 2), material.normalmap.path))
-                    stream.write("%s}\n" % ("\t" * (level + 1)))
-                if material.specular is not None:
-                    stream.write("%stexture DEF specular_%s ImageTexture {\n"\
-                            % ("\t" * (level + 1), material.specular.ident))
-                    stream.write("%surl \"%s\"\n" % ("\t" * (level + 2), material.specular.path))
-                    stream.write("%s}\n" % ("\t" * (level + 1)))
+            def writeTexture(stream, path, name, level):
+                if name != "":
+                    stream.write("%stexture DEF %s ImageTexture {\n" % ("\t" * level, name))
+                else:
+                    stream.write("%stexture %s {\n" % ("\t" * level))
+                stream.write("%surl \"%s\"\n" % ("\t" * (level + 1), path))
+                stream.write("%s}\n" % ("\t" * level))
+
+            if spec != VRML_KICAD and material.diffuse is not None:
+                writeTexture(stream, material.diffuse.path[0], material.diffuse.ident, level + 1)
+            if spec == VRML_EXT and material.normalmap is not None:
+                writeTexture(stream, material.normalmap.path[0], material.normalmap.ident, level + 1)
+            if spec == VRML_EXT and material.specular is not None:
+                writeTexture(stream, material.specular.path[0], material.specular.ident, level + 1)
 
         stream.write("%s}\n" % ("\t" * level))
 
@@ -156,7 +149,7 @@ def exportVrml(spec, path, data):
             column = mesh.transform.value[:,3][0:3]
             translation = [column[0], column[1], column[2]]
         stream.write("%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident))
-        stream.write("%stranslation %f %f %f\n" % ("\t" * (level + 1), translation[0], translation[1], translation[2]))
+        stream.write("%stranslation %f %f %f\n" % tuple(["\t" * (level + 1)] + translation))
         stream.write("%srotation 1.0 0.0 0.0 0.0\n" % ("\t" * (level + 1)))
         stream.write("%sscale 1.0 1.0 1.0\n" % ("\t" * (level + 1)))
         stream.write("%schildren [\n" % ("\t" * (level + 1)))

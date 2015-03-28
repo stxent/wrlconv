@@ -18,7 +18,7 @@ def debug(text):
     if debugEnabled:
         print(text)
 
-def exportX3d(path, data):
+def store(data, path):
     exportedGroups, exportedMaterials = [], []
 
     def writeAppearance(root, material):
@@ -39,6 +39,17 @@ def exportX3d(path, data):
             materialNode.attrib["shininess"] = str(material.color.shininess)
             materialNode.attrib["transparency"] = str(material.color.transparency)
             exportedMaterials.append(material)
+
+            if material.diffuse is not None:
+                textureNode = etree.SubElement(appearanceNode, "ImageTexture")
+                textureNode.attrib["DEF"] = material.diffuse.ident
+                #FIXME
+                textureNode.attrib["url"] = "\"%s\" \"%s\"" % tuple(material.diffuse.path)
+
+                textureTransformNode = etree.SubElement(appearanceNode, "ImageTexture")
+                textureTransformNode.attrib["translation"] = "0.0 0.0"
+                textureTransformNode.attrib["scale"] = "1.0 1.0"
+                textureTransformNode.attrib["rotation"] = "0.0"
 
     def writeGeometry(root, mesh):
         appearance = mesh.appearance()
@@ -65,13 +76,15 @@ def exportX3d(path, data):
         material = appearance["material"]
         if any(texture is not None for texture in [material.diffuse, material.normalmap, material.specular]):
             texVertices, texPolygons = mesh.texture()
+            texCoords = etree.SubElement(faceset, "TextureCoordinate")
 
-#            vertices = []
-#            [vertices.extend(vertex) for vertex in texVertices]
-#            " ".join(map(str, vertices))
-#
-#            indices = []
-#            [indices.extend(poly) for poly in map(lambda poly: poly + [-1], texPolygons)]
+            vertices = []
+            [vertices.extend(vertex) for vertex in texVertices]
+            texCoords.attrib["point"] = " ".join(map(str, vertices))
+
+            indices = []
+            [indices.extend(poly) for poly in map(lambda poly: poly + [-1], texPolygons)]
+            faceset.attrib["texCoordIndex"] = " ".join(map(str, indices))
 
 
     def writeShape(root, mesh):

@@ -244,7 +244,7 @@ class Mesh:
         if self.parent is None:
             return len(self.texPolygons) > 0 and len(self.geoPolygons) == len(self.texPolygons)
         else:
-            self.parent.isTextured()
+            return self.parent.isTextured()
 
     def append(self, other):
         geoSize = len(self.geoVertices)

@@ -161,7 +161,7 @@ class VrmlEntry:
                 initialPos = stream.tell()
                 self.read(stream, data)
                 using = re.search("USE\s+([\w\.\-]+)", data, re.I | re.S)
-                if using and using.start() < len(data) - offset:
+                if using is not None and using.start() < len(data) - offset:
                     debug("%sUsing entry %s" % (' ' * self.level, using.group(1)))
                     ptr = self
                     while not isinstance(ptr, (vrmlInline, VrmlScene)):
@@ -286,13 +286,13 @@ class VrmlTransform(VrmlEntry):
     def read(self, stream, string):
         key = "([+e\d\-\.]+)"
         result = re.search("translation\s+" + "\s+".join([key] * 3), string, re.I | re.S)
-        if result:
+        if result is not None:
             self.transform.translate(map(lambda x: float(result.group(x + 1)), range(0, 3)))
         result = re.search("rotation\s+" + "\s+".join([key] * 4), string, re.I | re.S)
-        if result:
+        if result is not None:
             self.transform.rotate(map(lambda x: float(result.group(x + 1)), range(0, 3)), float(result.group(4)))
         result = re.search("scale\s+" + "\s+".join([key] * 3), string, re.I | re.S)
-        if result:
+        if result is not None:
             self.transform.scale(map(lambda x: float(result.group(x + 1)), range(0, 3)))
 
     def demangled(self):
@@ -311,7 +311,7 @@ class vrmlInline(VrmlTransform):
 
     def read(self, stream, string):
         urlSearch = re.search("url\s+\"([\w\-\._\/]+)\"", string, re.S)
-        if urlSearch:
+        if urlSearch is not None:
             oldDir = os.getcwd()
             if os.path.isfile(urlSearch.group(1)):
                 debug("%sLoading file: %s" % (' ' * self.level, urlSearch.group(1)))
@@ -413,7 +413,7 @@ class VrmlCoords(VrmlEntry):
         initialPos = stream.tell()
         indexSearch = re.search("point\s*\[", string, re.S)
 
-        if indexSearch:
+        if indexSearch is not None:
             debug("%sStart vertex read, width: %u" % (' ' * self.level, self.size))
 
             self.vertices = []
@@ -550,13 +550,13 @@ class VrmlTexture(VrmlEntry):
     def __init__(self, parent):
         VrmlEntry.__init__(self, parent)
         self.family = None
-        self.texture = model.Material.Texture("DefaultVrmlTexture_%u" % VrmlTexture.IDENT)
+        self.texture = model.Material.Texture("", "DefaultVrmlTexture_%u" % VrmlTexture.IDENT)
         VrmlTexture.IDENT += 1
 
     def read(self, stream, string):
         tmp = re.search("url\s+\"([\w\-\.:\/]+)\"", string, re.I | re.S)
         if tmp is not None:
-            path = os.getcwd() + "/" + tmp.group(1)
+            path = (tmp.group(1), os.getcwd() + "/" + tmp.group(1))
             if self.name == "normalmap":
                 self.family = VrmlTexture.FAMILY_NORMAL
             elif self.name == "specular":
@@ -575,6 +575,6 @@ class VrmlTexture(VrmlEntry):
         return not self == other
 
 
-def importVrml(path):
+def load(path):
     scene = VrmlScene(path)
     return scene.extract()
