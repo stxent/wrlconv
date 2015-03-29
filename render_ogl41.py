@@ -56,11 +56,18 @@ class RenderAppearance:
         self.textures = []
 
         self.name = ""
-        if material.diffuse is None:
-            self.name = "colored"
-        else:
-            self.name = "textured"
+        if material.diffuse is None and material.normalmap is None:
+            self.name = "Colored"
+        elif material.diffuse is not None and material.normalmap is None:
+            self.name = "Textured"
             self.textures.append(RenderAppearance.Texture(material.diffuse.path))
+        elif material.diffuse is None and material.normalmap is not None:
+            self.name = "ColoredBump"
+            self.textures.append(RenderAppearance.Texture(material.normalmap.path))
+        elif material.diffuse is not None and material.normalmap is not None:
+            self.name = "TexturedBump"
+            self.textures.append(RenderAppearance.Texture(material.diffuse.path))
+            self.textures.append(RenderAppearance.Texture(material.normalmap.path))
 
     def enable(self, scene):
         scene.shaders[self.name].enable(self)
@@ -87,7 +94,6 @@ class RenderMesh:
         RenderMesh.IDENT += 1
 
         self.parts = []
-        self.smooth = meshes[0].appearance()["smooth"]
         self.zbuffer = True
 
         self.solid = True
@@ -114,36 +120,58 @@ class RenderMesh:
             self.parts.append(RenderMesh.Faceset(GL_QUADS, triangles * 3, quads * 4))
 
         #TODO Add define
-        index = [0, triangles * 3] #Initial positions for triangle and quad samples
+        index = {3: 0, 4: triangles * 3} #Initial positions for triangle and quad samples
+
+        def getNormal(points):
+            return model.normalize(model.normal(points[1] - points[0], points[2] - points[0]))
+
+        def getTangent(points, texels):
+            return model.normalize(model.tangent(points[1] - points[0], points[2] - points[0],\
+                    texels[1] - texels[0], texels[2] - texels[0]))
 
         for mesh in meshes:
+            smooth = mesh.appearance()["smooth"]
             geoVertices, geoPolygons = mesh.geometry()
             texVertices, texPolygons = mesh.texture()
 
-            altered = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
+            vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
+
+            if smooth:
+                normals = [numpy.array([0., 0., 0.]) for i in range(0, len(geoVertices))]
+                for poly in geoPolygons:
+                    normal = getNormal(map(lambda x: vertices[x], poly))
+                    for vertex in poly:
+                        normals[vertex] += normal
+                normals = map(lambda vector: model.normalize(vector), normals)
+
+                if textured:
+                    tangents = [numpy.array([0., 0., 0.]) for i in range(0, len(geoVertices))]
+                    for gp, tp in zip(geoPolygons, texPolygons):
+                        tangent = getTangent([vertices[i] for i in gp], [texVertices[i] for i in tp])
+                        for vertex in gp:
+                            tangents[vertex] += tangent
+                    tangents = map(lambda vector: model.normalize(vector), tangents)
+                else:
+                    tangents = None
+            else:
+                normals = [getNormal([vertices[i] for i in gp]) for gp in geoPolygons]
+                tangents = [getTangent([vertices[i] for i in gp], [texVertices[i] for i in tp])\
+                        for gp, tp in zip(geoPolygons, texPolygons)] if textured else None
 
             for i in range(0, len(geoPolygons)):
-                gp = geoPolygons[i]
+                gp, tp = geoPolygons[i], texPolygons[i] if textured else None
 
-                normal = model.normalize(model.normal(altered[gp[1]] - altered[gp[0]],\
-                        altered[gp[2]] - altered[gp[0]]))
-                if textured:
-                    tp = texPolygons[i]
-                    tangent = model.normalize(model.tangent(\
-                            altered[gp[1]] - altered[gp[0]], altered[gp[2]] - altered[gp[0]],\
-                            texVertices[tp[1]] - texVertices[tp[0]], texVertices[tp[2]] - texVertices[tp[0]]))
+                n = len(gp)
+                x = index[n]
+                index[n] += n
 
-                current = 0 if len(gp) == 3 else 1
-                offset = index[current]
-                index[current] += len(gp)
-
-                for j in range(0, len(gp)):
-                    self.vertices[3 * offset:3 * offset + 3] = numpy.array(numpy.swapaxes(altered[gp[j]][0:3], 0, 1))
-                    self.normals[3 * offset:3 * offset + 3] = normal
+                for vertex in range(0, n):
+                    self.vertices[3 * x:3 * x + 3] = numpy.array(numpy.swapaxes(vertices[gp[vertex]][0:3], 0, 1))
+                    self.normals[3 * x:3 * x + 3] = normals[gp[vertex]] if smooth else normals[i]
                     if textured:
-                        self.texels[2 * offset:2 * offset + 2] = texVertices[tp[j]]
-                        self.tangents[3 * offset:3 * offset + 3] = tangent
-                    offset += 1
+                        self.texels[2 * x:2 * x + 2] = texVertices[tp[vertex]]
+                        self.tangents[3 * x:3 * x + 3] = tangents[gp[vertex]] if smooth else tangents[i]
+                    x += 1
 
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
@@ -152,13 +180,13 @@ class RenderMesh:
         glBindBuffer(GL_ARRAY_BUFFER, self.verticesVBO)
         glBufferData(GL_ARRAY_BUFFER, self.vertices, GL_STATIC_DRAW)
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, None);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, None)
 
         self.normalsVBO = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, self.normalsVBO)
         glBufferData(GL_ARRAY_BUFFER, self.normals, GL_STATIC_DRAW)
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
 
         if textured:
             self.texelsVBO = glGenBuffers(1)
@@ -166,7 +194,13 @@ class RenderMesh:
             glBufferData(GL_ARRAY_BUFFER, self.texels, GL_STATIC_DRAW)
             #glBufferData(GL_ARRAY_BUFFER, self.texels, GL_DYNAMIC_DRAW)
             glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, None);
+            glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, None)
+
+            self.tangentVBO = glGenBuffers(1)
+            glBindBuffer(GL_ARRAY_BUFFER, self.tangentVBO)
+            glBufferData(GL_ARRAY_BUFFER, self.tangents, GL_STATIC_DRAW)
+            glEnableVertexAttribArray(3);
+            glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 0, None)
 
         glBindVertexArray(0)
 
@@ -213,12 +247,11 @@ class Shader:
     IDENT = 0
 
     def __init__(self, name, scene):
-        self.ident = Shader.IDENT
-        self.scene = scene
-        Shader.IDENT += 1
         self.name = name
-        if not hasattr(self, 'program'): #FIXME Rewrite
-            self.program = None
+        self.scene = scene
+        self.ident = Shader.IDENT
+        Shader.IDENT += 1
+        self.program = None
 
     def enable(self, view):
         glUseProgram(self.program)
@@ -239,14 +272,23 @@ class Shader:
 
 
 class ModelShader(Shader):
-    def __init__(self, name, scene):
+    def __init__(self, name, scene, texture, normal, specular):
         Shader.__init__(self, name, scene)
 
         if self.program is None:
+            flags = ""
+            flags += "#define LIGHT_COUNT 2\n"
+            if texture:
+                flags += "#define DIFFUSE_MAP\n"
+            if normal:
+                flags += "#define NORMAL_MAP\n"
+            if specular:
+                flags += "#define SPECULAR_MAP\n"
+
             content = []
-            for path in ["./shaders/%s.vert", "./shaders/%s.frag"]:
-                desc = open(path % name, "rb")
-                content.append(desc.read())
+            for path in ["./shaders/default.vert", "./shaders/default.frag"]:
+                desc = open(path, "rb")
+                content.append(flags + desc.read())
                 desc.close()
             self.create(content[0], content[1])
 
@@ -259,56 +301,73 @@ class ModelShader(Shader):
         self.lightAmbientLoc = glGetUniformLocation(self.program, "lightAmbientIntensity")
 
     def enable(self, view):
+        if self.scene.shader == self.ident:
+            return
         Shader.enable(self, view)
 
         glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.scene.projectionMatrix, numpy.float32))
         glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.scene.modelViewMatrix, numpy.float32))
         glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(self.scene.normalMatrix, numpy.float32))
 
-        diffuse = numpy.array([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]], numpy.float32)
+        ambient = 0.1
+        diffuse = numpy.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], numpy.float32)
+
         glUniform3fv(self.lightLoc, len(self.scene.lights), numpy.array(self.scene.lights, numpy.float32))
         glUniform3fv(self.lightDiffuseLoc, 2, diffuse)
-        glUniform1f(self.lightAmbientLoc, 0.0)
+        glUniform1f(self.lightAmbientLoc, ambient)
 
 
-class ColorShader(ModelShader):
-    def __init__(self, name, scene):
-        ModelShader.__init__(self, name, scene)
+class DefaultShader(ModelShader):
+    def __init__(self, name, scene, texture=False, normal=False, specular=False):
+        ModelShader.__init__(self, name, scene, texture, normal, specular)
         self.diffuseColorLoc = glGetUniformLocation(self.program, "materialDiffuseColor")
         self.specularColorLoc = glGetUniformLocation(self.program, "materialSpecularColor")
         self.emissiveColorLoc = glGetUniformLocation(self.program, "materialEmissiveColor")
         self.shininessLoc = glGetUniformLocation(self.program, "materialShininess")
 
     def enable(self, view):
+        ModelShader.enable(self, view)
+
         color = view.material.color
-        loaded = self.scene.shader == self.ident
-        if not loaded:
-            ModelShader.enable(self, view)
         glUniform4fv(self.diffuseColorLoc, 1, list(color.diffuse) + [1. - color.transparency])
         glUniform3fv(self.specularColorLoc, 1, color.specular)
         glUniform3fv(self.emissiveColorLoc, 1, color.emissive)
         glUniform1f(self.shininessLoc, color.shininess * 128.0)
 
 
-class TextureShader(ModelShader):
+class ColoredBumpShader(DefaultShader):
     def __init__(self, name, scene):
-        ModelShader.__init__(self, name, scene)
-        self.diffuseColorLoc = glGetUniformLocation(self.program, "materialDiffuseColor")
-        self.specularColorLoc = glGetUniformLocation(self.program, "materialSpecularColor")
-        self.emissiveColorLoc = glGetUniformLocation(self.program, "materialEmissiveColor")
-        self.shininessLoc = glGetUniformLocation(self.program, "materialShininess")
-        self.textureLoc = glGetUniformLocation(self.program, "diffuseTexture")
+        DefaultShader.__init__(self, name, scene, False, True, False)
+        self.normalMapLoc = glGetUniformLocation(self.program, "normalTexture")
 
     def enable(self, view):
-        color = view.material.color
-        loaded = self.scene.shader == self.ident
-        if not loaded:
-            ModelShader.enable(self, view)
-        glUniform4fv(self.diffuseColorLoc, 1, list(color.diffuse) + [1. - color.transparency])
-        glUniform3fv(self.specularColorLoc, 1, color.specular)
-        glUniform3fv(self.emissiveColorLoc, 1, color.emissive)
-        glUniform1f(self.shininessLoc, color.shininess * 128.0)
-        glUniform1i(self.textureLoc, 0)
+        DefaultShader.enable(self, view)
+
+        glUniform1i(self.normalMapLoc, 0)
+
+
+class TexturedShader(DefaultShader):
+    def __init__(self, name, scene):
+        DefaultShader.__init__(self, name, scene, True, False, False)
+        self.diffuseMapLoc = glGetUniformLocation(self.program, "diffuseTexture")
+
+    def enable(self, view):
+        DefaultShader.enable(self, view)
+
+        glUniform1i(self.diffuseMapLoc, 0)
+
+
+class TexturedBumpShader(DefaultShader):
+    def __init__(self, name, scene):
+        DefaultShader.__init__(self, name, scene, True, True, False)
+        self.diffuseMapLoc = glGetUniformLocation(self.program, "diffuseTexture")
+        self.normalMapLoc = glGetUniformLocation(self.program, "normalTexture")
+
+    def enable(self, view):
+        DefaultShader.enable(self, view)
+
+        glUniform1i(self.diffuseMapLoc, 0)
+        glUniform1i(self.normalMapLoc, 1)
 
 
 class Render(Scene):
@@ -366,8 +425,10 @@ class Render(Scene):
         if len(scriptDir) > 0:
             os.chdir(scriptDir)
         self.shaders = {}
-        self.shaders["colored"] = ColorShader("colored", self)
-        self.shaders["textured"] = TextureShader("textured", self)
+        self.shaders["Colored"] = DefaultShader("Colored", self)
+        self.shaders["Textured"] = TexturedShader("Textured", self)
+        self.shaders["ColoredBump"] = ColoredBumpShader("ColoredBump", self)
+        self.shaders["TexturedBump"] = TexturedBumpShader("TexturedBump", self)
         os.chdir(oldDir)
 
     def initScene(self, objects):
