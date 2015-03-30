@@ -63,8 +63,8 @@ def store(data, path, spec=VRML_STRICT):
         if spec == VRML_KICAD:
             stream.write("%ssolid FALSE\n" % ("\t" * (level + 1)))
         else:
-            stream.write("%ssolid %s\n" % ("\t" * (level + 1), "TRUE" if appearance["solid"] else "FALSE"))
-            stream.write("%ssmooth %s\n" % ("\t" * (level + 1), "TRUE" if appearance["smooth"] else "FALSE"))
+            stream.write("%ssolid %s\n" % ("\t" * (level + 1), "TRUE" if appearance.solid else "FALSE"))
+            stream.write("%ssmooth %s\n" % ("\t" * (level + 1), "TRUE" if appearance.smooth else "FALSE"))
 
         geoVertices, geoPolygons = mesh.geometry()
 
@@ -90,7 +90,7 @@ def store(data, path, spec=VRML_STRICT):
         stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 1)))
 
-        material = appearance["material"]
+        material = appearance.material
         if any(texture is not None for texture in [material.diffuse, material.normalmap, material.specular]):
             texVertices, texPolygons = mesh.texture()
 
@@ -117,7 +117,7 @@ def store(data, path, spec=VRML_STRICT):
     def writeShape(spec, stream, mesh, level):
         stream.write("%sShape {\n" % ("\t" * level))
 
-        writeAppearance(spec, stream, mesh.appearance()["material"], level + 1)
+        writeAppearance(spec, stream, mesh.appearance().material, level + 1)
         writeGeometry(spec, stream, mesh, level + 1)
 
         stream.write("%s}\n" % ("\t" * level))

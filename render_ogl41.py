@@ -51,26 +51,37 @@ class RenderAppearance:
             debug("Texture loaded: %s, width: %d, height: %d, id: %d"\
                     % (path[0], self.size[0], self.size[1], self.buf))
 
-    def __init__(self, material):
-        self.material = material
-        self.textures = []
 
-        self.name = ""
-        if material.diffuse is None and material.normalmap is None:
-            self.name = "Colored"
-        elif material.diffuse is not None and material.normalmap is None:
-            self.name = "Textured"
-            self.textures.append(RenderAppearance.Texture(material.diffuse.path))
-        elif material.diffuse is None and material.normalmap is not None:
-            self.name = "ColoredBump"
-            self.textures.append(RenderAppearance.Texture(material.normalmap.path))
-        elif material.diffuse is not None and material.normalmap is not None:
-            self.name = "TexturedBump"
-            self.textures.append(RenderAppearance.Texture(material.diffuse.path))
-            self.textures.append(RenderAppearance.Texture(material.normalmap.path))
+    def __init__(self, appearance):
+        self.textures = []
+        self.zbuffer = True
+
+        if appearance is None:
+            self.name = "Unlit"
+        else:
+            self.material = appearance.material
+            self.smooth = appearance.smooth
+            self.solid = appearance.solid
+            self.wireframe = appearance.wireframe
+
+            if self.material.diffuse is None and self.material.normalmap is None:
+                self.name = "Colored"
+            elif self.material.diffuse is not None and self.material.normalmap is None:
+                self.name = "Textured"
+                self.textures.append(RenderAppearance.Texture(self.material.diffuse.path))
+            elif self.material.diffuse is None and self.material.normalmap is not None:
+                self.name = "ColoredBump"
+                self.textures.append(RenderAppearance.Texture(self.material.normalmap.path))
+            elif self.material.diffuse is not None and self.material.normalmap is not None:
+                self.name = "TexturedBump"
+                self.textures.append(RenderAppearance.Texture(self.material.diffuse.path))
+                self.textures.append(RenderAppearance.Texture(self.material.normalmap.path))
+            else:
+                raise Exception()
 
     def enable(self, scene):
         scene.shaders[self.name].enable(self)
+
         for i in range(0, len(self.textures)):
             glActiveTexture(GL_TEXTURE0 + i)
             glEnable(self.textures[i].kind)
@@ -81,32 +92,32 @@ class RenderAppearance:
 
 
 class RenderMesh:
-    IDENT = 0
-
     class Faceset:
         def __init__(self, mode, index, count):
             self.mode = mode
             self.index = index
             self.count = count
 
+
+    IDENT = 0
+
     def __init__(self, meshes):
         self.ident = str(RenderMesh.IDENT)
         RenderMesh.IDENT += 1
 
         self.parts = []
-        self.zbuffer = True
-
-        self.solid = True
-        self.debug = False #Show normals
-        self.appearance = RenderAppearance(meshes[0].appearance()["material"])
+        self.appearance = RenderAppearance(meshes[0].appearance())
 
         textured = meshes[0].isTextured()
         started = time.time()
 
-        polys = []
+        triangles, quads = 0, 0
         for mesh in meshes:
-            polys.extend(map(lambda polygon: len(polygon), mesh.geometry()[1]))
-        triangles, quads = len(filter(lambda x: x == 3, polys)), len(filter(lambda x: x == 4, polys))
+            for poly in mesh.geometry()[1]:
+                if len(poly) == 3:
+                    triangles += 1
+                else:
+                    quads += 1
 
         length = triangles * 3 + quads * 4
         self.vertices = numpy.zeros(length * 3, dtype=numpy.float32)
@@ -119,11 +130,11 @@ class RenderMesh:
         if quads > 0:
             self.parts.append(RenderMesh.Faceset(GL_QUADS, triangles * 3, quads * 4))
 
-        #TODO Add define
-        index = {3: 0, 4: triangles * 3} #Initial positions for triangle and quad samples
+        #Initial positions for triangle and quad samples
+        index = [0, triangles * 3]
+        smooth = self.appearance.smooth
 
         for mesh in meshes:
-            smooth = mesh.appearance()["smooth"]
             geoVertices, geoPolygons = mesh.geometry()
             texVertices, texPolygons = mesh.texture()
 
@@ -165,8 +176,16 @@ class RenderMesh:
                     tp = texPolygons[i]
 
                 count = len(gp)
-                offset = index[count]
-                index[count] += count
+
+                if count == 3:
+                    indexGroup = 0
+                elif count == 4:
+                    indexGroup = 1
+                else:
+                    continue
+
+                offset = index[indexGroup]
+                index[indexGroup] += count
 
                 for vertex in range(0, count):
                     geoStart, geoEnd, texStart, texEnd = 3 * offset, 3 * (offset + 1), 2 * offset, 2 * (offset + 1)
@@ -213,15 +232,15 @@ class RenderMesh:
                 % (time.time() - started, self.ident, triangles, quads, len(self.vertices) / 3))
 
     def draw(self, wireframe=False):
-        if wireframe:
+        if wireframe or self.appearance.wireframe:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        else:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 
         glBindVertexArray(self.vao)
         for entry in self.parts:
             glDrawArrays(entry.mode, entry.index, entry.count)
         glBindVertexArray(0)
-
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 
 
 class Scene:
@@ -438,9 +457,9 @@ class Render(Scene):
 
     def initScene(self, objects):
         keys = []
-        [keys.append(item) for item in map(lambda x: x.appearance()["material"], objects) if item not in keys]
+        [keys.append(item) for item in map(lambda mesh: mesh.appearance().material, objects) if item not in keys]
 
-        groups = map(lambda key: filter(lambda mesh: mesh.appearance()["material"] == key, objects), keys)
+        groups = map(lambda key: filter(lambda mesh: mesh.appearance().material == key, objects), keys)
         [self.data.append(RenderMesh(meshes)) for meshes in groups]
 
     def idleScene(self):

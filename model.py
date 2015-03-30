@@ -148,6 +148,7 @@ class Material:
         def __ne__(self, other):
             return not self == other
 
+
     class Texture:
         IDENT = 0
 
@@ -166,6 +167,7 @@ class Material:
 
         def __ne__(self, other):
             return not self == other
+
 
     def __init__(self):
         self.color = Material.Color()
@@ -210,6 +212,14 @@ class Transform:
 
 
 class Mesh:
+    class Appearance:
+        def __init__(self):
+            self.material = Material()
+            self.smooth = False
+            self.solid = False
+            self.wireframe = False
+
+
     IDENT = 0
 
     def __init__(self, parent=None, name=None):
@@ -225,14 +235,10 @@ class Mesh:
         if self.parent is None:
             self.geoVertices, self.geoPolygons = [], []
             self.texVertices, self.texPolygons = [], []
-            self.material = Material()
-            self.smooth, self.solid = False, False
+            self.visualAppearance = Mesh.Appearance()
 
     def appearance(self):
-        if self.parent is None:
-            return {"material": self.material, "smooth": self.smooth, "solid": self.solid}
-        else:
-            return self.parent.appearance()
+        return self.visualAppearance if self.parent is None else self.parent.appearance()
 
     def geometry(self):
         return (self.geoVertices, self.geoPolygons) if self.parent is None else self.parent.geometry()

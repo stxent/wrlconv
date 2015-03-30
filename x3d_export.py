@@ -57,8 +57,7 @@ def store(data, path):
 
         faceset = etree.SubElement(root, "IndexedFaceSet")
 
-        faceset.attrib["solid"] = "true" if appearance["solid"] else "false"
-        faceset.attrib["smooth"] = "true" if appearance["smooth"] else "false"
+        faceset.attrib["solid"] = "true" if appearance.solid else "false"
         indices = []
         [indices.extend(poly) for poly in map(lambda poly: poly + [-1], geoPolygons)]
         faceset.attrib["coordIndex"] = " ".join(map(str, indices))
@@ -73,7 +72,7 @@ def store(data, path):
             vertices.extend([vert[0, 0], vert[1, 0], vert[2, 0]])
         geoCoords.attrib["point"] = " ".join(map(str, vertices))
 
-        material = appearance["material"]
+        material = appearance.material
         if any(texture is not None for texture in [material.diffuse, material.normalmap, material.specular]):
             texVertices, texPolygons = mesh.texture()
             texCoords = etree.SubElement(faceset, "TextureCoordinate")
@@ -89,7 +88,7 @@ def store(data, path):
 
     def writeShape(root, mesh):
         shape = etree.SubElement(root, "Shape")
-        writeAppearance(shape, mesh.appearance()["material"])
+        writeAppearance(shape, mesh.appearance().material)
         writeGeometry(shape, mesh)
 
     def writeGroup(root, mesh):

@@ -211,9 +211,9 @@ class VrmlScene(VrmlEntry):
                 materials = filter(lambda mat: mat == newMaterial, exportedMaterials)
                 if len(materials) > 0:
                     debug("Squash: reused material %s" % materials[0].color.ident)
-                    mesh.material = materials[0]
+                    mesh.visualAppearance.material = materials[0]
                 else:
-                    mesh.material = newMaterial
+                    mesh.visualAppearance.material = newMaterial
                     exportedMaterials.append(newMaterial)
             mesh.smooth = geometry.smooth
             mesh.solid = geometry.solid
