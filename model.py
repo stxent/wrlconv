@@ -11,8 +11,7 @@ import numpy
 
 def normalize(v):
     length = numpy.linalg.norm(v)
-    result = v / length if length != 0 else v
-    return numpy.array(list(map(lambda x: float(x), result)))
+    return v if length == 0 else v / length
 
 def createModelViewMatrix(eye, center, up):
     center = numpy.array([float(center[0]), float(center[1]), float(center[2])])
@@ -79,9 +78,10 @@ def angle(v1, v2):
     return ac
 
 def normal(v1, v2):
-    return numpy.matrix([[float(v1[1] * v2[2] - v1[2] * v2[1])],
-            [float(v1[2] * v2[0] - v1[0] * v2[2])],
-            [float(v1[0] * v2[1] - v1[1] * v2[0])]])
+    return numpy.array([
+            v1[1] * v2[2] - v1[2] * v2[1],
+            v1[2] * v2[0] - v1[0] * v2[2],
+            v1[0] * v2[1] - v1[1] * v2[0]])
 
 def tangent(v1, v2, st1, st2):
     div = st1[1] * st2[0] - st1[0] * st2[1]

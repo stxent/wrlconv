@@ -122,13 +122,6 @@ class RenderMesh:
         #TODO Add define
         index = {3: 0, 4: triangles * 3} #Initial positions for triangle and quad samples
 
-        def getNormal(points):
-            return model.normalize(model.normal(points[1] - points[0], points[2] - points[0]))
-
-        def getTangent(points, texels):
-            return model.normalize(model.tangent(points[1] - points[0], points[2] - points[0],\
-                    texels[1] - texels[0], texels[2] - texels[0]))
-
         for mesh in meshes:
             smooth = mesh.appearance()["smooth"]
             geoVertices, geoPolygons = mesh.geometry()
@@ -136,42 +129,54 @@ class RenderMesh:
 
             vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
 
+            def getNormal(points):
+                return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],\
+                        vertices[points[2]] - vertices[points[0]]))
+
+            def getTangent(points, texels):
+                return model.normalize(model.tangent(vertices[points[1]] - vertices[points[0]],\
+                        vertices[points[2]] - vertices[points[0]],\
+                        texVertices[texels[1]] - texVertices[texels[0]],\
+                        texVertices[texels[2]] - texVertices[texels[0]]))
+
             if smooth:
                 normals = [numpy.array([0., 0., 0.]) for i in range(0, len(geoVertices))]
                 for poly in geoPolygons:
-                    normal = getNormal(map(lambda x: vertices[x], poly))
+                    normal = getNormal(poly)
                     for vertex in poly:
                         normals[vertex] += normal
-                normals = map(lambda vector: model.normalize(vector), normals)
+                normals = [model.normalize(vector) for vector in normals]
 
                 if textured:
                     tangents = [numpy.array([0., 0., 0.]) for i in range(0, len(geoVertices))]
                     for gp, tp in zip(geoPolygons, texPolygons):
-                        tangent = getTangent([vertices[i] for i in gp], [texVertices[i] for i in tp])
+                        tangent = getTangent(gp, tp)
                         for vertex in gp:
                             tangents[vertex] += tangent
-                    tangents = map(lambda vector: model.normalize(vector), tangents)
-                else:
-                    tangents = None
+                    tangents = [model.normalize(vector) for vector in tangents]
             else:
-                normals = [getNormal([vertices[i] for i in gp]) for gp in geoPolygons]
-                tangents = [getTangent([vertices[i] for i in gp], [texVertices[i] for i in tp])\
-                        for gp, tp in zip(geoPolygons, texPolygons)] if textured else None
+                normals = [getNormal(gp) for gp in geoPolygons]
+                if textured:
+                    tangents = [getTangent(gp, tp) for gp, tp in zip(geoPolygons, texPolygons)]
 
             for i in range(0, len(geoPolygons)):
-                gp, tp = geoPolygons[i], texPolygons[i] if textured else None
+                gp = geoPolygons[i]
+                if textured:
+                    tp = texPolygons[i]
 
-                n = len(gp)
-                x = index[n]
-                index[n] += n
+                count = len(gp)
+                offset = index[count]
+                index[count] += count
 
-                for vertex in range(0, n):
-                    self.vertices[3 * x:3 * x + 3] = numpy.array(numpy.swapaxes(vertices[gp[vertex]][0:3], 0, 1))
-                    self.normals[3 * x:3 * x + 3] = normals[gp[vertex]] if smooth else normals[i]
+                for vertex in range(0, count):
+                    geoStart, geoEnd, texStart, texEnd = 3 * offset, 3 * (offset + 1), 2 * offset, 2 * (offset + 1)
+
+                    self.vertices[geoStart:geoEnd] = numpy.array(numpy.swapaxes(vertices[gp[vertex]][0:3], 0, 1))
+                    self.normals[geoStart:geoEnd] = normals[gp[vertex]] if smooth else normals[i]
                     if textured:
-                        self.texels[2 * x:2 * x + 2] = texVertices[tp[vertex]]
-                        self.tangents[3 * x:3 * x + 3] = tangents[gp[vertex]] if smooth else tangents[i]
-                    x += 1
+                        self.texels[texStart:texEnd] = texVertices[tp[vertex]]
+                        self.tangents[geoStart:geoEnd] = tangents[gp[vertex]] if smooth else tangents[i]
+                    offset += 1
 
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
