@@ -109,9 +109,8 @@ def store(data, path):
         if mesh.transform is None:
             translation = [0., 0., 0.]
         else:
-            column = mesh.transform.value[:,3][0:3]
-            translation = [column[0], column[1], column[2]]
-        
+            translation = numpy.array(mesh.transform.value)[:,3][0:3].tolist()
+
         transform = etree.SubElement(root, "Transform")
         transform.attrib["DEF"] = "OB_%s" % mesh.ident
         transform.attrib["translation"] = "%f %f %f" % tuple(translation)

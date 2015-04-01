@@ -146,8 +146,8 @@ def store(data, path, spec=VRML_STRICT):
         if mesh.transform is None:
             translation = [0., 0., 0.]
         else:
-            column = mesh.transform.value[:,3][0:3]
-            translation = [column[0], column[1], column[2]]
+            translation = numpy.array(mesh.transform.value)[:,3][0:3].tolist()
+
         stream.write("%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident))
         stream.write("%stranslation %f %f %f\n" % tuple(["\t" * (level + 1)] + translation))
         stream.write("%srotation 1.0 0.0 0.0 0.0\n" % ("\t" * (level + 1)))

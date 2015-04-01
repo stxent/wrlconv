@@ -38,15 +38,25 @@ def createModelViewMatrix(eye, center, up):
     return result
 
 def createPerspectiveMatrix(size, angle, distance):
-    near, far = float(distance[0]), float(distance[1])
-    fov = float(angle) * 2. * math.pi / 360.
+    n, f = float(distance[0]), float(distance[1])
+    fov = float(angle) / 2. * math.pi / 360.
     aspect = float(size[0]) / float(size[1])
-    f = 1. / math.tan(fov / 2.);
+    h = 1. / math.tan(fov)
+    w = h / aspect
     return numpy.matrix([
-            [f / aspect, 0.,                               0.,  0.],
-            [        0.,  f,                               0.,  0.],
-            [        0., 0.,      (near + far) / (near - far), -1.],
-            [        0., 0., (2. * near * far) / (near - far),  0.]])
+            [ w, 0.,                      0.,  0.],
+            [0.,  h,                      0.,  0.],
+            [0., 0.,      -(f + n) / (f - n), -1.],
+            [0., 0., -(2. * f * n) / (f - n),  0.]])
+
+def createOrthographicMatrix(area, distance):
+    n, f = float(distance[0]), float(distance[1])
+    w, h = float(area[0]), float(area[1])
+    return numpy.matrix([
+            [1. / w,     0.,                 0., 0.],
+            [    0., 1. / h,                 0., 0.],
+            [    0.,     0.,      -2. / (f - n), 0.],
+            [    0.,     0., -(f + n) / (f - n), 1.]])
 
 def uvWrapPlanar(mesh, borders=None):
     if borders is None:

@@ -405,20 +405,20 @@ class Render(Scene):
 
         def home(self):
             self.pov = numpy.matrix([[0.], [0.], [0.], [1.]])
-            self.camera = numpy.matrix([[Render.Camera.DISTANCE], [0.], [0.], [1.]])
+            self.camera = numpy.matrix([[0.], [-Render.Camera.DISTANCE], [0.], [1.]])
             self.axis = numpy.matrix([[0.], [0.], [1.], [0.]])
 
         def front(self):
             self.camera -= self.pov
             distance = numpy.linalg.norm(numpy.array(self.camera[:,0][0:3]))
-            self.camera = numpy.matrix([[distance], [0.], [0.], [0.]])
+            self.camera = numpy.matrix([[0.], [-distance], [0.], [0.]])
             self.axis = numpy.matrix([[0.], [0.], [1.], [0.]])
             self.camera += self.pov
 
         def side(self):
             self.camera -= self.pov
             distance = numpy.linalg.norm(numpy.array(self.camera[:,0][0:3]))
-            self.camera = numpy.matrix([[0.], [-distance], [0.], [0.]])
+            self.camera = numpy.matrix([[distance], [0.], [0.], [0.]])
             self.axis = numpy.matrix([[0.], [0.], [1.], [0.]])
             self.camera += self.pov
 
@@ -595,9 +595,9 @@ class Render(Scene):
         if key in ("\x1b", "q", "Q"):
             exit()
         elif key in ("1"):
-            self.camera.side()
-        elif key in ("3"):
             self.camera.front()
+        elif key in ("3"):
+            self.camera.side()
         elif key in ("7"):
             self.camera.top()
         elif key in ("."):
