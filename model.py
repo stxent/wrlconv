@@ -11,19 +11,19 @@ import numpy
 
 def normalize(v):
     length = numpy.linalg.norm(v)
-    return v if length == 0 else v / length
+    return v if length == 0. else v / length
 
 def createModelViewMatrix(eye, center, up):
-    center = numpy.array([float(center[0]), float(center[1]), float(center[2])])
-    eye = numpy.array([float(eye[0]), float(eye[1]), float(eye[2])])
-    up = numpy.array([float(up[0]), float(up[1]), float(up[2])])
+    eye = numpy.array(eye)[:,0][0:3]
+    center = numpy.array(center)[:,0][0:3]
+    up = numpy.array(up)[:,0][0:3]
 
     forward = normalize(center - eye)
     up = normalize(up)
     side = numpy.cross(forward, up)
-    side = normalize(numpy.array([float(side[0]), float(side[1]), float(side[2])]))
+    side = numpy.array([0., 1., 0.]) if numpy.linalg.norm(side) == 0. else  normalize(side)
     up = numpy.cross(side, forward)
-    up = normalize(numpy.array([float(up[0]), float(up[1]), float(up[2])]))
+    up = normalize(up)
 
     result = numpy.matrix([
             [     1.,      0.,      0., 0.],
@@ -41,7 +41,7 @@ def createPerspectiveMatrix(size, angle, distance):
     near, far = float(distance[0]), float(distance[1])
     fov = float(angle) * 2. * math.pi / 360.
     aspect = float(size[0]) / float(size[1])
-    f = 1.0 / math.tan(fov / 2.);
+    f = 1. / math.tan(fov / 2.);
     return numpy.matrix([
             [f / aspect, 0.,                               0.,  0.],
             [        0.,  f,                               0.,  0.],
@@ -71,10 +71,13 @@ def uvWrapPlanar(mesh, borders=None):
 def angle(v1, v2):
     mag1 = math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2])
     mag2 = math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2])
-    res = (v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]) / (mag1 * mag2)
+    mag = mag1 * mag2
+    if mag == 0.:
+        return 0.
+    res = (v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]) / mag
     ac = math.acos(res)
     if v2[0] * v1[1] - v2[1] * v1[0] < 0:
-        ac *= -1
+        ac *= -1.
     return ac
 
 def normal(v1, v2):
