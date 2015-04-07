@@ -7,14 +7,35 @@
 
 import argparse
 import math
+import numpy
 import os
 import re
 
+import geometry
+import model
 import render_ogl41
 import vrml_import
 import vrml_export
 import x3d_import
 import x3d_export
+
+def createGrid():
+    darkGrayMaterial = model.Material()
+    darkGrayMaterial.color.diffuse = numpy.array([0.3] * 3)
+    lightGrayMaterial = model.Material()
+    lightGrayMaterial.color.diffuse = numpy.array([0.5] * 3)
+    zGrid = geometry.Plane((10, 10), (10, 10))
+    zGrid.visualAppearance.material = darkGrayMaterial
+    zGrid.visualAppearance.wireframe = True
+    xGrid = geometry.Plane((2, 10), (2, 10))
+    xGrid.visualAppearance.material = lightGrayMaterial
+    xGrid.visualAppearance.wireframe = True
+    xGrid.rotate([0., 1., 0.], math.pi / 2.)
+    yGrid = geometry.Plane((10, 2), (10, 2))
+    yGrid.visualAppearance.material = lightGrayMaterial
+    yGrid.visualAppearance.wireframe = True
+    yGrid.rotate([1., 0., 0.], math.pi / 2.)
+    return [xGrid, yGrid, zGrid]
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", dest="view", help="render model", default=False, action="store_true")
@@ -27,6 +48,7 @@ parser.add_argument("-s", dest="scale", help="scale shapes by x,y,z",\
 parser.add_argument("-f", dest="pattern", help="regular expression, filter objects by name", default="")
 parser.add_argument("-d", dest="debug", help="show debug information", default=False, action="store_true")
 parser.add_argument("-x", dest="simplified", help="export with simplified syntax", default=False, action="store_true")
+parser.add_argument("--grid", dest="grid", help="show grid", default=False, action="store_true")
 parser.add_argument(dest="files", nargs="*")
 options = parser.parse_args()
 
@@ -77,4 +99,5 @@ if options.output != "":
         x3d_export.store(exportList, options.output)
 
 if options.view:
-    render = render_ogl41.Render(exportList)
+    helpers = createGrid() if options.grid else []
+    render = render_ogl41.Render(exportList + helpers)
