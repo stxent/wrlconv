@@ -28,6 +28,55 @@ def debug(text):
     if debugEnabled:
         print(text)
 
+def generateNormals(meshes):
+    blueMaterial = model.Material()
+    blueMaterial.color.diffuse = numpy.array([0., 0., 1.])
+    normalLength = 0.2
+
+    urchin = model.PointCloud(name="Normals")
+    urchin.geoPolygons = []
+    urchin.geoVertices = []
+    urchin.visualAppearance.material = blueMaterial
+
+    for mesh in meshes:
+        if not mesh.appearance().normals:
+            continue
+
+        geoVertices, geoPolygons = mesh.geometry()
+        smooth = mesh.appearance().smooth
+
+        vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
+
+        def getNormal(points):
+            return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],\
+                    vertices[points[2]] - vertices[points[0]]))
+
+        if smooth:
+            normals = [numpy.array([0., 0., 0.]) for i in range(0, len(geoVertices))]
+            for poly in geoPolygons:
+                normal = getNormal(poly)
+                for vertex in poly:
+                    normals[vertex] += normal
+            normals = [model.normalize(vector) for vector in normals]
+        else:
+            normals = [getNormal(gp) for gp in geoPolygons]
+
+        for i in range(0, len(geoPolygons)):
+            gp = geoPolygons[i]
+            position = numpy.array([0., 0., 0.])
+            for vertex in gp:
+                position += vertices[vertex]
+            position /= float(len(gp))
+            lastIndex = len(urchin.geoVertices)
+            urchin.geoVertices.append(position)
+            urchin.geoVertices.append(position + normals[i] * normalLength)
+            urchin.geoPolygons.append([lastIndex, lastIndex + 1])
+
+    if len(urchin.geoPolygons) == 0:
+        return None
+    else:
+        return urchin
+
 
 class RenderAppearance:
     class Texture:
@@ -55,11 +104,11 @@ class RenderAppearance:
     def __init__(self, appearance):
         self.textures = []
         self.zbuffer = True
+        self.material = appearance.material
 
-        if appearance is None:
+        if appearance.constant:
             self.name = "Unlit"
         else:
-            self.material = appearance.material
             self.smooth = appearance.smooth
             self.solid = appearance.solid
             self.wireframe = appearance.wireframe
@@ -91,7 +140,7 @@ class RenderAppearance:
             glBindTexture(self.textures[i].kind, self.textures[i].buf)
 
 
-class RenderMesh:
+class RenderObject:
     class Faceset:
         def __init__(self, mode, index, count):
             self.mode = mode
@@ -101,9 +150,93 @@ class RenderMesh:
 
     IDENT = 0
 
+    def __init__(self):
+        self.ident = str(RenderObject.IDENT)
+        RenderObject.IDENT += 1
+
+    def draw(self, wireframe=False):
+        pass
+
+
+class RenderPointCloud(RenderObject):
     def __init__(self, meshes):
-        self.ident = str(RenderMesh.IDENT)
-        RenderMesh.IDENT += 1
+        RenderObject.__init__(self)
+
+        self.parts = []
+        self.appearance = RenderAppearance(meshes[0].appearance())
+
+        started = time.time()
+
+        primitives = [0]
+        for mesh in meshes:
+            for poly in mesh.geometry()[1]:
+                count = len(poly)
+                if count < 2 or count > 2:
+                    raise Exception()
+                primitives[count - 2] += 1
+
+        lines = primitives[0] * 2
+        length = lines
+        self.vertices = numpy.zeros(length * 3, dtype=numpy.float32)
+        self.colors = numpy.zeros(length * 3, dtype=numpy.float32)
+
+        if lines > 0:
+            self.parts.append(RenderMesh.Faceset(GL_LINES, 0, lines))
+
+        #Initial positions
+        index = [0]
+
+        color = self.appearance.material.color.diffuse
+        for i in range(0, length):
+            self.colors[3 * i:3 * (i + 1)] = color
+
+        for mesh in meshes:
+            geoVertices, geoPolygons = mesh.geometry()
+
+            vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
+
+            for gp in geoPolygons:
+                count = len(gp)
+                indexGroup = count - 2
+
+                offset = index[indexGroup]
+                index[indexGroup] += count
+
+                for vertex in range(0, count):
+                    geoStart, geoEnd = 3 * offset, 3 * (offset + 1)
+                    self.vertices[geoStart:geoEnd] = numpy.array(numpy.swapaxes(vertices[gp[vertex]][0:3], 0, 1))
+                    offset += 1
+
+        self.vao = glGenVertexArrays(1)
+        glBindVertexArray(self.vao)
+
+        self.verticesVBO = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, self.verticesVBO)
+        glBufferData(GL_ARRAY_BUFFER, self.vertices, GL_STATIC_DRAW)
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, None)
+
+        self.colorsVBO = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, self.colorsVBO)
+        glBufferData(GL_ARRAY_BUFFER, self.colors, GL_STATIC_DRAW)
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
+
+        glBindVertexArray(0)
+
+        debug("Point cloud created in %f, id %s, lines %u, vertices %u"\
+                % (time.time() - started, self.ident, lines / 2, length))
+
+    def draw(self, wireframe=False):
+        glBindVertexArray(self.vao)
+        for entry in self.parts:
+            glDrawArrays(entry.mode, entry.index, entry.count)
+        glBindVertexArray(0)
+
+
+class RenderMesh(RenderObject):
+    def __init__(self, meshes):
+        RenderObject.__init__(self)
 
         self.parts = []
         self.appearance = RenderAppearance(meshes[0].appearance())
@@ -111,27 +244,28 @@ class RenderMesh:
         textured = meshes[0].isTextured()
         started = time.time()
 
-        triangles, quads = 0, 0
+        primitives = [0, 0]
         for mesh in meshes:
             for poly in mesh.geometry()[1]:
-                if len(poly) == 3:
-                    triangles += 1
-                else:
-                    quads += 1
+                count = len(poly)
+                if count < 3 or count > 4:
+                    raise Exception()
+                primitives[len(poly) - 3] += 1
 
-        length = triangles * 3 + quads * 4
+        triangles, quads = primitives[0] * 3, primitives[1] * 4
+        length = triangles + quads
         self.vertices = numpy.zeros(length * 3, dtype=numpy.float32)
         self.normals = numpy.zeros(length * 3, dtype=numpy.float32)
         self.texels = numpy.zeros(length * 2, dtype=numpy.float32) if textured else None
         self.tangents = numpy.zeros(length * 3, dtype=numpy.float32) if textured else None
 
         if triangles > 0:
-            self.parts.append(RenderMesh.Faceset(GL_TRIANGLES, 0, triangles * 3))
+            self.parts.append(RenderMesh.Faceset(GL_TRIANGLES, 0, triangles))
         if quads > 0:
-            self.parts.append(RenderMesh.Faceset(GL_QUADS, triangles * 3, quads * 4))
+            self.parts.append(RenderMesh.Faceset(GL_QUADS, triangles, quads))
 
-        #Initial positions for triangle and quad samples
-        index = [0, triangles * 3]
+        #Initial positions
+        index = [0, triangles]
         smooth = self.appearance.smooth
 
         for mesh in meshes:
@@ -176,13 +310,7 @@ class RenderMesh:
                     tp = texPolygons[i]
 
                 count = len(gp)
-
-                if count == 3:
-                    indexGroup = 0
-                elif count == 4:
-                    indexGroup = 1
-                else:
-                    continue
+                indexGroup = count - 3
 
                 offset = index[indexGroup]
                 index[indexGroup] += count
@@ -229,7 +357,7 @@ class RenderMesh:
         glBindVertexArray(0)
 
         debug("Mesh created in %f, id %s, triangles %u, quads %u, vertices %u"\
-                % (time.time() - started, self.ident, triangles, quads, len(self.vertices) / 3))
+                % (time.time() - started, self.ident, triangles / 3, quads / 4, length))
 
     def draw(self, wireframe=False):
         if wireframe or self.appearance.wireframe:
@@ -381,6 +509,28 @@ class Shader:
             exit()
 
 
+class UnlitShader(Shader):
+    def __init__(self, name, scene):
+        Shader.__init__(self, name, scene)
+
+        if self.program is None:
+            content = map(lambda path: open(path, "rb").read(), ["./shaders/unlit.vert", "./shaders/unlit.frag"])
+            self.create(content[0], content[1])
+
+        self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
+        self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
+        self.normalLoc = glGetUniformLocation(self.program, "normalMatrix")
+
+    def enable(self, view):
+        if self.scene.shader == self.ident:
+            return
+        Shader.enable(self, view)
+
+        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.scene.projectionMatrix, numpy.float32))
+        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.scene.modelViewMatrix, numpy.float32))
+        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(self.scene.normalMatrix, numpy.float32))
+
+
 class ModelShader(Shader):
     def __init__(self, name, scene, texture, normal, specular):
         Shader.__init__(self, name, scene)
@@ -395,11 +545,8 @@ class ModelShader(Shader):
             if specular:
                 flags += "#define SPECULAR_MAP\n"
 
-            content = []
-            for path in ["./shaders/default.vert", "./shaders/default.frag"]:
-                desc = open(path, "rb")
-                content.append(flags + desc.read())
-                desc.close()
+            content = map(lambda path: flags + open(path, "rb").read(),\
+                    ["./shaders/default.vert", "./shaders/default.frag"])
             self.create(content[0], content[1])
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
@@ -536,9 +683,14 @@ class Render(Scene):
         self.shaders["Textured"] = TexturedShader("Textured", self)
         self.shaders["ColoredBump"] = ColoredBumpShader("ColoredBump", self)
         self.shaders["TexturedBump"] = TexturedBumpShader("TexturedBump", self)
+        self.shaders["Unlit"] = UnlitShader("Unlit", self)
         os.chdir(oldDir)
 
     def initScene(self, objects):
+        pointCloud = generateNormals(objects)
+        if pointCloud is not None:
+            self.data.append(RenderPointCloud([pointCloud]))
+
         keys = []
         [keys.append(item) for item in map(lambda mesh: mesh.appearance().material, objects) if item not in keys]
 

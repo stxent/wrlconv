@@ -49,6 +49,7 @@ parser.add_argument("-f", dest="pattern", help="regular expression, filter objec
 parser.add_argument("-d", dest="debug", help="show debug information", default=False, action="store_true")
 parser.add_argument("-x", dest="simplified", help="export with simplified syntax", default=False, action="store_true")
 parser.add_argument("--grid", dest="grid", help="show grid", default=False, action="store_true")
+parser.add_argument("--normals", dest="normals", help="show normals", default=False, action="store_true")
 parser.add_argument(dest="files", nargs="*")
 options = parser.parse_args()
 
@@ -86,6 +87,9 @@ for mesh in exportList:
     mesh.transform.rotate(globalRotation[0:3], globalRotation[3])
     mesh.transform.scale(globalScale)
     mesh.transform.translate(globalTranslation)
+
+    if options.normals:
+        mesh.appearance().normals = True
 
 if options.pattern != "":
     exportList = filter(lambda mesh: re.search(options.pattern, mesh.ident, re.S) is not None, exportList)

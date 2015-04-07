@@ -197,6 +197,117 @@ class Material:
         return not self == other
 
 
+class Object:
+    IDENT = 0
+
+    def __init__(self, parent=None, name=None):
+        self.transform = None
+        self.parent = parent
+
+        if name is None:
+            self.ident = str(Mesh.IDENT)
+            Mesh.IDENT += 1
+        else:
+            self.ident = name
+
+    def translate(self, arg):
+        if self.transform is None:
+            self.transform = Transform()
+        self.transform.translate(arg)
+
+    def rotate(self, vector, angle):
+        if self.transform is None:
+            self.transform = Transform()
+        self.transform.rotate(vector, angle)
+
+    def scale(self, arg):
+        if self.transform is None:
+            self.transform = Transform()
+        self.transform.scale(arg)
+
+
+class Mesh(Object):
+    class Appearance:
+        def __init__(self):
+            self.material = Material()
+            self.constant = False
+            self.normals = False
+
+            self.smooth = False
+            self.solid = False
+            self.wireframe = False
+
+
+    def __init__(self, parent=None, name=None):
+        Object.__init__(self, parent, name)
+
+        if self.parent is None:
+            self.geoVertices, self.geoPolygons = [], []
+            self.texVertices, self.texPolygons = [], []
+            self.visualAppearance = Mesh.Appearance()
+
+    def appearance(self):
+        return self.visualAppearance if self.parent is None else self.parent.appearance()
+
+    def geometry(self):
+        return (self.geoVertices, self.geoPolygons) if self.parent is None else self.parent.geometry()
+
+    def texture(self):
+        return (self.texVertices, self.texPolygons) if self.parent is None else self.parent.texture()
+
+    def isTextured(self):
+        if self.parent is None:
+            return len(self.texPolygons) > 0 and len(self.geoPolygons) == len(self.texPolygons)
+        else:
+            return self.parent.isTextured()
+
+    def append(self, other):
+        geoSize = len(self.geoVertices)
+        for entry in other.geoPolygons:
+            self.geoPolygons.append([geoSize + vertex for vertex in entry])
+        if other.transform is None:
+            self.geoVertices += other.geoVertices
+        else:
+            self.geoVertices += [other.transform.process(v) for v in other.geoVertices]
+
+        texSize = len(self.texVertices)
+        for entry in other.texPolygons:
+            self.texPolygons.append([texSize + vertex for vertex in entry])
+        self.texVertices += other.texVertices
+
+
+class PointCloud(Object):
+    class Appearance:
+        def __init__(self):
+            self.material = Material()
+            self.constant = True
+            self.normals = False
+
+
+    def __init__(self, parent=None, name=None):
+        Object.__init__(self, parent, name)
+
+        if self.parent is None:
+            self.geoVertices, self.geoPolygons = [], []
+            self.visualAppearance = PointCloud.Appearance()
+
+    def appearance(self):
+        return self.visualAppearance if self.parent is None else self.parent.appearance()
+
+    def geometry(self):
+        return (self.geoVertices, self.geoPolygons) if self.parent is None else self.parent.geometry()
+
+    def append(self, other):
+        geoSize = len(self.geoVertices)
+        for entry in other.geoPolygons:
+            self.geoPolygons.append([geoSize + vertex for vertex in entry])
+
+        if other.transform is None:
+            self.geoVertices += other.geoVertices
+        else:
+            self.geoVertices += [other.transform.process(v) for v in other.geoVertices]
+
+
 class Transform:
     def __init__(self):
         self.value = numpy.matrix([\
@@ -226,88 +337,10 @@ class Transform:
         self.value = self.value * mat
 
     def process(self, vertex):
-        mat = self.value * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.0]])
+        mat = self.value * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.]])
         return numpy.array(mat)[:,0][0:3]
 
     def __mul__(self, other):
         transform = copy.deepcopy(self)
         transform.value *= other.value
         return transform
-
-
-class Mesh:
-    class Appearance:
-        def __init__(self):
-            self.material = Material()
-            self.smooth = False
-            self.solid = False
-            self.wireframe = False
-
-
-    IDENT = 0
-
-    def __init__(self, parent=None, name=None):
-        self.transform = None
-        self.parent = parent
-
-        if name is None:
-            self.ident = str(Mesh.IDENT)
-            Mesh.IDENT += 1
-        else:
-            self.ident = name
-
-        if self.parent is None:
-            self.geoVertices, self.geoPolygons = [], []
-            self.texVertices, self.texPolygons = [], []
-            self.visualAppearance = Mesh.Appearance()
-
-    def appearance(self):
-        return self.visualAppearance if self.parent is None else self.parent.appearance()
-
-    def geometry(self):
-        return (self.geoVertices, self.geoPolygons) if self.parent is None else self.parent.geometry()
-
-    def texture(self):
-        return (self.texVertices, self.texPolygons) if self.parent is None else self.parent.texture()
-
-    def isTextured(self):
-        if self.parent is None:
-            return len(self.texPolygons) > 0 and len(self.geoPolygons) == len(self.texPolygons)
-        else:
-            return self.parent.isTextured()
-
-    def append(self, other):
-        geoSize = len(self.geoVertices)
-        for entry in other.geoPolygons:
-            poly = []
-            map(poly.append, map(lambda x: geoSize + x, entry))
-            self.geoPolygons.append(poly)
-
-        texSize = len(self.texVertices)
-        for entry in other.texPolygons:
-            poly = []
-            map(poly.append, map(lambda x: texSize + x, entry))
-            self.texPolygons.append(poly)
-
-        if other.transform is None:
-            self.geoVertices.extend(other.geoVertices)
-        else:
-            for v in other.geoVertices:
-                tmp = other.transform.value * numpy.matrix([[v[0]], [v[1]], [v[2]], [1.]])
-                self.vertices.append(numpy.array([tmp[0], tmp[1], tmp[2]]))
-        self.texVertices.extend(other.texVertices)
-
-    def translate(self, arg):
-        if self.transform is None:
-            self.transform = Transform()
-        self.transform.translate(arg)
-
-    def rotate(self, vector, angle):
-        if self.transform is None:
-            self.transform = Transform()
-        self.transform.rotate(vector, angle)
-
-    def scale(self, arg):
-        if self.transform is None:
-            self.transform = Transform()
-        self.transform.scale(arg)
