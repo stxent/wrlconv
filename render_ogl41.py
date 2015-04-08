@@ -34,8 +34,6 @@ def generateNormals(meshes):
     normalLength = 0.2
 
     urchin = model.PointCloud(name="Normals")
-    urchin.geoPolygons = []
-    urchin.geoVertices = []
     urchin.visualAppearance.material = blueMaterial
 
     for mesh in meshes:

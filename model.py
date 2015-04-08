@@ -263,17 +263,51 @@ class Mesh(Object):
 
     def append(self, other):
         geoSize = len(self.geoVertices)
-        for entry in other.geoPolygons:
+        geoVertices, geoPolygons = other.geometry()
+
+        for entry in geoPolygons:
             self.geoPolygons.append([geoSize + vertex for vertex in entry])
         if other.transform is None:
-            self.geoVertices += other.geoVertices
+            self.geoVertices += geoVertices
         else:
-            self.geoVertices += [other.transform.process(v) for v in other.geoVertices]
+            self.geoVertices += [other.transform.process(v) for v in geoVertices]
 
         texSize = len(self.texVertices)
-        for entry in other.texPolygons:
+        texVertices, texPolygons = other.texture()
+
+        for entry in texPolygons:
             self.texPolygons.append([texSize + vertex for vertex in entry])
-        self.texVertices += other.texVertices
+        self.texVertices += texVertices
+
+    def optimize(self):
+        if self.parent is not None:
+            return
+
+        TOLERANCE = 1e-6
+        def eq(a, b):
+            return a - TOLERANCE <= b <= a + TOLERANCE
+        def eqv(a, b):
+            return eq(a[0], b[0]) and eq(a[1], b[1]) and eq(a[2], b[2])
+
+        retVert = []
+        retPoly = copy.deepcopy(self.geoPolygons)
+        vIndex = range(0, len(self.geoVertices))
+        while len(vIndex):
+            vert = self.geoVertices[vIndex[0]]
+            same = []
+            for i in range(0, len(self.geoVertices)):
+                if eqv(self.geoVertices[i], vert):
+                    same.append(i)
+            last = len(retVert)
+            for poly in retPoly:
+                for i in range(0, len(poly)):
+                    if poly[i] in same:
+                        poly[i] = last
+            for ind in same:
+                vIndex.remove(ind)
+            retVert.append(vert)
+        self.geoVertices = retVert
+        self.geoPolygons = retPoly
 
 
 class PointCloud(Object):
@@ -299,13 +333,15 @@ class PointCloud(Object):
 
     def append(self, other):
         geoSize = len(self.geoVertices)
-        for entry in other.geoPolygons:
+        geoVertices, geoPolygons = other.geometry()
+
+        for entry in geoPolygons:
             self.geoPolygons.append([geoSize + vertex for vertex in entry])
 
         if other.transform is None:
-            self.geoVertices += other.geoVertices
+            self.geoVertices += geoVertices
         else:
-            self.geoVertices += [other.transform.process(v) for v in other.geoVertices]
+            self.geoVertices += [other.transform.process(v) for v in geoVertices]
 
 
 class Transform:
