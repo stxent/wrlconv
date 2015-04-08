@@ -142,7 +142,8 @@ class X3dTransform(X3dEntry):
 
     def demangled(self):
         #Demangle Blender names
-        name = self.name.replace("OB_", "").replace("group_ME_", "").replace("_ifs_TRANSFORM", "")
+        name = self.name.replace("OB_", "").replace("group_ME_", "")
+        name = name.replace("_ifs", "").replace("_TRANSFORM", "")
         #Demangle own names
         name = name.replace("ME_", "")
 

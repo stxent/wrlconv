@@ -65,11 +65,8 @@ def store(data, path):
         geoCoords = etree.SubElement(faceset, "Coordinate")
         geoCoords.attrib["DEF"] = "FS_%s" % mesh.ident
         vertices = []
-        for srcVert in geoVertices:
-            vert = numpy.matrix([[srcVert[0]], [srcVert[1]], [srcVert[2]], [1.]])
-            if mesh.transform is not None:
-                vert = mesh.transform.value * vert
-            vertices.extend([vert[0, 0], vert[1, 0], vert[2, 0]])
+        for vert in geoVertices:
+            vertices.extend(vert if mesh.transform is None else mesh.transform.process(vert))
         geoCoords.attrib["point"] = " ".join(map(str, vertices))
 
         material = appearance.material
