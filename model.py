@@ -198,15 +198,17 @@ class Material:
 
 
 class Object:
+    POINTS, LINES, PATCHES = range(0, 3)
     IDENT = 0
 
-    def __init__(self, parent=None, name=None):
+    def __init__(self, style, parent=None, name=None):
         self.transform = None
         self.parent = parent
+        self.style = style
 
         if name is None:
-            self.ident = str(Mesh.IDENT)
-            Mesh.IDENT += 1
+            self.ident = str(Object.IDENT)
+            Object.IDENT += 1
         else:
             self.ident = name
 
@@ -230,7 +232,6 @@ class Mesh(Object):
     class Appearance:
         def __init__(self):
             self.material = Material()
-            self.constant = False
             self.normals = False
 
             self.smooth = False
@@ -239,7 +240,7 @@ class Mesh(Object):
 
 
     def __init__(self, parent=None, name=None):
-        Object.__init__(self, parent, name)
+        Object.__init__(self, Object.PATCHES, parent, name)
 
         if self.parent is None:
             self.geoVertices, self.geoPolygons = [], []
@@ -289,6 +290,7 @@ class Mesh(Object):
         def eqv(a, b):
             return eq(a[0], b[0]) and eq(a[1], b[1]) and eq(a[2], b[2])
 
+        print("Initial vertex count %u" % len(self.geoVertices))
         retVert = []
         retPoly = copy.deepcopy(self.geoPolygons)
         vIndex = range(0, len(self.geoVertices))
@@ -308,22 +310,21 @@ class Mesh(Object):
             retVert.append(vert)
         self.geoVertices = retVert
         self.geoPolygons = retPoly
+        print("Resulting vertex count %u" % len(self.geoVertices))
 
 
-class PointCloud(Object):
+class LineArray(Object):
     class Appearance:
         def __init__(self):
             self.material = Material()
-            self.constant = True
-            self.normals = False
 
 
     def __init__(self, parent=None, name=None):
-        Object.__init__(self, parent, name)
+        Object.__init__(self, Object.LINES, parent, name)
 
         if self.parent is None:
             self.geoVertices, self.geoPolygons = [], []
-            self.visualAppearance = PointCloud.Appearance()
+            self.visualAppearance = LineArray.Appearance()
 
     def appearance(self):
         return self.visualAppearance if self.parent is None else self.parent.appearance()

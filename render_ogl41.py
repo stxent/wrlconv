@@ -33,7 +33,7 @@ def generateNormals(meshes):
     blueMaterial.color.diffuse = numpy.array([0., 0., 1.])
     normalLength = 0.2
 
-    urchin = model.PointCloud(name="Normals")
+    urchin = model.LineArray(name="Normals")
     urchin.visualAppearance.material = blueMaterial
 
     for mesh in meshes:
@@ -70,10 +70,31 @@ def generateNormals(meshes):
             urchin.geoVertices.append(position + normals[i] * normalLength)
             urchin.geoPolygons.append([lastIndex, lastIndex + 1])
 
-    if len(urchin.geoPolygons) == 0:
-        return None
-    else:
-        return urchin
+    return None if len(urchin.geoPolygons) == 0 else urchin
+
+def buildObjectGroups(inputObjects):
+    data = []
+    objects = inputObjects
+
+    #Render meshes
+    meshes = filter(lambda entry: entry.style == model.Object.PATCHES, objects)
+
+    normals = generateNormals(meshes)
+    if normals is not None:
+        inputObjects.append(normals)
+
+    keys = []
+    [keys.append(item) for item in map(lambda mesh: mesh.appearance().material, meshes) if item not in keys]
+
+    groups = map(lambda key: filter(lambda mesh: mesh.appearance().material == key, objects), keys)
+    [data.append(RenderMesh(group)) for group in groups]
+
+    #Render line arrays
+    arrays = filter(lambda entry: entry.style == model.Object.LINES, objects)
+    if len(arrays) > 0:
+        data.append(RenderLineArray(arrays))
+
+    return data
 
 
 class RenderAppearance:
@@ -102,11 +123,11 @@ class RenderAppearance:
     def __init__(self, appearance):
         self.textures = []
         self.zbuffer = True
-        self.material = appearance.material
 
-        if appearance.constant:
+        if appearance is None:
             self.name = "Unlit"
         else:
+            self.material = appearance.material
             self.smooth = appearance.smooth
             self.solid = appearance.solid
             self.wireframe = appearance.wireframe
@@ -156,12 +177,12 @@ class RenderObject:
         pass
 
 
-class RenderPointCloud(RenderObject):
+class RenderLineArray(RenderObject):
     def __init__(self, meshes):
         RenderObject.__init__(self)
 
         self.parts = []
-        self.appearance = RenderAppearance(meshes[0].appearance())
+        self.appearance = RenderAppearance(None)
 
         started = time.time()
 
@@ -184,12 +205,9 @@ class RenderPointCloud(RenderObject):
         #Initial positions
         index = [0]
 
-        color = self.appearance.material.color.diffuse
-        for i in range(0, length):
-            self.colors[3 * i:3 * (i + 1)] = color
-
         for mesh in meshes:
             geoVertices, geoPolygons = mesh.geometry()
+            color = mesh.appearance().material.color.diffuse
 
             vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
 
@@ -201,8 +219,9 @@ class RenderPointCloud(RenderObject):
                 index[indexGroup] += count
 
                 for vertex in range(0, count):
-                    geoStart, geoEnd = 3 * offset, 3 * (offset + 1)
-                    self.vertices[geoStart:geoEnd] = numpy.array(numpy.swapaxes(vertices[gp[vertex]][0:3], 0, 1))
+                    start, end = 3 * offset, 3 * (offset + 1)
+                    self.vertices[start:end] = numpy.array(numpy.swapaxes(vertices[gp[vertex]][0:3], 0, 1))
+                    self.colors[start:end] = color
                     offset += 1
 
         self.vao = glGenVertexArrays(1)
@@ -685,15 +704,7 @@ class Render(Scene):
         os.chdir(oldDir)
 
     def initScene(self, objects):
-        pointCloud = generateNormals(objects)
-        if pointCloud is not None:
-            self.data.append(RenderPointCloud([pointCloud]))
-
-        keys = []
-        [keys.append(item) for item in map(lambda mesh: mesh.appearance().material, objects) if item not in keys]
-
-        groups = map(lambda key: filter(lambda mesh: mesh.appearance().material == key, objects), keys)
-        [self.data.append(RenderMesh(meshes)) for meshes in groups]
+        self.data = buildObjectGroups(objects)
 
     def idleScene(self):
         self.drawScene() #FIXME
