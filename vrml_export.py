@@ -23,10 +23,6 @@ def store(data, path, spec=VRML_STRICT):
 
     def writeAppearance(spec, stream, material, level):
         ambIntensity = sum(map(lambda i: material.color.ambient[i] / material.color.diffuse[i] / 3., range(0, 3)))
-        if spec == VRML_KICAD:
-            ambIntensity *= 3.
-            if ambIntensity > 1.:
-                ambIntensity = 1.
         stream.write("%sappearance Appearance {\n" % ("\t" * level))
 
         if material in exportedMaterials:
@@ -51,7 +47,7 @@ def store(data, path, spec=VRML_STRICT):
                 stream.write("%surl \"%s\"\n" % ("\t" * (level + 1), path))
                 stream.write("%s}\n" % ("\t" * level))
 
-            if spec != VRML_KICAD and material.diffuse is not None:
+            if material.diffuse is not None:
                 writeTexture(stream, material.diffuse.path[0], material.diffuse.ident, level + 1)
             if spec == VRML_EXT and material.normalmap is not None:
                 writeTexture(stream, material.normalmap.path[0], material.normalmap.ident, level + 1)
@@ -64,44 +60,28 @@ def store(data, path, spec=VRML_STRICT):
         stream.write("%sgeometry IndexedFaceSet {\n" % ("\t" * level))
 
         appearance = mesh.appearance()
-        if spec == VRML_KICAD:
-            stream.write("%ssolid FALSE\n" % ("\t" * (level + 1)))
-        else:
-            stream.write("%ssolid %s\n" % ("\t" * (level + 1), "TRUE" if appearance.solid else "FALSE"))
-            stream.write("%ssmooth %s\n" % ("\t" * (level + 1), "TRUE" if appearance.smooth else "FALSE"))
+        stream.write("%ssolid %s\n" % ("\t" * (level + 1), "TRUE" if appearance.solid else "FALSE"))
+        stream.write("%ssmooth %s\n" % ("\t" * (level + 1), "TRUE" if appearance.smooth else "FALSE"))
 
         geoVertices, geoPolygons = mesh.geometry()
 
         stream.write("%scoord DEF FS_%s Coordinate {\n" % ("\t" * (level + 1), mesh.ident))
         stream.write("%spoint [\n" % ("\t" * (level + 2)))
-        if spec == VRML_KICAD:
-            for vert in geoVertices:
-                resultingVert = transform.process(vert)
-                stream.write("\t")
-                stream.write(" ".join(map(str, resultingVert)))
-                stream.write("\n")
-        else:
-            stream.write("\t" * (level + 3))
-            vertices = []
-            for vert in geoVertices:
-                vertices.extend(vert if mesh.transform is None else mesh.transform.process(vert))
-            stream.write(" ".join(map(str, vertices)))
-            stream.write("\n")
+        stream.write("\t" * (level + 3))
+        vertices = []
+        for vert in geoVertices:
+            vertices.extend(vert if transform is None else transform.process(vert))
+        stream.write(" ".join(map(str, vertices)))
+        stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 2)))
         stream.write("%s}\n" % ("\t" * (level + 1)))
 
         stream.write("%scoordIndex [\n" % ("\t" * (level + 1)))
-        if spec == VRML_KICAD:
-            for poly in map(lambda poly: poly + [-1], geoPolygons):
-                stream.write("\t")
-                stream.write(" ".join(map(str, poly)))
-                stream.write("\n")
-        else:
-            stream.write("\t" * (level + 2))
-            indices = []
-            [indices.extend(poly) for poly in map(lambda poly: poly + [-1], geoPolygons)]
-            stream.write(" ".join(map(str, indices)))
-            stream.write("\n")
+        stream.write("\t" * (level + 2))
+        indices = []
+        [indices.extend(poly) for poly in map(lambda poly: poly + [-1], geoPolygons)]
+        stream.write(" ".join(map(str, indices)))
+        stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 1)))
 
         material = appearance.material
@@ -136,25 +116,16 @@ def store(data, path, spec=VRML_STRICT):
 
         stream.write("%s}\n" % ("\t" * level))
 
-    def writeGroup(spec, stream, mesh, topTransform, topName, level):
-        if spec != VRML_KICAD:
-            alreadyExported = filter(lambda group: group.ident == mesh.ident, exportedGroups)
-        else:
-            alreadyExported = []
+    def writeGroup(spec, stream, mesh, level):
+        alreadyExported = filter(lambda group: group.ident == mesh.ident, exportedGroups)
 
-        transform = topTransform if mesh.transform is None else mesh.transform
-
-        if spec == VRML_KICAD or len(alreadyExported) == 0:
-            if spec == VRML_KICAD:
-                stream.write("%sDEF ME_%s_%s Group {\n" % ("\t" * level, topName, mesh.ident))
-            else:
-                stream.write("%sDEF ME_%s Group {\n" % ("\t" * level, mesh.ident))
+        if len(alreadyExported) == 0:
+            stream.write("%sDEF ME_%s Group {\n" % ("\t" * level, mesh.ident))
             stream.write("%schildren [\n" % ("\t" * (level + 1)))
-            writeShape(spec, stream, mesh, transform, level + 2)
+            writeShape(spec, stream, mesh, mesh.transform, level + 2)
             stream.write("%s]\n" % ("\t" * (level + 1)))
             stream.write("%s}\n" % ("\t" * level))
-            if spec != VRML_KICAD:
-                exportedGroups.append(mesh)
+            exportedGroups.append(mesh)
         else:
             stream.write("%sUSE ME_%s\n" % ("\t" * level, mesh.ident))
             debug("Export: reused group %s" % mesh.ident)
@@ -162,7 +133,7 @@ def store(data, path, spec=VRML_STRICT):
     def writeTransform(spec, stream, mesh, level=0):
         started = time.time()
 
-        if spec == VRML_KICAD or mesh.transform is None:
+        if mesh.transform is None:
             translation = [0., 0., 0.]
         else:
             translation = numpy.array(mesh.transform.value)[:,3][0:3].tolist()
@@ -174,11 +145,7 @@ def store(data, path, spec=VRML_STRICT):
         stream.write("%schildren [\n" % ("\t" * (level + 1)))
 
         parent = mesh if mesh.parent is None else mesh.parent
-        if spec == VRML_KICAD and mesh.transform is not None:
-            transform = mesh.transform
-        else:
-            transform = model.Transform()
-        writeGroup(spec, stream, parent, transform, mesh.ident, level + 2)
+        writeGroup(spec, stream, parent, level + 2)
 
         stream.write("%s]\n" % ("\t" * (level + 1)))
         stream.write("%s}\n" % ("\t" * level))

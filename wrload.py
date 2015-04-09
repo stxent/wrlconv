@@ -14,10 +14,11 @@ import re
 import geometry
 import model
 import render_ogl41
-import vrml_import
 import vrml_export
-import x3d_import
+import vrml_export_kicad
+import vrml_import
 import x3d_export
+import x3d_import
 
 def createGrid():
     darkGrayMaterial = model.Material()
@@ -47,7 +48,8 @@ parser.add_argument("-s", dest="scale", help="scale shapes by x,y,z",\
         default='1.,1.,1.')
 parser.add_argument("-f", dest="pattern", help="regular expression, filter objects by name", default="")
 parser.add_argument("-d", dest="debug", help="show debug information", default=False, action="store_true")
-parser.add_argument("-x", dest="simplified", help="export with simplified syntax", default=False, action="store_true")
+parser.add_argument("--kicad", dest="kicad", help="export to KiCad with simplified syntax",\
+        default=False, action="store_true")
 parser.add_argument("--grid", dest="grid", help="show grid", default=False, action="store_true")
 parser.add_argument("--normals", dest="normals", help="show normals", default=False, action="store_true")
 parser.add_argument(dest="files", nargs="*")
@@ -72,6 +74,7 @@ exportList = []
 if options.debug:
     render_ogl41.debugEnabled = True
     vrml_export.debugEnabled = True
+    vrml_export_kicad.debugEnabled = True
     vrml_import.debugEnabled = True
     x3d_import.debugEnabled = True
     x3d_export.debugEnabled = True
@@ -97,8 +100,10 @@ if options.pattern != "":
 if options.output != "":
     extension = os.path.splitext(options.output)[1][1:].lower()
     if extension == "wrl":
-        spec = vrml_export.VRML_KICAD if options.simplified else vrml_export.VRML_STRICT
-        vrml_export.store(exportList, options.output, spec)
+        if options.kicad:
+            vrml_export_kicad.store(exportList, options.output)
+        else:
+            vrml_export.store(exportList, options.output, vrml_export.VRML_STRICT)
     elif extension == "x3d":
         x3d_export.store(exportList, options.output)
 
