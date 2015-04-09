@@ -21,10 +21,12 @@ import x3d_export
 import x3d_import
 
 def createGrid():
+    #Materials
     darkGrayMaterial = model.Material()
     darkGrayMaterial.color.diffuse = numpy.array([0.3] * 3)
     lightGrayMaterial = model.Material()
     lightGrayMaterial.color.diffuse = numpy.array([0.5] * 3)
+    #Objects
     zGrid = geometry.Plane((10, 10), (10, 10))
     zGrid.visualAppearance.material = darkGrayMaterial
     zGrid.visualAppearance.wireframe = True
@@ -38,6 +40,30 @@ def createGrid():
     yGrid.rotate([1., 0., 0.], math.pi / 2.)
     return [xGrid, yGrid, zGrid]
 
+def createAxes():
+    #Materials
+    redMaterial = model.Material()
+    redMaterial.color.diffuse = numpy.array([1., 0., 0.])
+    greenMaterial = model.Material()
+    greenMaterial.color.diffuse = numpy.array([0., 1., 0.])
+    blueMaterial = model.Material()
+    blueMaterial.color.diffuse = numpy.array([0., 0., 1.])
+    #Objects
+    length = 4.
+    xAxis = model.LineArray(name="xAxisHelper")
+    xAxis.visualAppearance.material = redMaterial
+    xAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([length, 0., 0.])])
+    xAxis.geoPolygons.append([0, 1])
+    yAxis = model.LineArray(name="yAxisHelper")
+    yAxis.visualAppearance.material = greenMaterial
+    yAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([0., length, 0.])])
+    yAxis.geoPolygons.append([0, 1])
+    zAxis = model.LineArray(name="zAxisHelper")
+    zAxis.visualAppearance.material = blueMaterial
+    zAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([0., 0., length / 2.])])
+    zAxis.geoPolygons.append([0, 1])
+    return [xAxis, yAxis, zAxis]
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", dest="view", help="render model", default=False, action="store_true")
 parser.add_argument("-o", dest="output", help="write model to specified file", default="")
@@ -50,6 +76,7 @@ parser.add_argument("-f", dest="pattern", help="regular expression, filter objec
 parser.add_argument("-d", dest="debug", help="show debug information", default=False, action="store_true")
 parser.add_argument("--kicad", dest="kicad", help="export to KiCad with simplified syntax",\
         default=False, action="store_true")
+parser.add_argument("--axes", dest="axes", help="show axes", default=False, action="store_true")
 parser.add_argument("--grid", dest="grid", help="show grid", default=False, action="store_true")
 parser.add_argument("--normals", dest="normals", help="show normals", default=False, action="store_true")
 parser.add_argument(dest="files", nargs="*")
@@ -108,5 +135,9 @@ if options.output != "":
         x3d_export.store(exportList, options.output)
 
 if options.view:
-    helpers = createGrid() if options.grid else []
+    helpers = []
+    if options.grid:
+        helpers += createGrid()
+    if options.axes:
+        helpers += createAxes()
     render = render_ogl41.Render(exportList + helpers)

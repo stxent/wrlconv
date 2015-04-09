@@ -290,7 +290,6 @@ class Mesh(Object):
         def eqv(a, b):
             return eq(a[0], b[0]) and eq(a[1], b[1]) and eq(a[2], b[2])
 
-        print("Initial vertex count %u" % len(self.geoVertices))
         retVert = []
         retPoly = copy.deepcopy(self.geoPolygons)
         vIndex = range(0, len(self.geoVertices))
@@ -310,7 +309,6 @@ class Mesh(Object):
             retVert.append(vert)
         self.geoVertices = retVert
         self.geoPolygons = retPoly
-        print("Resulting vertex count %u" % len(self.geoVertices))
 
 
 class LineArray(Object):
