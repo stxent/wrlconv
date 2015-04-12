@@ -312,6 +312,45 @@ class Mesh(Object):
         self.geoPolygons = retPoly
 
 
+class AttributedMesh(Mesh):
+    def __init__(self, parent=None, name=None, regions=[]):
+        Mesh.__init__(self, parent, name)
+
+        self.regions = {}
+        for box, key in regions:
+            t = (max(box[0][0], box[1][0]), max(box[0][1], box[1][1]), max(box[0][2], box[1][2]))
+            b = (min(box[0][0], box[1][0]), min(box[0][1], box[1][1]), min(box[0][2], box[1][2]))
+            key = int(key)
+            self.regions[key] = (t, b)
+        self.attributes = []
+
+    @staticmethod
+    def intersection(region, point):
+        #Check whether the point is within the region
+        t, b = region[0], region[1]
+        return b[0] <= point[0] <= t[0] and b[1] <= point[1] <= t[1] and b[2] <= point[2] <= t[2]
+
+    def associateVertices(self):
+        self.attributes = [0 for i in range(0, len(self.geoVertices))]
+        for key in self.regions.keys():
+            for i in range(0, len(self.geoVertices)):
+                if AttributedMesh.intersection(self.regions[key], self.geoVertices[i]):
+                    self.attributes[i] = key
+
+    def applyTransforms(self, transforms):
+        if len(self.geoVertices) > len(self.attributes):
+            raise Exception()
+        for i in range(0, len(self.geoVertices)):
+            if self.attributes[i] >= len(transforms):
+                raise Exception()
+            self.geoVertices[i] = transforms[self.attributes[i]].process(self.geoVertices[i])
+
+    def append(self, other):
+        #TODO Optimize
+        Mesh.append(self, other)
+        self.associateVertices()
+
+
 class LineArray(Object):
     class Appearance:
         def __init__(self):
