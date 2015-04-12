@@ -531,8 +531,8 @@ class UnlitShader(Shader):
         Shader.__init__(self, name, scene)
 
         if self.program is None:
-            content = map(lambda path: open(path, "rb").read(), ["./shaders/unlit.vert", "./shaders/unlit.frag"])
-            self.create(content[0], content[1])
+            vert, frag = map(lambda path: open(path, "rb").read(), ["./shaders/unlit.vert", "./shaders/unlit.frag"])
+            self.create(vert, frag)
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
         self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
@@ -562,9 +562,9 @@ class ModelShader(Shader):
             if specular:
                 flags += "#define SPECULAR_MAP\n"
 
-            content = map(lambda path: flags + open(path, "rb").read(),\
+            vert, frag = map(lambda path: flags + open(path, "rb").read(),\
                     ["./shaders/default.vert", "./shaders/default.frag"])
-            self.create(content[0], content[1])
+            self.create(vert, frag)
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
         self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")

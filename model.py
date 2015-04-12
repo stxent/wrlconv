@@ -290,6 +290,7 @@ class Mesh(Object):
         def eqv(a, b):
             return eq(a[0], b[0]) and eq(a[1], b[1]) and eq(a[2], b[2])
 
+        #TODO Reduce complexity
         retVert = []
         retPoly = copy.deepcopy(self.geoPolygons)
         vIndex = range(0, len(self.geoVertices))
