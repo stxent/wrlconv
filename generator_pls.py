@@ -53,6 +53,7 @@ exportList = []
 if options.debug:
     render_ogl41.debugEnabled = True
     vrml_export.debugEnabled = True
+    vrml_export_kicad.debugEnabled = True
     vrml_import.debugEnabled = True
     x3d_import.debugEnabled = True
     x3d_export.debugEnabled = True

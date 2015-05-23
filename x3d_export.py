@@ -10,8 +10,6 @@ import numpy
 import time
 from lxml import etree
 
-import model
-
 debugEnabled = False
 
 def debug(text):

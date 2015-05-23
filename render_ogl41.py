@@ -126,6 +126,7 @@ class RenderAppearance:
 
         if appearance is None:
             self.name = "Unlit"
+            self.solid = False
         else:
             self.material = appearance.material
             self.smooth = appearance.smooth
@@ -157,6 +158,11 @@ class RenderAppearance:
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
             glBindTexture(self.textures[i].kind, self.textures[i].buf)
+        if self.solid:
+            glEnable(GL_CULL_FACE)
+            glCullFace(GL_BACK)
+        else:
+            glDisable(GL_CULL_FACE)
 
 
 class RenderObject:
@@ -677,18 +683,13 @@ class Render(Scene):
         glutMainLoop()
 
     def initGraphics(self):
-        #glClearDepth(1.0)
-        #glDepthFunc(GL_LESS)
-        #glEnable(GL_DEPTH_TEST)
-        ##Blending using shader
+        self.loadShaders()
+        glClearColor(0.0, 0.0, 0.0, 1.0)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        ##glCullFace(GL_BACK)
-        self.loadShaders()
+        glClearDepth(1.0)
+        glDepthFunc(GL_LESS)
         glEnable(GL_DEPTH_TEST)
-        #glDisable(GL_CULL_FACE)
-        glCullFace(GL_BACK)
-        glClearColor(0.0, 0.0, 0.0, 1.0)
 
     def loadShaders(self):
         oldDir = os.getcwd()

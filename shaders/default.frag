@@ -65,7 +65,11 @@ void main(void)
     if (materialShininess != 0.0)
     {
       vec3 reflection = normalize(-reflect(light, normal));
-      color.rgb += materialSpecularColor * pow(max(0.0, dot(reflection, view)), materialShininess);
+      vec3 specularPart = materialSpecularColor * pow(max(0.0, dot(reflection, view)), materialShininess);
+#ifdef SPECULAR_MAP
+      specularPart *= texture2D(specularTexture, calcTexel.st).rgb;
+#endif
+      color.rgb += specularPart;
     }
   }
 

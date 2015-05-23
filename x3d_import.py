@@ -61,8 +61,8 @@ class X3dScene(X3dEntry):
                 else:
                     mesh.visualAppearance.material = newMaterial
                     exportedMaterials.append(newMaterial)
-            mesh.smooth = geometry.smooth
-            mesh.solid = geometry.solid
+            mesh.visualAppearance.smooth = geometry.smooth
+            mesh.visualAppearance.solid = geometry.solid
             for subentry in geometry.ancestors:
                 if isinstance(subentry, X3dGeoCoords):
                     mesh.geoVertices = subentry.vertices
