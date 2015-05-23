@@ -133,20 +133,18 @@ class RenderAppearance:
             self.solid = appearance.solid
             self.wireframe = appearance.wireframe
 
-            if self.material.diffuse is None and self.material.normalmap is None:
-                self.name = "Colored"
-            elif self.material.diffuse is not None and self.material.normalmap is None:
-                self.name = "Textured"
+            name = ""
+            if self.material.diffuse is not None:
+                name += "Diff"
                 self.textures.append(RenderAppearance.Texture(self.material.diffuse.path))
-            elif self.material.diffuse is None and self.material.normalmap is not None:
-                self.name = "ColoredBump"
+            if self.material.normalmap is not None:
+                name += "Norm"
                 self.textures.append(RenderAppearance.Texture(self.material.normalmap.path))
-            elif self.material.diffuse is not None and self.material.normalmap is not None:
-                self.name = "TexturedBump"
-                self.textures.append(RenderAppearance.Texture(self.material.diffuse.path))
-                self.textures.append(RenderAppearance.Texture(self.material.normalmap.path))
-            else:
-                raise Exception()
+            if self.material.specular is not None:
+                name += "Spec"
+                self.textures.append(RenderAppearance.Texture(self.material.specular.path))
+
+            self.name = name if name != "" else "Colored"
 
     def enable(self, scene):
         scene.shaders[self.name].enable(self)
@@ -605,6 +603,14 @@ class DefaultShader(ModelShader):
         self.emissiveColorLoc = glGetUniformLocation(self.program, "materialEmissiveColor")
         self.shininessLoc = glGetUniformLocation(self.program, "materialShininess")
 
+        self.texLoc = []
+        if texture:
+            self.texLoc.append(glGetUniformLocation(self.program, "diffuseTexture"))
+        if normal:
+            self.texLoc.append(glGetUniformLocation(self.program, "normalTexture"))
+        if specular:
+            self.texLoc.append(glGetUniformLocation(self.program, "specularTexture"))
+
     def enable(self, view):
         ModelShader.enable(self, view)
 
@@ -614,40 +620,8 @@ class DefaultShader(ModelShader):
         glUniform3fv(self.emissiveColorLoc, 1, color.emissive)
         glUniform1f(self.shininessLoc, color.shininess * 128.0)
 
-
-class ColoredBumpShader(DefaultShader):
-    def __init__(self, name, scene):
-        DefaultShader.__init__(self, name, scene, False, True, False)
-        self.normalMapLoc = glGetUniformLocation(self.program, "normalTexture")
-
-    def enable(self, view):
-        DefaultShader.enable(self, view)
-
-        glUniform1i(self.normalMapLoc, 0)
-
-
-class TexturedShader(DefaultShader):
-    def __init__(self, name, scene):
-        DefaultShader.__init__(self, name, scene, True, False, False)
-        self.diffuseMapLoc = glGetUniformLocation(self.program, "diffuseTexture")
-
-    def enable(self, view):
-        DefaultShader.enable(self, view)
-
-        glUniform1i(self.diffuseMapLoc, 0)
-
-
-class TexturedBumpShader(DefaultShader):
-    def __init__(self, name, scene):
-        DefaultShader.__init__(self, name, scene, True, True, False)
-        self.diffuseMapLoc = glGetUniformLocation(self.program, "diffuseTexture")
-        self.normalMapLoc = glGetUniformLocation(self.program, "normalTexture")
-
-    def enable(self, view):
-        DefaultShader.enable(self, view)
-
-        glUniform1i(self.diffuseMapLoc, 0)
-        glUniform1i(self.normalMapLoc, 1)
+        for i in range(0, len(self.texLoc)):
+            glUniform1i(self.texLoc[i], i)
 
 
 class Render(Scene):
@@ -697,11 +671,24 @@ class Render(Scene):
         if len(scriptDir) > 0:
             os.chdir(scriptDir)
         self.shaders = {}
-        self.shaders["Colored"] = DefaultShader("Colored", self)
-        self.shaders["Textured"] = TexturedShader("Textured", self)
-        self.shaders["ColoredBump"] = ColoredBumpShader("ColoredBump", self)
-        self.shaders["TexturedBump"] = TexturedBumpShader("TexturedBump", self)
+        self.shaders["Colored"] = DefaultShader(name="Colored", scene=self)
         self.shaders["Unlit"] = UnlitShader("Unlit", self)
+
+        self.shaders["Diff"] = DefaultShader(name="Diff", scene=self,\
+                texture=True, normal=False, specular=False)
+        self.shaders["Norm"] = DefaultShader(name="Norm", scene=self,\
+                texture=False, normal=True, specular=False)
+        self.shaders["Spec"] = DefaultShader(name="Spec", scene=self,\
+                texture=False, normal=False, specular=True)
+        self.shaders["DiffNorm"] = DefaultShader(name="DiffNorm", scene=self,\
+                texture=True, normal=True, specular=False)
+        self.shaders["DiffSpec"] = DefaultShader(name="DiffSpec", scene=self,\
+                texture=True, normal=False, specular=True)
+        self.shaders["NormSpec"] = DefaultShader(name="NormSpec", scene=self,\
+                texture=False, normal=True, specular=True)
+        self.shaders["DiffNormSpec"] = DefaultShader(name="DiffNormSpec", scene=self,\
+                texture=True, normal=True, specular=True)
+
         os.chdir(oldDir)
 
     def initScene(self, objects):

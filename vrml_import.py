@@ -486,12 +486,7 @@ class VrmlAppearance(VrmlEntry):
             if isinstance(entry, VrmlMaterial):
                 material.color = entry.color
             elif isinstance(entry, VrmlTexture):
-                if entry.family == VrmlTexture.FAMILY_DIFFUSE:
-                    material.diffuse = entry.texture
-                elif entry.family == VrmlTexture.FAMILY_NORMAL:
-                    material.normalmap = entry.texture
-                elif entry.family == VrmlTexture.FAMILY_SPECULAR:
-                    material.specular = entry.texture
+                material.diffuse = entry.texture
         return material
 
 
@@ -545,11 +540,9 @@ class VrmlMaterial(VrmlEntry):
 
 class VrmlTexture(VrmlEntry):
     IDENT = 0
-    FAMILY_DIFFUSE, FAMILY_NORMAL, FAMILY_SPECULAR = range(0, 3)
 
     def __init__(self, parent):
         VrmlEntry.__init__(self, parent)
-        self.family = None
         self.texture = model.Material.Texture("", "DefaultVrmlTexture_%u" % VrmlTexture.IDENT)
         VrmlTexture.IDENT += 1
 
@@ -557,12 +550,6 @@ class VrmlTexture(VrmlEntry):
         tmp = re.search("url\s+\"([\w\-\.:\/]+)\"", string, re.I | re.S)
         if tmp is not None:
             path = (tmp.group(1), os.getcwd() + "/" + tmp.group(1))
-            if self.name == "normalmap":
-                self.family = VrmlTexture.FAMILY_NORMAL
-            elif self.name == "specular":
-                self.family = VrmlTexture.FAMILY_SPECULAR
-            else:
-                self.family = VrmlTexture.FAMILY_DIFFUSE
             self.texture.path = path
             self.texture.ident = self.name
                 

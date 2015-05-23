@@ -8,9 +8,7 @@
 import numpy
 import time
 
-import model
-
-VRML_STRICT, VRML_KICAD, VRML_EXT = range(0, 3)
+VRML_STRICT, VRML_KICAD = range(0, 2)
 
 debugEnabled = False
 
@@ -49,10 +47,6 @@ def store(data, path, spec=VRML_STRICT):
 
             if material.diffuse is not None:
                 writeTexture(stream, material.diffuse.path[0], material.diffuse.ident, level + 1)
-            if spec == VRML_EXT and material.normalmap is not None:
-                writeTexture(stream, material.normalmap.path[0], material.normalmap.ident, level + 1)
-            if spec == VRML_EXT and material.specular is not None:
-                writeTexture(stream, material.specular.path[0], material.specular.ident, level + 1)
 
         stream.write("%s}\n" % ("\t" * level))
 

@@ -102,8 +102,12 @@ class X3dScene(X3dEntry):
                     if isinstance(subentry, X3dGeometry):
                         geometry = subentry
                 if geometry is not None:
-                    alreadyExported = filter(lambda mesh: mesh.ident == name[-1], exportedMeshes)
-                    if len(alreadyExported) > 0:
+                    alreadyExported = None
+                    for mesh in exportedMeshes:
+                        if mesh.ident == name[-1]:
+                            alreadyExported = mesh
+                            break
+                    if alreadyExported is not None:
                         debug("Squash: reused mesh %s" % name[-1])
                         #Create concrete shape
                         currentMesh = model.Mesh(parent=alreadyExported[0], name=name[0])
@@ -220,12 +224,16 @@ class X3dAppearance(X3dEntry):
             if isinstance(entry, X3dMaterial):
                 material.color = entry.color
             elif isinstance(entry, X3dTexture):
-                if entry.family == X3dTexture.FAMILY_DIFFUSE:
-                    material.diffuse = entry.texture
-                elif entry.family == X3dTexture.FAMILY_NORMAL:
-                    material.normalmap = entry.texture
-                elif entry.family == X3dTexture.FAMILY_SPECULAR:
-                    material.specular = entry.texture
+                material.diffuse = entry.texture
+            elif isinstance(entry, X3dMultiTexture):
+                if max(entry.mapping.values()) >= len(entry.ancestors):
+                    raise Exception() #Texture index is out of range
+                if entry.mapping["diffuse"] is not None:
+                    material.diffuse = entry.ancestors[entry.mapping["diffuse"]].texture
+                if entry.mapping["normal"] is not None:
+                    material.normalmap = entry.ancestors[entry.mapping["normal"]].texture
+                if entry.mapping["specular"] is not None:
+                    material.specular = entry.ancestors[entry.mapping["specular"]].texture
         return material
 
 
@@ -262,18 +270,60 @@ class X3dMaterial(X3dEntry):
 
 class X3dTexture(X3dEntry):
     IDENT = 0
-    FAMILY_DIFFUSE, FAMILY_NORMAL, FAMILY_SPECULAR = range(0, 3)
 
     def __init__(self, parent):
         X3dEntry.__init__(self, parent)
-        self.family = None
         self.texture = model.Material.Texture("", "DefaultX3dTexture_%u" % X3dTexture.IDENT)
         X3dTexture.IDENT += 1
 
     def parse(self, attributes):
         if "url" in attributes.keys():
-            self.texture.path = attributes["url"][1:-1].split("\" \"")
-        self.family = X3dTexture.FAMILY_DIFFUSE
+            self.texture.path = map(lambda x: x.replace("\"", ""), attributes["url"].split(" "))
+
+
+class X3dMultiTexture(X3dEntry):
+    def __init__(self, parent):
+        X3dEntry.__init__(self, parent)
+        #Limited support for this type of node
+        self.mapping = {"diffuse": None, "normal": None, "specular": None}
+
+    def parse(self, attributes):
+        modes, sources = [], []
+        if "source" in attributes.keys():
+            sources = map(lambda x: x.replace("\"", ""), attributes["source"].split(" "))
+        if "mode" in attributes.keys():
+            modes = map(lambda x: x.replace("\"", ""), attributes["mode"].split(" "))
+        texCount = max(len(modes), len(sources))
+        modes.extend([""] * (texCount - len(modes)))
+        modes.extend(["MODULATE"] * (texCount - len(sources)))
+
+        chains = {"diffuse": [], "specular": []}
+        currentChain = None
+        for i in range(0, texCount):
+            if sources[i] == "DIFFUSE":
+                currentChain = "diffuse"
+                chains[currentChain] = [i] #Start new chain
+            elif sources[i] == "SPECULAR":
+                currentChain = "specular"
+                chains[currentChain] = [i]
+            else:
+                if currentChain is not None:
+                    chains[currentChain].append(i)
+                else:
+                    raise Exception() #Unsupported sequence
+
+        for node in chains["diffuse"]:
+            if modes[node] == "MODULATE":
+                self.mapping["diffuse"] = node
+            elif modes[node] == "DOTPRODUCT3":
+                self.mapping["normal"] = node
+            else:
+                raise Exception() #Unsupported mode
+        for node in chains["specular"]:
+            if modes[node] == "MODULATE":
+                self.mapping["specular"] = node
+            else:
+                raise Exception() #Unsupported mode
 
 
 class X3dParser:
@@ -331,6 +381,11 @@ class X3dParser:
                 if tag == "Material":
                     entry = X3dMaterial(self.current)
                 elif tag == "ImageTexture":
+                    entry = X3dTexture(self.current)
+                elif tag == "MultiTexture":
+                    entry = X3dMultiTexture(self.current)
+            elif isinstance(self.current, X3dMultiTexture):
+                if tag == "ImageTexture":
                     entry = X3dTexture(self.current)
             elif isinstance(self.current, X3dGeometry):
                 if tag == "Coordinate":
