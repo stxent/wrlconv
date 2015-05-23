@@ -110,7 +110,7 @@ class X3dScene(X3dEntry):
                     if alreadyExported is not None:
                         debug("Squash: reused mesh %s" % name[-1])
                         #Create concrete shape
-                        currentMesh = model.Mesh(parent=alreadyExported[0], name=name[0])
+                        currentMesh = model.Mesh(parent=alreadyExported, name=name[0])
                         currentMesh.transform = transform
                         return [currentMesh]
                     else:

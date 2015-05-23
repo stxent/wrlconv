@@ -104,8 +104,11 @@ def store(data, path):
 
         debug("Mesh exported in %f, name %s" % (time.time() - started, mesh.ident))
 
+    sortedData = filter(lambda entry: entry.appearance().material.color.transparency <= 0.001, data)
+    sortedData += filter(lambda entry: entry.appearance().material.color.transparency > 0.001, data)
+
     out = open(path, "wb")
     out.write("#VRML V2.0 utf8\n#Created by vrml_export_kicad.py\n")
-    for shape in data:
+    for shape in sortedData:
         writeTransform(out, shape)
     out.close()

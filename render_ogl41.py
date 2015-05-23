@@ -73,7 +73,7 @@ def generateNormals(meshes):
     return None if len(urchin.geoPolygons) == 0 else urchin
 
 def buildObjectGroups(inputObjects):
-    data = []
+    renderObjects = []
     objects = inputObjects
 
     #Render meshes
@@ -87,14 +87,17 @@ def buildObjectGroups(inputObjects):
     [keys.append(item) for item in map(lambda mesh: mesh.appearance().material, meshes) if item not in keys]
 
     groups = map(lambda key: filter(lambda mesh: mesh.appearance().material == key, objects), keys)
-    [data.append(RenderMesh(group)) for group in groups]
+    [renderObjects.append(RenderMesh(group)) for group in groups]
 
     #Render line arrays
     arrays = filter(lambda entry: entry.style == model.Object.LINES, objects)
     if len(arrays) > 0:
-        data.append(RenderLineArray(arrays))
+        renderObjects.append(RenderLineArray(arrays))
 
-    return data
+    sortedObjects = filter(lambda entry: entry.appearance.material.color.transparency <= 0.001, renderObjects)
+    sortedObjects += filter(lambda entry: entry.appearance.material.color.transparency > 0.001, renderObjects)
+
+    return sortedObjects
 
 
 class RenderAppearance:

@@ -169,6 +169,7 @@ def store(data, path):
     etree.SubElement(head, "meta", name="generator", content="x3d_export.py")
 
     scene = etree.SubElement(root, "Scene")
+
     for shape in data:
         writeTransform(scene, shape)
 
