@@ -467,7 +467,7 @@ class VrmlAppearance(VrmlEntry):
     def __init__(self, parent=None):
         VrmlEntry.__init__(self, parent)
         self.diffuse = None
-        self.normalmap = None
+        self.normal = None
         self.specular = None
 
     def __eq__(self, other):

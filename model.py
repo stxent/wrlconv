@@ -185,13 +185,13 @@ class Material:
     def __init__(self):
         self.color = Material.Color()
         self.diffuse = None
-        self.normalmap = None
+        self.normal = None
         self.specular = None
 
     def __eq__(self, other):
         if not isinstance(other, Material):
             return False
-        return self.color == other.color and self.diffuse == other.diffuse and self.normalmap == other.normalmap\
+        return self.color == other.color and self.diffuse == other.diffuse and self.normal == other.normal\
                 and self.specular == other.specular
 
     def __ne__(self, other):

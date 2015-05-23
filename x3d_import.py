@@ -217,6 +217,7 @@ class X3dTexCoords(X3dCoords):
 class X3dAppearance(X3dEntry):
     def __init__(self, parent):
         X3dEntry.__init__(self, parent)
+        #Limited support for image textures: TextureTransform nodes unsupported
 
     def squash(self):
         material = model.Material()
@@ -231,7 +232,7 @@ class X3dAppearance(X3dEntry):
                 if entry.mapping["diffuse"] is not None:
                     material.diffuse = entry.ancestors[entry.mapping["diffuse"]].texture
                 if entry.mapping["normal"] is not None:
-                    material.normalmap = entry.ancestors[entry.mapping["normal"]].texture
+                    material.normal = entry.ancestors[entry.mapping["normal"]].texture
                 if entry.mapping["specular"] is not None:
                     material.specular = entry.ancestors[entry.mapping["specular"]].texture
         return material

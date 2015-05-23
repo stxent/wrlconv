@@ -79,7 +79,7 @@ def store(data, path, spec=VRML_STRICT):
         stream.write("%s]\n" % ("\t" * (level + 1)))
 
         material = appearance.material
-        if any(texture is not None for texture in [material.diffuse, material.normalmap, material.specular]):
+        if any(texture is not None for texture in [material.diffuse, material.normal, material.specular]):
             texVertices, texPolygons = mesh.texture()
 
             stream.write("%stexCoord TextureCoordinate {\n" % ("\t" * (level + 1)))

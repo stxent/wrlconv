@@ -137,9 +137,9 @@ class RenderAppearance:
             if self.material.diffuse is not None:
                 name += "Diff"
                 self.textures.append(RenderAppearance.Texture(self.material.diffuse.path))
-            if self.material.normalmap is not None:
+            if self.material.normal is not None:
                 name += "Norm"
-                self.textures.append(RenderAppearance.Texture(self.material.normalmap.path))
+                self.textures.append(RenderAppearance.Texture(self.material.normal.path))
             if self.material.specular is not None:
                 name += "Spec"
                 self.textures.append(RenderAppearance.Texture(self.material.specular.path))

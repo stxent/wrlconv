@@ -16,15 +16,62 @@ def debug(text):
     if debugEnabled:
         print(text)
 
+def indent(element, level=0):
+    i = "\n" + "\t" * level
+    if len(element):
+        if not element.text or not element.text.strip():
+            element.text = i + "\t"
+        for entry in element:
+            indent(entry, level + 1)
+            if not entry.tail or not entry.tail.strip():
+                entry.tail = i + "\t"
+        if not entry.tail or not entry.tail.strip():
+            entry.tail = i
+    else:
+        if level and (not element.tail or not element.tail.strip()):
+            element.tail = i
+
 def store(data, path):
     exportedGroups, exportedMaterials = [], []
+
+    def writeTexture(root, material):
+        if material.diffuse is not None and material.normal is None and material.specular is None:
+            textureNode = etree.SubElement(root, "ImageTexture")
+            textureNode.attrib["DEF"] = material.diffuse.ident
+            textureNode.attrib["url"] = "\"%s\" \"%s\"" % tuple(material.diffuse.path)
+        else:
+            chain, modes, sources = [], [], []
+            if material.normal is not None:
+                chain.append(material.normal)
+                modes.append("DOTPRODUCT3")
+                sources.append("DIFFUSE")
+            if material.diffuse is not None:
+                chain.append(material.diffuse)
+                modes.append("MODULATE")
+                if material.normal is not None:
+                    sources.append("")
+                else:
+                    sources.append("DIFFUSE")
+            if material.specular is not None:
+                chain.append(material.specular)
+                modes.append("MODULATE")
+                sources.append("SPECULAR")
+
+            if len(chain) > 0:
+                multiTextureNode = etree.SubElement(root, "MultiTexture")
+                multiTextureNode.attrib["mode"] = " ".join(map(lambda x: "\"%s\"" % x, modes))
+                multiTextureNode.attrib["source"] = " ".join(map(lambda x: "\"%s\"" % x, sources))
+
+                for entry in chain:
+                    textureNode = etree.SubElement(multiTextureNode, "ImageTexture")
+                    textureNode.attrib["DEF"] = entry.ident
+                    textureNode.attrib["url"] = "\"%s\" \"%s\"" % tuple(entry.path)
 
     def writeAppearance(root, material):
         appearanceNode = etree.SubElement(root, "Appearance")
         materialNode = etree.SubElement(appearanceNode, "Material")
-        
-        ambIntensity = sum(map(lambda i: material.color.ambient[i] / material.color.diffuse[i] / 3., range(0, 3)))
 
+        ambIntensity = sum(map(lambda i: material.color.ambient[i] / material.color.diffuse[i] / 3., range(0, 3)))
         if material in exportedMaterials:
             materialNode.attrib["USE"] = "MA_%s" % material.color.ident
             debug("Export: reused material %s" % material.color.ident)
@@ -38,16 +85,7 @@ def store(data, path):
             materialNode.attrib["transparency"] = str(material.color.transparency)
             exportedMaterials.append(material)
 
-            if material.diffuse is not None:
-                textureNode = etree.SubElement(appearanceNode, "ImageTexture")
-                textureNode.attrib["DEF"] = material.diffuse.ident
-                #FIXME
-                textureNode.attrib["url"] = "\"%s\" \"%s\"" % tuple(material.diffuse.path)
-
-                textureTransformNode = etree.SubElement(appearanceNode, "ImageTexture")
-                textureTransformNode.attrib["translation"] = "0.0 0.0"
-                textureTransformNode.attrib["scale"] = "1.0 1.0"
-                textureTransformNode.attrib["rotation"] = "0.0"
+        writeTexture(appearanceNode, material)
 
     def writeGeometry(root, mesh):
         appearance = mesh.appearance()
@@ -68,7 +106,7 @@ def store(data, path):
         geoCoords.attrib["point"] = " ".join(map(str, vertices))
 
         material = appearance.material
-        if any(texture is not None for texture in [material.diffuse, material.normalmap, material.specular]):
+        if any(texture is not None for texture in [material.diffuse, material.normal, material.specular]):
             texVertices, texPolygons = mesh.texture()
             texCoords = etree.SubElement(faceset, "TextureCoordinate")
 
@@ -134,6 +172,11 @@ def store(data, path):
     for shape in data:
         writeTransform(scene, shape)
 
+    indent(root)
+    payload = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8", doctype=doctype)
+    #Replace quotes to match X3D specification
+    payload = payload.replace("\"&quot;", "'\"").replace("&quot;\"", "\"'").replace("&quot;", "\"")
+
     out = open(path, "wb")
-    out.write(etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8", doctype=doctype))
+    out.write(payload)
     out.close()

@@ -580,7 +580,7 @@ for layer in [("F", "front"), ("B", "back")]:
     layerFile = "%s%s-%s_Diffuse.png" % (outPath, options.project, layer[0])
     if os.path.isfile(layerFile):
         layerList[layer[1]] = ({"diffuse": "%s-%s_Diffuse.png" % (options.project, layer[0]), \
-                "normalmap": "%s-%s_Normals.png" % (options.project, layer[0])})
+                "normal": "%s-%s_Normals.png" % (options.project, layer[0])})
     else:
         print "Layer file does not exist: %s" % layerFile
 
@@ -673,12 +673,12 @@ if expType != vrml_export.VRML_KICAD:
 
     if "front" in layerList:
         front.material.diffuse = model.Material.Texture(layerList["front"]["diffuse"])
-        front.material.normalmap = model.Material.Texture(layerList["front"]["normalmap"])
+        front.material.normal = model.Material.Texture(layerList["front"]["normal"])
     else:
         front.material.color = boardColor
     if "back" in layerList:
         back.material.diffuse = model.Material.Texture(layerList["back"]["diffuse"])
-        back.material.normalmap = model.Material.Texture(layerList["back"]["normalmap"])
+        back.material.normal = model.Material.Texture(layerList["back"]["normal"])
     else:
         back.material.color = boardColor
 
