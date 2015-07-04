@@ -128,8 +128,11 @@ class RenderAppearance:
         self.zbuffer = True
 
         if appearance is None:
-            self.name = "Unlit"
+            self.material = model.Material()
+            self.smooth = False
             self.solid = False
+            self.wireframe = False
+            self.name = "Unlit"
         else:
             self.material = appearance.material
             self.smooth = appearance.smooth
