@@ -103,7 +103,7 @@ def store(data, path):
         vertices = []
         for vert in geoVertices:
             vertices.extend(vert if mesh.transform is None else mesh.transform.process(vert))
-        geoCoords.attrib["point"] = " ".join(map(str, vertices))
+        geoCoords.attrib["point"] = " ".join(map(lambda x: str(round(x, 6)), vertices))
 
         material = appearance.material
         if any(texture is not None for texture in [material.diffuse, material.normal, material.specular]):
@@ -112,7 +112,7 @@ def store(data, path):
 
             vertices = []
             [vertices.extend(vertex) for vertex in texVertices]
-            texCoords.attrib["point"] = " ".join(map(str, vertices))
+            texCoords.attrib["point"] = " ".join(map(lambda x: str(round(x, 6)), vertices))
 
             indices = []
             [indices.extend(poly) for poly in map(lambda poly: poly + [-1], texPolygons)]

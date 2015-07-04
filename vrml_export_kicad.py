@@ -52,7 +52,7 @@ def store(data, path):
         for vert in geoVertices:
             resultingVert = transform.process(vert)
             stream.write("\t")
-            stream.write(" ".join(map(str, resultingVert)))
+            stream.write(" ".join(map(lambda x: str(round(x, 6)), resultingVert)))
             stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 2)))
         stream.write("%s}\n" % ("\t" * (level + 1)))

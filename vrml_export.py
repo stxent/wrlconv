@@ -65,7 +65,7 @@ def store(data, path, spec=VRML_STRICT):
         vertices = []
         for vert in geoVertices:
             vertices.extend(vert if transform is None else transform.process(vert))
-        stream.write(" ".join(map(str, vertices)))
+        stream.write(" ".join(map(lambda x: str(round(x, 6)), vertices)))
         stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 2)))
         stream.write("%s}\n" % ("\t" * (level + 1)))
@@ -87,7 +87,7 @@ def store(data, path, spec=VRML_STRICT):
             stream.write("\t" * (level + 3))
             vertices = []
             [vertices.extend(vertex) for vertex in texVertices]
-            stream.write(" ".join(map(str, vertices)))
+            stream.write(" ".join(map(lambda x: str(round(x, 6)), vertices)))
             stream.write("\n")
             stream.write("%s]\n" % ("\t" * (level + 2)))
             stream.write("%s}\n" % ("\t" * (level + 1)))
