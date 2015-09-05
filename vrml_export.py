@@ -20,7 +20,14 @@ def store(data, path, spec=VRML_STRICT):
     exportedGroups, exportedMaterials = [], []
 
     def writeAppearance(spec, stream, material, level):
-        ambIntensity = sum(map(lambda i: material.color.ambient[i] / material.color.diffuse[i] / 3., range(0, 3)))
+        def calcIntensity(ambient, diffuse):
+            result = 0.
+            for index in range(0, 3):
+                if diffuse[index]:
+                    result += ambient[index] / diffuse[index]
+            return result / 3.
+
+        ambIntensity = calcIntensity(material.color.ambient, material.color.diffuse)
         stream.write("%sappearance Appearance {\n" % ("\t" * level))
 
         if material in exportedMaterials:

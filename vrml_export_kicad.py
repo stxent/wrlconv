@@ -20,7 +20,14 @@ def store(data, path):
     exportedMaterials = []
 
     def writeAppearance(stream, material, level):
-        ambIntensity = sum(map(lambda i: material.color.ambient[i] / material.color.diffuse[i], range(0, 3)))
+        def calcIntensity(ambient, diffuse):
+            result = 0.
+            for index in range(0, 3):
+                if diffuse[index]:
+                    result += ambient[index] / diffuse[index]
+            return result / 3.
+
+        ambIntensity = calcIntensity(material.color.ambient, material.color.diffuse)
         if ambIntensity > 1.:
             ambIntensity = 1.
         stream.write("%sappearance Appearance {\n" % ("\t" * level))

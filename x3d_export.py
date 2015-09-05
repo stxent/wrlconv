@@ -68,10 +68,17 @@ def store(data, path):
                     textureNode.attrib["url"] = "\"%s\" \"%s\"" % tuple(entry.path)
 
     def writeAppearance(root, material):
+        def calcIntensity(ambient, diffuse):
+            result = 0.
+            for index in range(0, 3):
+                if diffuse[index]:
+                    result += ambient[index] / diffuse[index]
+            return result / 3.
+
         appearanceNode = etree.SubElement(root, "Appearance")
         materialNode = etree.SubElement(appearanceNode, "Material")
 
-        ambIntensity = sum(map(lambda i: material.color.ambient[i] / material.color.diffuse[i] / 3., range(0, 3)))
+        ambIntensity = calcIntensity(material.color.ambient, material.color.diffuse)
         if material in exportedMaterials:
             materialNode.attrib["USE"] = "MA_%s" % material.color.ident
             debug("Export: reused material %s" % material.color.ident)
