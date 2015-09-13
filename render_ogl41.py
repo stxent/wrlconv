@@ -136,8 +136,8 @@ class RenderAppearance:
         else:
             self.material = appearance.material
             self.smooth = appearance.smooth
-            self.solid = appearance.solid
             self.wireframe = appearance.wireframe
+            self.solid = False if self.wireframe else appearance.solid
 
             name = ""
             if self.material.diffuse is not None:
@@ -162,11 +162,6 @@ class RenderAppearance:
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
             glBindTexture(self.textures[i].kind, self.textures[i].buf)
-        if self.solid:
-            glEnable(GL_CULL_FACE)
-            glCullFace(GL_BACK)
-        else:
-            glDisable(GL_CULL_FACE)
 
 
 class RenderObject:
@@ -389,8 +384,14 @@ class RenderMesh(RenderObject):
     def draw(self, wireframe=False):
         if wireframe or self.appearance.wireframe:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glDisable(GL_CULL_FACE)
         else:
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+            if self.appearance.solid:
+                glEnable(GL_CULL_FACE)
+                glCullFace(GL_BACK)
+            else:
+                glDisable(GL_CULL_FACE)
 
         glBindVertexArray(self.vao)
         for entry in self.parts:
