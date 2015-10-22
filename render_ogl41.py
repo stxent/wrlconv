@@ -726,11 +726,11 @@ class Render(Scene):
 
             if antialiasing > 0:
                 glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
-                glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing, GL_DEPTH24_STENCIL8, size[0], size[1])
+                glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing, GL_DEPTH_COMPONENT, size[0], size[1])
                 glBindRenderbuffer(GL_RENDERBUFFER, 0)
             else:
                 glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
-                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, size[0], size[1])
+                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size[0], size[1])
                 glBindRenderbuffer(GL_RENDERBUFFER, 0)
 
             #Create framebuffer
@@ -741,9 +741,7 @@ class Render(Scene):
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, self.color, 0)
             else:
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.color, 0)
-
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.depth)
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, self.depth)
 
             glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
@@ -773,7 +771,7 @@ class Render(Scene):
         self.shaders = {}
 
         glutInit(sys.argv)
-        glutInitDisplayMode(GLUT_RGBA)
+        glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE)
         glutInitWindowSize(self.viewport[0], self.viewport[1])
         self.titleText = "OpenGL 4.1 render"
         self.window = glutCreateWindow(self.titleText)
