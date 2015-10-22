@@ -631,6 +631,32 @@ class DefaultShader(ModelShader):
             glUniform1i(self.texLoc[i], i)
 
 
+class BackgroundShader(Shader):
+    def __init__(self, name, scene):
+        Shader.__init__(self, name, scene)
+
+        if self.program is None:
+            vert, frag = map(lambda path: open("./shaders/" + path, "rb").read(),\
+                    ["background.vert", "background.frag"])
+            self.create(vert, frag)
+
+        self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
+        self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
+
+        camera = numpy.matrix([[0.], [0.], [1.], [0.]])
+        axis = numpy.matrix([[0.], [1.], [0.], [0.]])
+        pov = numpy.matrix([[0.], [0.], [0.], [1.]])
+
+        self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
+        self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
+
+    def enable(self):
+        Shader.enable(self, None)
+
+        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
+        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
+
+
 class OverlayShader(Shader):
     def __init__(self, name, scene, antialiasing):
         Shader.__init__(self, name, scene)
@@ -650,7 +676,6 @@ class OverlayShader(Shader):
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
         self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
-        self.normalLoc = glGetUniformLocation(self.program, "normalMatrix")
 
         camera = numpy.matrix([[0.], [0.], [1.], [0.]])
         axis = numpy.matrix([[0.], [1.], [0.], [0.]])
@@ -658,7 +683,6 @@ class OverlayShader(Shader):
 
         self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
         self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
-        self.normalMatrix = numpy.transpose(numpy.linalg.inv(self.modelViewMatrix))
 
         self.colorTextureLoc = glGetUniformLocation(self.program, "colorTexture")
 
@@ -667,17 +691,15 @@ class OverlayShader(Shader):
 
         glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
         glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
-        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(self.normalMatrix, numpy.float32))
 
+        glEnable(GL_TEXTURE_2D)
+        glActiveTexture(GL_TEXTURE0)
         if self.antialiasing > 0:
-            glEnable(GL_TEXTURE_2D)
-            glActiveTexture(GL_TEXTURE0)
             glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, colorBuffer)
         else:
-            glEnable(GL_TEXTURE_2D)
-            glActiveTexture(GL_TEXTURE0)
             glBindTexture(GL_TEXTURE_2D, colorBuffer)
             glGenerateMipmap(GL_TEXTURE_2D)
+        glUniform1i(self.colorTextureLoc, 0)
 
         glUniform1i(self.colorTextureLoc, 0)
 
@@ -778,14 +800,19 @@ class Render(Scene):
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
         glClearDepth(1.0)
         glDepthFunc(GL_LESS)
+        glDisable(GL_DEPTH_TEST)
+
+        renderPlane = geometry.Plane((2., 2.), (1, 1))
+        self.overlayPlane = RenderMesh([renderPlane])
 
         self.loadShaders()
 
         if self.overlay:
             self.framebuffer = Render.Framebuffer(self.viewport, self.antialiasing)
-            self.initOverlay(self.antialiasing)
+            self.loadOverlayShaders(self.antialiasing)
         else:
             self.framebuffer = None
 
@@ -797,6 +824,7 @@ class Render(Scene):
 
         self.shaders["Colored"] = DefaultShader(name="Colored", scene=self)
         self.shaders["Unlit"] = UnlitShader("Unlit", self)
+        self.shaders["Background"] = BackgroundShader("Background", self)
 
         self.shaders["Diff"] = DefaultShader(name="Diff", scene=self,\
                 texture=True, normal=False, specular=False)
@@ -815,16 +843,13 @@ class Render(Scene):
 
         os.chdir(oldDir)
 
-    def initOverlay(self, antialiasing):
+    def loadOverlayShaders(self, antialiasing):
         oldDir = os.getcwd()
         scriptDir = os.path.dirname(os.path.realpath(__file__))
         if len(scriptDir) > 0:
             os.chdir(scriptDir)
         self.shaders["Overlay"] = OverlayShader(name="Overlay", scene=self, antialiasing=antialiasing)
         os.chdir(oldDir)
-
-        renderPlane = geometry.Plane((2., 2.), (1, 1))
-        self.overlayPlane = RenderMesh([renderPlane])
 
     def initScene(self, objects):
         self.data = buildObjectGroups(objects)
@@ -840,14 +865,24 @@ class Render(Scene):
         else:
             glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
-        glEnable(GL_DEPTH_TEST)
+        #Enable writing to depth mask and clear it
         glDepthMask(GL_TRUE)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         self.resetShaders()
+
+        #Draw background, do not use depth mask, depth test is disabled
+        glDepthMask(GL_FALSE)
+        self.shaders["Background"].enable()
+        self.overlayPlane.draw()
+
+        #Draw other objects, use depth mask and enable depth test
+        glDepthMask(GL_TRUE)
+        glEnable(GL_DEPTH_TEST)
         for current in self.data:
             current.appearance.enable(self)
             current.draw(self.wireframe)
+        glDisable(GL_DEPTH_TEST)
 
         #Second pass
         if self.framebuffer is not None:
@@ -856,9 +891,9 @@ class Render(Scene):
             if self.antialiasing > 0:
                 glDisable(GL_MULTISAMPLE)
 
-            glDisable(GL_DEPTH_TEST)
+            #Do not use depth mask, depth test is disabled
             glDepthMask(GL_FALSE)
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            glClear(GL_COLOR_BUFFER_BIT)
 
             self.resetShaders()
             self.shaders["Overlay"].enable(self.framebuffer.color)
