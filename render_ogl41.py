@@ -743,9 +743,6 @@ class Render(Scene):
 
         self.parseOptions(options)
 
-        self.updated = True
-        #self.frames = 0 #TODO
-
         self.cameraMove = False
         self.cameraRotate = False
         self.cameraCursor = [0., 0.]
@@ -756,10 +753,10 @@ class Render(Scene):
         glutInit(sys.argv)
         glutInitDisplayMode(GLUT_RGBA)
         glutInitWindowSize(self.viewport[0], self.viewport[1])
-        self.window = glutCreateWindow("OpenGL 4.1 render")
+        self.titleText = "OpenGL 4.1 render"
+        self.window = glutCreateWindow(self.titleText)
         glutReshapeFunc(self.resize)
         glutDisplayFunc(self.drawScene)
-        glutIdleFunc(self.idleScene)
         glutKeyboardFunc(self.keyHandler)
         glutMotionFunc(self.mouseMove)
         glutMouseFunc(self.mouseButton)
@@ -778,12 +775,13 @@ class Render(Scene):
         self.viewport = (640, 480) if "size" not in options.keys() else options["size"]
 
     def initGraphics(self):
-        self.loadShaders()
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glClearDepth(1.0)
         glDepthFunc(GL_LESS)
+
+        self.loadShaders()
 
         if self.overlay:
             self.framebuffer = Render.Framebuffer(self.viewport, self.antialiasing)
@@ -831,10 +829,6 @@ class Render(Scene):
     def initScene(self, objects):
         self.data = buildObjectGroups(objects)
 
-    def idleScene(self):
-        self.drawScene() #FIXME
-        time.sleep(0.005)
-
     def drawScene(self):
         #First pass
         if self.framebuffer is not None:
@@ -870,13 +864,12 @@ class Render(Scene):
             self.shaders["Overlay"].enable(self.framebuffer.color)
             self.overlayPlane.draw()
 
-        #Show content
+        #Make snapshot
 #        glBindTexture(GL_TEXTURE_2D, self.framebuffer.color)
-#        pix = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE)
-#        glBindTexture(GL_TEXTURE_2D, 0);
-#        im = Image.fromstring("RGBA", self.viewport, pix, "raw", "RGBA", 0, -1)
+#        pixels = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE)
+#        glBindTexture(GL_TEXTURE_2D, 0)
+#        im = Image.fromstring("RGBA", self.viewport, pixels, "raw", "RGBA", 0, -1)
 #        im.show()
-#        exit()
 
         glutSwapBuffers()
 
