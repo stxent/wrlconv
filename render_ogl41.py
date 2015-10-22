@@ -112,12 +112,10 @@ class RenderAppearance:
                 self.size, image = im.size, im.tostring("raw", "RGBX", 0, -1)
 
             self.buf = glGenTextures(1)
-#            self.kind = GL_TEXTURE_RECTANGLE
             self.kind = GL_TEXTURE_2D
 
             glBindTexture(self.kind, self.buf)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-#            glTexImage2D(self.kind, 0, 3, self.size[0], self.size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
             gluBuild2DMipmaps(self.kind, 4, self.size[0], self.size[1], GL_RGBA, GL_UNSIGNED_BYTE, image)
             debug("Texture loaded: %s, width: %d, height: %d, id: %d"\
                     % (path[0], self.size[0], self.size[1], self.buf))
@@ -156,8 +154,8 @@ class RenderAppearance:
         scene.shaders[self.name].enable(self)
 
         for i in range(0, len(self.textures)):
-            glActiveTexture(GL_TEXTURE0 + i)
             glEnable(self.textures[i].kind)
+            glActiveTexture(GL_TEXTURE0 + i)
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
@@ -542,7 +540,7 @@ class UnlitShader(Shader):
         Shader.__init__(self, name, scene)
 
         if self.program is None:
-            vert, frag = map(lambda path: open(path, "rb").read(), ["./shaders/unlit.vert", "./shaders/unlit.frag"])
+            vert, frag = map(lambda path: open("./shaders/" + path, "rb").read(), ["unlit.vert", "unlit.frag"])
             self.create(vert, frag)
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
@@ -564,17 +562,19 @@ class ModelShader(Shader):
         Shader.__init__(self, name, scene)
 
         if self.program is None:
-            flags = ""
-            flags += "#define LIGHT_COUNT 2\n"
+            flags = []
+            flags += ["#define LIGHT_COUNT 2"]
             if texture:
-                flags += "#define DIFFUSE_MAP\n"
+                flags += ["#define DIFFUSE_MAP"]
             if normal:
-                flags += "#define NORMAL_MAP\n"
+                flags += ["#define NORMAL_MAP"]
             if specular:
-                flags += "#define SPECULAR_MAP\n"
+                flags += ["#define SPECULAR_MAP"]
 
-            vert, frag = map(lambda path: flags + open(path, "rb").read(),\
-                    ["./shaders/default.vert", "./shaders/default.frag"])
+            code = map(lambda path: open("./shaders/" + path, "rb").read(), ["default.vert", "default.frag"])
+            code = map(lambda text: text.split("\n"), code)
+            code = map(lambda text: [text[0]] + flags + text[1:], code)
+            vert, frag = map("\n".join, code)
             self.create(vert, frag)
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
@@ -636,14 +636,16 @@ class Render(Scene):
         Scene.__init__(self)
 
         #self.updated = True
+        #self.frames = 0 #TODO
+
         self.cameraMove = False
         self.cameraRotate = False
         self.cameraCursor = [0., 0.]
 
         self.viewport = (640, 480)
         self.wireframe = False
-        self.frames = 0
         self.data = []
+        self.shaders = {}
 
         glutInit(sys.argv)
         glutInitDisplayMode(GLUT_RGBA)
@@ -677,7 +679,7 @@ class Render(Scene):
         scriptDir = os.path.dirname(os.path.realpath(__file__))
         if len(scriptDir) > 0:
             os.chdir(scriptDir)
-        self.shaders = {}
+
         self.shaders["Colored"] = DefaultShader(name="Colored", scene=self)
         self.shaders["Unlit"] = UnlitShader("Unlit", self)
 
@@ -714,7 +716,6 @@ class Render(Scene):
             current.draw(self.wireframe)
 
         glutSwapBuffers()
-        self.frames += 1
 
     def resize(self, width, height):
         self.viewport = (width if width > 0 else 1, height if height > 0 else 1)
