@@ -140,4 +140,4 @@ if options.view:
         helpers += createGrid()
     if options.axes:
         helpers += createAxes()
-    render = render_ogl41.Render(exportList + helpers)
+    render = render_ogl41.Render(exportList + helpers, {"overlay": True, "antialiasing": 4})
