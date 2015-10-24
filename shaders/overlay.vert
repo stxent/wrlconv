@@ -2,7 +2,6 @@
 
 uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
-uniform mat4 normalMatrix;
 
 #ifndef AA_SAMPLES
 out vec2 texel;

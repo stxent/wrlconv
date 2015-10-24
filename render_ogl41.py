@@ -152,7 +152,7 @@ class RenderAppearance:
             self.name = name if name != "" else "Colored"
 
     def enable(self, scene):
-        scene.shaders[self.name].enable(self)
+        scene.shaders[self.name].enable(scene, self.material.color)
 
         for i in range(0, len(self.textures)):
             glEnable(self.textures[i].kind)
@@ -483,7 +483,8 @@ class Scene:
         self.ortho = False
         self.depth = (0.1, 1000.)
         self.camera = Scene.Camera()
-        self.updateMatrix((320, 240))
+        self.viewport = (640, 480)
+        self.updateMatrix(self.viewport)
         self.lights = numpy.array([[50., 50., 50.], [-50., -50., -50.]])
         self.shader = None
         self.shaders = [] #TODO Rename
@@ -501,25 +502,26 @@ class Scene:
         self.modelViewMatrix = model.createModelViewMatrix(self.camera.camera, self.camera.pov, self.camera.axis)
         self.normalMatrix = numpy.transpose(numpy.linalg.inv(self.modelViewMatrix))
 
+    def enableShader(self, shader, arguments):
+        shader.enable(*arguments)
+        self.shader = shader.ident
+
     def resetShaders(self):
         glUseProgram(0)
         self.shader = None
-        glDisable(GL_TEXTURE_2D)
 
 
 class Shader:
     IDENT = 0
 
-    def __init__(self, name, scene):
+    def __init__(self, name):
         self.name = name
-        self.scene = scene
         self.ident = Shader.IDENT
         Shader.IDENT += 1
         self.program = None
 
-    def enable(self, view):
+    def enable(self):
         glUseProgram(self.program)
-        self.scene.shader = self.ident
 
     def create(self, vertex, fragment):
         try:
@@ -536,8 +538,8 @@ class Shader:
 
 
 class UnlitShader(Shader):
-    def __init__(self, name, scene):
-        Shader.__init__(self, name, scene)
+    def __init__(self, name):
+        Shader.__init__(self, name)
 
         if self.program is None:
             vert, frag = map(lambda path: open("./shaders/" + path, "rb").read(), ["unlit.vert", "unlit.frag"])
@@ -547,19 +549,17 @@ class UnlitShader(Shader):
         self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
         self.normalLoc = glGetUniformLocation(self.program, "normalMatrix")
 
-    def enable(self, view):
-        if self.scene.shader == self.ident:
-            return
-        Shader.enable(self, view)
+    def enable(self, scene):
+        Shader.enable(self)
 
-        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.scene.projectionMatrix, numpy.float32))
-        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.scene.modelViewMatrix, numpy.float32))
-        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(self.scene.normalMatrix, numpy.float32))
+        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(scene.projectionMatrix, numpy.float32))
+        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(scene.modelViewMatrix, numpy.float32))
+        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(scene.normalMatrix, numpy.float32))
 
 
 class ModelShader(Shader):
-    def __init__(self, name, scene, texture, normal, specular):
-        Shader.__init__(self, name, scene)
+    def __init__(self, name, texture, normal, specular):
+        Shader.__init__(self, name)
 
         if self.program is None:
             flags = []
@@ -585,26 +585,25 @@ class ModelShader(Shader):
         self.lightDiffuseLoc = glGetUniformLocation(self.program, "lightDiffuseColor")
         self.lightAmbientLoc = glGetUniformLocation(self.program, "lightAmbientIntensity")
 
-    def enable(self, view):
-        if self.scene.shader == self.ident:
-            return
-        Shader.enable(self, view)
+    def enable(self, scene):
+        Shader.enable(self)
 
-        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.scene.projectionMatrix, numpy.float32))
-        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.scene.modelViewMatrix, numpy.float32))
-        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(self.scene.normalMatrix, numpy.float32))
+        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(scene.projectionMatrix, numpy.float32))
+        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(scene.modelViewMatrix, numpy.float32))
+        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(scene.normalMatrix, numpy.float32))
 
         ambient = 0.1
         diffuse = numpy.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], numpy.float32)
 
-        glUniform3fv(self.lightLoc, len(self.scene.lights), numpy.array(self.scene.lights, numpy.float32))
+        glUniform3fv(self.lightLoc, len(scene.lights), numpy.array(scene.lights, numpy.float32))
         glUniform3fv(self.lightDiffuseLoc, 2, diffuse)
         glUniform1f(self.lightAmbientLoc, ambient)
 
 
 class DefaultShader(ModelShader):
-    def __init__(self, name, scene, texture=False, normal=False, specular=False):
-        ModelShader.__init__(self, name, scene, texture, normal, specular)
+    def __init__(self, name, texture=False, normal=False, specular=False):
+        ModelShader.__init__(self, name, texture, normal, specular)
+
         self.diffuseColorLoc = glGetUniformLocation(self.program, "materialDiffuseColor")
         self.specularColorLoc = glGetUniformLocation(self.program, "materialSpecularColor")
         self.emissiveColorLoc = glGetUniformLocation(self.program, "materialEmissiveColor")
@@ -618,10 +617,9 @@ class DefaultShader(ModelShader):
         if specular:
             self.texLoc.append(glGetUniformLocation(self.program, "specularTexture"))
 
-    def enable(self, view):
-        ModelShader.enable(self, view)
+    def enable(self, scene, color):
+        ModelShader.enable(self, scene)
 
-        color = view.material.color
         glUniform4fv(self.diffuseColorLoc, 1, list(color.diffuse) + [1. - color.transparency])
         glUniform3fv(self.specularColorLoc, 1, color.specular)
         glUniform3fv(self.emissiveColorLoc, 1, color.emissive)
@@ -632,8 +630,8 @@ class DefaultShader(ModelShader):
 
 
 class BackgroundShader(Shader):
-    def __init__(self, name, scene):
-        Shader.__init__(self, name, scene)
+    def __init__(self, name):
+        Shader.__init__(self, name)
 
         if self.program is None:
             vert, frag = map(lambda path: open("./shaders/" + path, "rb").read(),\
@@ -651,15 +649,15 @@ class BackgroundShader(Shader):
         self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
 
     def enable(self):
-        Shader.enable(self, None)
+        Shader.enable(self)
 
         glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
         glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
 
 
 class OverlayShader(Shader):
-    def __init__(self, name, scene, antialiasing):
-        Shader.__init__(self, name, scene)
+    def __init__(self, name, antialiasing):
+        Shader.__init__(self, name)
 
         self.antialiasing = antialiasing
 
@@ -687,12 +685,11 @@ class OverlayShader(Shader):
         self.colorTextureLoc = glGetUniformLocation(self.program, "colorTexture")
 
     def enable(self, colorBuffer):
-        Shader.enable(self, None)
+        Shader.enable(self)
 
         glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
         glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
 
-        glEnable(GL_TEXTURE_2D)
         glActiveTexture(GL_TEXTURE0)
         if self.antialiasing > 0:
             glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, colorBuffer)
@@ -701,12 +698,55 @@ class OverlayShader(Shader):
             glGenerateMipmap(GL_TEXTURE_2D)
         glUniform1i(self.colorTextureLoc, 0)
 
-        glUniform1i(self.colorTextureLoc, 0)
+
+class BlurShader(Shader):
+    def __init__(self, name):
+        Shader.__init__(self, name)
+
+        if self.program is None:
+            vert, frag = map(lambda path: open("./shaders/" + path, "rb").read(), ["blur.vert", "blur.frag"])
+            self.create(vert, frag)
+
+        self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
+        self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
+
+        camera = numpy.matrix([[0.], [0.], [1.], [0.]])
+        axis = numpy.matrix([[0.], [1.], [0.], [0.]])
+        pov = numpy.matrix([[0.], [0.], [0.], [1.]])
+
+        self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
+        self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
+
+        self.textures = []
+        self.textures.append(glGetUniformLocation(self.program, "colorTexture"))
+        self.textures.append(glGetUniformLocation(self.program, "maskTexture"))
+        self.directionLoc = glGetUniformLocation(self.program, "direction")
+
+    def enable(self, scene, colorBuffer, direction):
+        Shader.enable(self)
+
+        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
+        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
+
+#        for i in range(0, len(self.textures)):
+#            glEnable(GL_TEXTURE_2D) #TODO Disable
+#            glActiveTexture(GL_TEXTURE0 + i)
+##            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+##            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+##            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+#            glBindTexture(GL_TEXTURE_2D, self.textures[i].buf)
+#            glUniform1i(self.textures[i].buf, i)
+
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, colorBuffer)
+        glUniform1i(self.textures[0], 0)
+
+        glUniform2fv(self.directionLoc, 1, direction / scene.viewport)
 
 
 class Render(Scene):
     class Framebuffer:
-        def __init__(self, size, antialiasing):
+        def __init__(self, size, antialiasing, depth):
             #Color buffer
             self.color = glGenTextures(1)
 
@@ -721,17 +761,21 @@ class Render(Scene):
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
                 glBindTexture(GL_TEXTURE_2D, 0)
 
-            #Depth buffer
-            self.depth = glGenRenderbuffers(1)
+            if depth:
+                #Depth buffer
+                self.depth = glGenRenderbuffers(1)
 
-            if antialiasing > 0:
-                glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
-                glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing, GL_DEPTH_COMPONENT, size[0], size[1])
-                glBindRenderbuffer(GL_RENDERBUFFER, 0)
+                if antialiasing > 0:
+                    glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
+                    glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing, GL_DEPTH_COMPONENT,\
+                            size[0], size[1])
+                    glBindRenderbuffer(GL_RENDERBUFFER, 0)
+                else:
+                    glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
+                    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size[0], size[1])
+                    glBindRenderbuffer(GL_RENDERBUFFER, 0)
             else:
-                glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
-                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size[0], size[1])
-                glBindRenderbuffer(GL_RENDERBUFFER, 0)
+                self.depth = 0
 
             #Create framebuffer
             self.buffer = glGenFramebuffers(1)
@@ -741,19 +785,23 @@ class Render(Scene):
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, self.color, 0)
             else:
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.color, 0)
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.depth)
+            if depth:
+                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.depth)
 
             glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
             debug("Framebuffer built, size %ux%u, color %u, depth %u" % (size[0], size[1], self.color, self.depth))
 
         def free(self):
-            glDeleteTextures([self.color])
-            self.color = None
-            glDeleteRenderbuffers(1, [self.depth])
-            self.depth = None
-            glDeleteFramebuffers(1, [self.buffer])
-            self.buffer = None
+            if self.color:
+                glDeleteTextures([self.color])
+                self.color = 0
+            if self.depth > 0:
+                glDeleteRenderbuffers(1, [self.depth])
+                self.depth = 0
+            if self.buffer > 0:
+                glDeleteFramebuffers(1, [self.buffer])
+                self.buffer = 0
 
             debug("Framebuffer freed")
 
@@ -792,7 +840,8 @@ class Render(Scene):
         self.antialiasing = 0 if "antialiasing" not in options.keys() else options["antialiasing"]
         self.overlay = False if "overlay" not in options.keys() else options["overlay"]
         self.wireframe = False if "wireframe" not in options.keys() else options["wireframe"]
-        self.viewport = (640, 480) if "size" not in options.keys() else options["size"]
+        if "size" in options.keys():
+            self.viewport = options["size"]
 
     def initGraphics(self):
         glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -803,16 +852,27 @@ class Render(Scene):
         glDepthFunc(GL_LESS)
         glDisable(GL_DEPTH_TEST)
 
+        glEnable(GL_TEXTURE_2D)
+
         renderPlane = geometry.Plane((2., 2.), (1, 1))
         self.overlayPlane = RenderMesh([renderPlane])
 
         self.loadShaders()
 
         if self.overlay:
-            self.framebuffer = Render.Framebuffer(self.viewport, self.antialiasing)
+            self.framebuffers = []
+            self.initFramebuffers()
             self.loadOverlayShaders(self.antialiasing)
         else:
-            self.framebuffer = None
+            self.framebuffers = None
+
+    def initFramebuffers(self):
+        for fb in self.framebuffers:
+            fb.free()
+        self.framebuffers = []
+        self.framebuffers.append(Render.Framebuffer(self.viewport, self.antialiasing, True))
+        self.framebuffers.append(Render.Framebuffer(self.viewport, 0, False))
+        self.framebuffers.append(Render.Framebuffer(self.viewport, 0, False))
 
     def loadShaders(self):
         oldDir = os.getcwd()
@@ -820,24 +880,17 @@ class Render(Scene):
         if len(scriptDir) > 0:
             os.chdir(scriptDir)
 
-        self.shaders["Colored"] = DefaultShader(name="Colored", scene=self)
-        self.shaders["Unlit"] = UnlitShader("Unlit", self)
-        self.shaders["Background"] = BackgroundShader("Background", self)
+        self.shaders["Colored"] = DefaultShader(name="Colored")
+        self.shaders["Unlit"] = UnlitShader("Unlit")
+        self.shaders["Background"] = BackgroundShader("Background")
 
-        self.shaders["Diff"] = DefaultShader(name="Diff", scene=self,\
-                texture=True, normal=False, specular=False)
-        self.shaders["Norm"] = DefaultShader(name="Norm", scene=self,\
-                texture=False, normal=True, specular=False)
-        self.shaders["Spec"] = DefaultShader(name="Spec", scene=self,\
-                texture=False, normal=False, specular=True)
-        self.shaders["DiffNorm"] = DefaultShader(name="DiffNorm", scene=self,\
-                texture=True, normal=True, specular=False)
-        self.shaders["DiffSpec"] = DefaultShader(name="DiffSpec", scene=self,\
-                texture=True, normal=False, specular=True)
-        self.shaders["NormSpec"] = DefaultShader(name="NormSpec", scene=self,\
-                texture=False, normal=True, specular=True)
-        self.shaders["DiffNormSpec"] = DefaultShader(name="DiffNormSpec", scene=self,\
-                texture=True, normal=True, specular=True)
+        self.shaders["Diff"] = DefaultShader(name="Diff", texture=True, normal=False, specular=False)
+        self.shaders["Norm"] = DefaultShader(name="Norm", texture=False, normal=True, specular=False)
+        self.shaders["Spec"] = DefaultShader(name="Spec", texture=False, normal=False, specular=True)
+        self.shaders["DiffNorm"] = DefaultShader(name="DiffNorm", texture=True, normal=True, specular=False)
+        self.shaders["DiffSpec"] = DefaultShader(name="DiffSpec", texture=True, normal=False, specular=True)
+        self.shaders["NormSpec"] = DefaultShader(name="NormSpec", texture=False, normal=True, specular=True)
+        self.shaders["DiffNormSpec"] = DefaultShader(name="DiffNormSpec", texture=True, normal=True, specular=True)
 
         os.chdir(oldDir)
 
@@ -846,7 +899,10 @@ class Render(Scene):
         scriptDir = os.path.dirname(os.path.realpath(__file__))
         if len(scriptDir) > 0:
             os.chdir(scriptDir)
-        self.shaders["Overlay"] = OverlayShader(name="Overlay", scene=self, antialiasing=antialiasing)
+
+        self.shaders["Overlay"] = OverlayShader(name="Overlay", antialiasing=antialiasing)
+        self.shaders["Blur"] = BlurShader(name="Blur")
+
         os.chdir(oldDir)
 
     def initScene(self, objects):
@@ -854,8 +910,8 @@ class Render(Scene):
 
     def drawScene(self):
         #First pass
-        if self.framebuffer is not None:
-            glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffer.buffer)
+        if self.framebuffers is not None:
+            glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[0].buffer)
             glDrawBuffers(1, [GL_COLOR_ATTACHMENT0])
 
             if self.antialiasing > 0:
@@ -883,8 +939,8 @@ class Render(Scene):
         glDisable(GL_DEPTH_TEST)
 
         #Second pass
-        if self.framebuffer is not None:
-            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        if self.framebuffers is not None:
+            glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[1].buffer)
 
             if self.antialiasing > 0:
                 glDisable(GL_MULTISAMPLE)
@@ -893,8 +949,15 @@ class Render(Scene):
             glDepthMask(GL_FALSE)
             glClear(GL_COLOR_BUFFER_BIT)
 
-            self.resetShaders()
-            self.shaders["Overlay"].enable(self.framebuffer.color)
+            self.shaders["Overlay"].enable(self.framebuffers[0].color)
+            self.overlayPlane.draw()
+
+            glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[1].color)
+            self.shaders["Blur"].enable(self, self.framebuffers[1].color, numpy.array([0., 1.]))
+            self.overlayPlane.draw()
+
+            glBindFramebuffer(GL_FRAMEBUFFER, 0)
+            self.shaders["Blur"].enable(self, self.framebuffers[1].color, numpy.array([1., 0.]))
             self.overlayPlane.draw()
 
         #Make snapshot
@@ -909,12 +972,8 @@ class Render(Scene):
     def resize(self, width, height):
         self.viewport = (width if width > 0 else 1, height if height > 0 else 1)
         self.updateMatrix(self.viewport)
-
-        if self.framebuffer is not None:
-            framebuffer = self.framebuffer
-            self.framebuffer = None
-            framebuffer.free()
-            self.framebuffer = Render.Framebuffer(self.viewport, self.antialiasing)
+        if self.framebuffers is not None:
+            self.initFramebuffers()
 
         glViewport(0, 0, self.viewport[0], self.viewport[1])
         glutPostRedisplay()
