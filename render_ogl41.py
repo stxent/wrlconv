@@ -541,8 +541,8 @@ class Scene:
 class Shader:
     IDENT = 0
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
+        self.dir = "./shaders/"
         self.ident = Shader.IDENT
         Shader.IDENT += 1
         self.program = None
@@ -565,9 +565,10 @@ class Shader:
             vertexShader = compileShader(vertex, GL_VERTEX_SHADER)
             fragmentShader = compileShader(fragment, GL_FRAGMENT_SHADER)
             self.program = compileProgram(vertexShader, fragmentShader)
+            debug("Shader %u compiled" % self.ident)
         except RuntimeError as runError:
             print(runError.args[0]) #Print error log
-            print("Shader compilation failed: %s" % self.name)
+            print("Shader %u compilation failed" % self.ident)
             exit()
         except:
             print("Unknown shader error")
@@ -575,11 +576,11 @@ class Shader:
 
 
 class UnlitShader(Shader):
-    def __init__(self, name):
-        Shader.__init__(self, name)
+    def __init__(self):
+        Shader.__init__(self)
 
         if self.program is None:
-            vert, frag = map(lambda path: open("./shaders/" + path, "rb").read(), ["unlit.vert", "unlit.frag"])
+            vert, frag = map(lambda path: open(self.dir + path, "rb").read(), ["unlit.vert", "unlit.frag"])
             self.create(vert, frag)
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
@@ -595,8 +596,8 @@ class UnlitShader(Shader):
 
 
 class ModelShader(Shader):
-    def __init__(self, name, texture, normal, specular):
-        Shader.__init__(self, name)
+    def __init__(self, texture, normal, specular):
+        Shader.__init__(self)
 
         if self.program is None:
             flags = []
@@ -608,7 +609,7 @@ class ModelShader(Shader):
             if specular:
                 flags += ["#define SPECULAR_MAP"]
 
-            code = map(lambda path: open("./shaders/" + path, "rb").read(), ["default.vert", "default.frag"])
+            code = map(lambda path: open(self.dir + path, "rb").read(), ["default.vert", "default.frag"])
             code = map(lambda text: text.split("\n"), code)
             code = map(lambda text: [text[0]] + flags + text[1:], code)
             vert, frag = map("\n".join, code)
@@ -638,8 +639,8 @@ class ModelShader(Shader):
 
 
 class DefaultShader(ModelShader):
-    def __init__(self, name, texture=False, normal=False, specular=False):
-        ModelShader.__init__(self, name, texture, normal, specular)
+    def __init__(self, texture=False, normal=False, specular=False):
+        ModelShader.__init__(self, texture, normal, specular)
 
         self.diffuseColorLoc = glGetUniformLocation(self.program, "materialDiffuseColor")
         self.specularColorLoc = glGetUniformLocation(self.program, "materialSpecularColor")
@@ -656,11 +657,11 @@ class DefaultShader(ModelShader):
 
 
 class BackgroundShader(Shader):
-    def __init__(self, name):
-        Shader.__init__(self, name)
+    def __init__(self):
+        Shader.__init__(self)
 
         if self.program is None:
-            vert, frag = map(lambda path: open("./shaders/" + path, "rb").read(),\
+            vert, frag = map(lambda path: open(self.dir + path, "rb").read(),\
                     ["background.vert", "background.frag"])
             self.create(vert, frag)
 
@@ -682,8 +683,8 @@ class BackgroundShader(Shader):
 
 
 class OverlayShader(Shader):
-    def __init__(self, name, antialiasing):
-        Shader.__init__(self, name)
+    def __init__(self, antialiasing):
+        Shader.__init__(self)
 
         self.antialiasing = antialiasing
 
@@ -692,7 +693,7 @@ class OverlayShader(Shader):
             if self.antialiasing > 0:
                 flags += ["#define AA_SAMPLES %u" % antialiasing]
 
-            code = map(lambda path: open("./shaders/" + path, "rb").read(), ["overlay.vert", "overlay.frag"])
+            code = map(lambda path: open(self.dir + path, "rb").read(), ["overlay.vert", "overlay.frag"])
             code = map(lambda text: text.split("\n"), code)
             code = map(lambda text: [text[0]] + flags + text[1:], code)
             vert, frag = map("\n".join, code)
@@ -769,8 +770,6 @@ class Render(Scene):
             else:
                 glBindTexture(GL_TEXTURE_2D, self.color)
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size[0], size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
                 glBindTexture(GL_TEXTURE_2D, 0)
 
             if depth:
@@ -830,18 +829,18 @@ class Render(Scene):
             if len(scriptDir) > 0:
                 os.chdir(scriptDir)
 
-            self.background = BackgroundShader("Background")
+            self.background = BackgroundShader()
 
-            self.shaders["Colored"] = DefaultShader("Colored")
-            self.shaders["Unlit"] = UnlitShader("Unlit")
+            self.shaders["Colored"] = DefaultShader()
+            self.shaders["Unlit"] = UnlitShader()
 
-            self.shaders["Diff"] = DefaultShader(name="Diff", texture=True, normal=False, specular=False)
-            self.shaders["Norm"] = DefaultShader(name="Norm", texture=False, normal=True, specular=False)
-            self.shaders["Spec"] = DefaultShader(name="Spec", texture=False, normal=False, specular=True)
-            self.shaders["DiffNorm"] = DefaultShader(name="DiffNorm", texture=True, normal=True, specular=False)
-            self.shaders["DiffSpec"] = DefaultShader(name="DiffSpec", texture=True, normal=False, specular=True)
-            self.shaders["NormSpec"] = DefaultShader(name="NormSpec", texture=False, normal=True, specular=True)
-            self.shaders["DiffNormSpec"] = DefaultShader(name="DiffNormSpec", texture=True, normal=True, specular=True)
+            self.shaders["Diff"] = DefaultShader(texture=True, normal=False, specular=False)
+            self.shaders["Norm"] = DefaultShader(texture=False, normal=True, specular=False)
+            self.shaders["Spec"] = DefaultShader(texture=False, normal=False, specular=True)
+            self.shaders["DiffNorm"] = DefaultShader(texture=True, normal=True, specular=False)
+            self.shaders["DiffSpec"] = DefaultShader(texture=True, normal=False, specular=True)
+            self.shaders["NormSpec"] = DefaultShader(texture=False, normal=True, specular=True)
+            self.shaders["DiffNormSpec"] = DefaultShader(texture=True, normal=True, specular=True)
 
             if extended:
                 self.blur = BlurShader(name="Blur")
@@ -948,15 +947,13 @@ class Render(Scene):
 
         #Second pass
         if self.framebuffers is not None:
-            glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[1].buffer)
-
             if self.antialiasing > 0:
                 glDisable(GL_MULTISAMPLE)
 
             #Do not use depth mask, depth test is disabled
             glDepthMask(GL_FALSE)
-            glClear(GL_COLOR_BUFFER_BIT)
 
+            glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[1].buffer)
             self.enableShader(self.shaderStorage.overlay, [self.framebuffers[0].color])
             self.overlayPlane.draw()
 

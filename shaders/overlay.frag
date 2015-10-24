@@ -24,6 +24,4 @@ void main(void)
 #else
   color = texture2D(colorTexture, texel);
 #endif
-
-  color = clamp(color, 0.0, 1.0);
 }
