@@ -78,7 +78,9 @@ parser.add_argument("--kicad", dest="kicad", help="export to KiCad with simplifi
         default=False, action="store_true")
 parser.add_argument("--axes", dest="axes", help="show axes", default=False, action="store_true")
 parser.add_argument("--grid", dest="grid", help="show grid", default=False, action="store_true")
+parser.add_argument("--fast", dest="fast", help="disable visual effects", default=False, action="store_true")
 parser.add_argument("--normals", dest="normals", help="show normals", default=False, action="store_true")
+parser.add_argument("--overlay", dest="overlay", help="enable overlay", default=False, action="store_true")
 parser.add_argument(dest="files", nargs="*")
 options = parser.parse_args()
 
@@ -140,4 +142,5 @@ if options.view:
         helpers += createGrid()
     if options.axes:
         helpers += createAxes()
-    render = render_ogl41.Render(exportList + helpers, {"overlay": True, "antialiasing": 4})
+    effects = {} if options.fast else {"overlay": options.overlay, "antialiasing": 4}
+    render = render_ogl41.Render(exportList + helpers, effects)

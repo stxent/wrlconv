@@ -112,6 +112,12 @@ class Texture:
         self.filterMode = filtering
         self.repeatMode = repeating
 
+    def free(self):
+        if self.buffer > 0:
+            glDeleteTextures([self.buffer])
+            self.buffer = 0
+        debug("Overlay freed")
+
 
 class RenderAppearance:
     class ImageTexture(Texture):
@@ -682,7 +688,7 @@ class BackgroundShader(Shader):
         glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
 
 
-class OverlayShader(Shader):
+class MergeShader(Shader):
     def __init__(self, antialiasing):
         Shader.__init__(self)
 
@@ -693,7 +699,7 @@ class OverlayShader(Shader):
             if self.antialiasing > 0:
                 flags += ["#define AA_SAMPLES %u" % antialiasing]
 
-            code = map(lambda path: open(self.dir + path, "rb").read(), ["overlay.vert", "overlay.frag"])
+            code = map(lambda path: open(self.dir + path, "rb").read(), ["merge.vert", "merge.frag"])
             code = map(lambda text: text.split("\n"), code)
             code = map(lambda text: [text[0]] + flags + text[1:], code)
             vert, frag = map("\n".join, code)
@@ -725,11 +731,20 @@ class OverlayShader(Shader):
 
 
 class BlurShader(Shader):
-    def __init__(self, name):
-        Shader.__init__(self, name)
+    def __init__(self, masked):
+        Shader.__init__(self)
+
+        self.masked = masked
 
         if self.program is None:
-            vert, frag = map(lambda path: open("./shaders/" + path, "rb").read(), ["blur.vert", "blur.frag"])
+            flags = []
+            if self.masked:
+                flags += ["#define MASKED"]
+
+            code = map(lambda path: open(self.dir + path, "rb").read(), ["blur.vert", "blur.frag"])
+            code = map(lambda text: text.split("\n"), code)
+            code = map(lambda text: [text[0]] + flags + text[1:], code)
+            vert, frag = map("\n".join, code)
             self.create(vert, frag)
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
@@ -743,10 +758,15 @@ class BlurShader(Shader):
         self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
 
         self.colorTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "colorTexture"))
-        self.maskTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "maskTexture"))
         self.directionLoc = glGetUniformLocation(self.program, "direction")
 
-    def enable(self, scene, colorBuffer, direction):
+        if self.masked:
+            self.maskTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "maskTexture"),\
+                    filtering=(GL_NEAREST, GL_NEAREST))
+            self.sourceTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program,\
+                    "sourceTexture"))
+
+    def enable(self, scene, direction, colorBuffer, sourceBuffer=None, maskBuffer=None):
         Shader.enable(self)
 
         glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
@@ -755,6 +775,12 @@ class BlurShader(Shader):
 
         self.colorTexture.buffer = colorBuffer
         self.activateTexture(0, self.colorTexture)
+
+        if self.masked:
+            self.maskTexture.buffer = maskBuffer
+            self.activateTexture(1, self.maskTexture)
+            self.sourceTexture.buffer = sourceBuffer
+            self.activateTexture(2, self.sourceTexture)
 
 
 class Render(Scene):
@@ -818,11 +844,12 @@ class Render(Scene):
 
 
     class ShaderStorage:
-        def __init__(self, extended, antialiasing=0):
+        def __init__(self, antialiasing=0, overlay=False):
             self.shaders = {}
             self.background = None
             self.blur = None
-            self.overlay = None
+            self.blurMasked = None
+            self.merge = None
 
             oldDir = os.getcwd()
             scriptDir = os.path.dirname(os.path.realpath(__file__))
@@ -842,9 +869,12 @@ class Render(Scene):
             self.shaders["NormSpec"] = DefaultShader(texture=False, normal=True, specular=True)
             self.shaders["DiffNormSpec"] = DefaultShader(texture=True, normal=True, specular=True)
 
-            if extended:
-                self.blur = BlurShader(name="Blur")
-                self.overlay = OverlayShader(name="Overlay", antialiasing=antialiasing)
+            if antialiasing > 0 or overlay:
+                self.merge = MergeShader(antialiasing=antialiasing)
+
+            if overlay:
+                self.blur = BlurShader(masked=False)
+                self.blurMasked = BlurShader(masked=True)
 
             os.chdir(oldDir)
 
@@ -883,6 +913,7 @@ class Render(Scene):
         self.wireframe = False if "wireframe" not in options.keys() else options["wireframe"]
         if "size" in options.keys():
             self.viewport = options["size"]
+        self.useFramebuffers = self.antialiasing > 0 or self.overlay
 
     def initGraphics(self):
         glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -895,14 +926,17 @@ class Render(Scene):
 
         glEnable(GL_TEXTURE_2D)
 
-        self.shaderStorage = Render.ShaderStorage(self.overlay, self.antialiasing)
-        self.overlayPlane = RenderMesh(self.shaderStorage.shaders, [geometry.Plane((2., 2.), (1, 1))])
+        self.shaderStorage = Render.ShaderStorage(self.antialiasing, self.overlay)
+        self.mergePlane = RenderMesh(self.shaderStorage.shaders, [geometry.Plane((2., 2.), (1, 1))])
 
-        if self.overlay:
+        if self.useFramebuffers:
             self.framebuffers = []
             self.initFramebuffers()
         else:
             self.framebuffers = None
+
+        if self.overlay:
+            self.initOverlay(initial=True)
 
     def initFramebuffers(self):
         for fb in self.framebuffers:
@@ -915,9 +949,26 @@ class Render(Scene):
     def initScene(self, objects):
         self.data = buildObjectGroups(self.shaderStorage.shaders, objects)
 
+    def initOverlay(self, initial=False):
+        if not initial:
+            self.overlayMask.free()
+        self.overlayMask = None
+
+        maskBuffer = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, maskBuffer)
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+
+        part = 32
+        image = "\xFF" * (self.viewport[0] * part) + "\x00" * (self.viewport[0] * (self.viewport[1] - part))
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, self.viewport[0], self.viewport[1], 0, GL_RED, GL_UNSIGNED_BYTE, image)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        self.overlayMask = Texture(mode=GL_TEXTURE_2D, location=0, identifier=maskBuffer)
+        debug("Overlay built, size %ux%u, texture %u" % (self.viewport[0], self.viewport[1], maskBuffer))
+
     def drawScene(self):
         #First pass
-        if self.framebuffers is not None:
+        if self.useFramebuffers:
             glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[0].buffer)
             glDrawBuffers(1, [GL_COLOR_ATTACHMENT0])
 
@@ -935,7 +986,7 @@ class Render(Scene):
         #Draw background, do not use depth mask, depth test is disabled
         glDepthMask(GL_FALSE)
         self.enableShader(self.shaderStorage.background, [])
-        self.overlayPlane.draw()
+        self.mergePlane.draw()
 
         #Draw other objects, use depth mask and enable depth test
         glDepthMask(GL_TRUE)
@@ -946,39 +997,41 @@ class Render(Scene):
         glDisable(GL_DEPTH_TEST)
 
         #Second pass
-        if self.framebuffers is not None:
+        if self.useFramebuffers:
             if self.antialiasing > 0:
                 glDisable(GL_MULTISAMPLE)
 
             #Do not use depth mask, depth test is disabled
             glDepthMask(GL_FALSE)
 
-            glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[1].buffer)
-            self.enableShader(self.shaderStorage.overlay, [self.framebuffers[0].color])
-            self.overlayPlane.draw()
+            if self.overlay:
+                glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[1].buffer)
+                self.enableShader(self.shaderStorage.merge, [self.framebuffers[0].color])
+                self.mergePlane.draw()
 
-            glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[2].buffer)
-            self.enableShader(self.shaderStorage.blur, [self, self.framebuffers[1].color, numpy.array([0., 1.])])
-            self.overlayPlane.draw()
+                glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[2].buffer)
+                self.enableShader(self.shaderStorage.blur, [self, numpy.array([0., 1.]), self.framebuffers[1].color])
+                self.mergePlane.draw()
 
-            glBindFramebuffer(GL_FRAMEBUFFER, 0)
-            self.enableShader(self.shaderStorage.blur, [self, self.framebuffers[2].color, numpy.array([1., 0.])])
-            self.overlayPlane.draw()
-
-        #Take snapshot
-#        glBindTexture(GL_TEXTURE_2D, self.framebuffers[1].color)
-#        pixels = glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE)
-#        glBindTexture(GL_TEXTURE_2D, 0)
-#        im = Image.fromstring("RGBA", self.viewport, pixels, "raw", "RGBA", 0, -1)
-#        im.show()
+                glBindFramebuffer(GL_FRAMEBUFFER, 0)
+                self.enableShader(self.shaderStorage.blurMasked, [self, numpy.array([1., 0.]),
+                        self.framebuffers[2].color, self.framebuffers[1].color, self.overlayMask.buffer])
+                self.mergePlane.draw()
+            else:
+                glBindFramebuffer(GL_FRAMEBUFFER, 0)
+                self.enableShader(self.shaderStorage.merge, [self.framebuffers[0].color])
+                self.mergePlane.draw()
 
         glutSwapBuffers()
 
     def resize(self, width, height):
         self.viewport = (width if width > 0 else 1, height if height > 0 else 1)
         self.updateMatrix(self.viewport)
-        if self.framebuffers is not None:
+
+        if self.useFramebuffers:
             self.initFramebuffers()
+        if self.overlay:
+            self.initOverlay()
 
         glViewport(0, 0, self.viewport[0], self.viewport[1])
         glutPostRedisplay()
