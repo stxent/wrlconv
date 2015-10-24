@@ -18,7 +18,13 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
 from OpenGL.GL.shaders import *
-from PIL import Image
+
+try:
+    from PIL import Image
+    imagesEnabled = True
+except:
+    imagesEnabled = False
+    print("Images disabled, please install imaging library")
 
 debugEnabled = False
 
@@ -112,13 +118,20 @@ class RenderAppearance:
         def __init__(self, location, path):
             Texture.__init__(self, GL_TEXTURE_2D, location)
 
-            if not os.path.isfile(path[1]):
-                raise Exception()
-            im = Image.open(path[1])
-            try:
-                self.size, image = im.size, im.tostring("raw", "RGBA", 0, -1)
-            except SystemError:
-                self.size, image = im.size, im.tostring("raw", "RGBX", 0, -1)
+            if imagesEnabled:
+                if not os.path.isfile(path[1]):
+                    raise Exception()
+                im = Image.open(path[1])
+                try:
+                    self.size, image = im.size, im.tostring("raw", "RGBA", 0, -1)
+                except SystemError:
+                    self.size, image = im.size, im.tostring("raw", "RGBX", 0, -1)
+            else:
+                self.size = (8, 8)
+                pBlack, pPink = "\x00\x00\x00\xFF", "\xFF\x00\xFF\xFF"
+                width, height = self.size[0] / 2, self.size[1] / 2
+                image = ((pBlack + pPink) * width + (pPink + pBlack) * width) * height
+                self.filterMode = (GL_NEAREST, GL_NEAREST)
 
             self.buffer = glGenTextures(1)
 
