@@ -14,14 +14,11 @@ import time
 import model
 import geometry
 
-try:
-    from OpenGL.GL import *
-    from OpenGL.GLU import *
-    from OpenGL.GLUT import *
-    from OpenGL.GL.shaders import *
-    from PIL import Image
-except:
-    exit()
+from OpenGL.GL import *
+from OpenGL.GLU import *
+from OpenGL.GLUT import *
+from OpenGL.GL.shaders import *
+from PIL import Image
 
 debugEnabled = False
 
@@ -102,7 +99,7 @@ def buildObjectGroups(shaders, inputObjects):
 
 
 class Texture:
-    def __init__(self, mode, location, identifier=0, filtering=None, repeating=None):
+    def __init__(self, mode, location, identifier=0, filtering=(GL_LINEAR, GL_LINEAR), repeating=GL_CLAMP_TO_EDGE):
         self.buffer = identifier
         self.mode = mode
         self.location = location
@@ -113,7 +110,7 @@ class Texture:
 class RenderAppearance:
     class ImageTexture(Texture):
         def __init__(self, location, path):
-            Texture.__init__(self, GL_TEXTURE_2D, location, 0, GL_LINEAR, GL_REPEAT)
+            Texture.__init__(self, GL_TEXTURE_2D, location)
 
             if not os.path.isfile(path[1]):
                 raise Exception()
@@ -127,7 +124,7 @@ class RenderAppearance:
 
             glBindTexture(self.mode, self.buffer)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-            gluBuild2DMipmaps(self.mode, 4, self.size[0], self.size[1], GL_RGBA, GL_UNSIGNED_BYTE, image)
+            glTexImage2D(self.mode, 0, GL_RGBA8, self.size[0], self.size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
             debug("Texture loaded: %s, width: %d, height: %d, id: %d"\
                     % (path[0], self.size[0], self.size[1], self.buffer))
 
@@ -540,13 +537,11 @@ class Shader:
     def activateTexture(self, channel, texture):
         glActiveTexture(GL_TEXTURE0 + channel)
         glBindTexture(texture.mode, texture.buffer)
-        if texture.repeatMode is not None:
+        if texture.mode == GL_TEXTURE_2D:
             glTexParameteri(texture.mode, GL_TEXTURE_WRAP_S, texture.repeatMode)
             glTexParameteri(texture.mode, GL_TEXTURE_WRAP_T, texture.repeatMode)
-        if texture.filterMode is not None:
-            glTexParameterf(texture.mode, GL_TEXTURE_MAG_FILTER, texture.filterMode)
-            glTexParameterf(texture.mode, GL_TEXTURE_MIN_FILTER, texture.filterMode)
-            glTexParameterf(texture.mode, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR) #TODO
+            glTexParameterf(texture.mode, GL_TEXTURE_MAG_FILTER, texture.filterMode[0])
+            glTexParameterf(texture.mode, GL_TEXTURE_MIN_FILTER, texture.filterMode[1])
         glUniform1i(texture.location, channel)
 
     def enable(self):
@@ -733,10 +728,8 @@ class BlurShader(Shader):
         self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
         self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
 
-        self.colorTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "colorTexture"),\
-                repeating=GL_CLAMP_TO_EDGE)
-        self.maskTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "maskTexture"),\
-                repeating=GL_CLAMP_TO_EDGE)
+        self.colorTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "colorTexture"))
+        self.maskTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "maskTexture"))
         self.directionLoc = glGetUniformLocation(self.program, "direction")
 
     def enable(self, scene, colorBuffer, direction):

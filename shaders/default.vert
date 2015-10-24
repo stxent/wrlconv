@@ -1,4 +1,4 @@
-#version 410 core
+#version 330 core
 
 #if defined(DIFFUSE_MAP) || defined(NORMAL_MAP) || defined(SPECULAR_MAP)
 #define TEXTURED

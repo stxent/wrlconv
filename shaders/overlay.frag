@@ -1,4 +1,4 @@
-#version 410 core
+#version 330 core
 
 #ifdef AA_SAMPLES
 uniform sampler2DMS colorTexture;
@@ -16,11 +16,11 @@ void main(void)
 {
 #ifdef AA_SAMPLES
   ivec2 pos = ivec2(gl_FragCoord.st);
-  vec4 output = vec4(0.0);
+  vec4 result = vec4(0.0);
 
   for (int i = 0; i < AA_SAMPLES; i++)
-    output += texelFetch(colorTexture, pos, i);
-  color = output / AA_SAMPLES;
+    result += texelFetch(colorTexture, pos, i);
+  color = result / AA_SAMPLES;
 #else
   color = texture2D(colorTexture, texel);
 #endif
