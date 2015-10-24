@@ -12,6 +12,5 @@ void main(void)
   vec4 pos = modelViewMatrix * vec4(position, 1.0);
 
   texel = (pos.xy + 1.0) / 2.0;
-
   gl_Position = projectionMatrix * pos;
 }

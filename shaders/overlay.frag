@@ -15,7 +15,7 @@ layout(location = 0) out vec4 color;
 void main(void)
 {
 #ifdef AA_SAMPLES
-  ivec2 pos = ivec2(gl_FragCoord.xy);
+  ivec2 pos = ivec2(gl_FragCoord.st);
   vec4 output = vec4(0.0);
 
   for (int i = 0; i < AA_SAMPLES; i++)
