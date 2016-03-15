@@ -10,6 +10,8 @@ import numpy
 import time
 from lxml import etree
 
+import model
+
 debugEnabled = False
 
 def debug(text):
@@ -108,8 +110,10 @@ def store(data, path):
         geoCoords = etree.SubElement(faceset, "Coordinate")
         geoCoords.attrib["DEF"] = "FS_%s" % mesh.ident
         vertices = []
-        for vert in geoVertices:
-            vertices.extend(vert if mesh.transform is None else mesh.transform.process(vert))
+        if mesh.transform is None:
+            [vertices.extend(vertex) for vertex in geoVertices]
+        else:
+            [vertices.extend(mesh.transform.process(vertex)) for vertex in geoVertices]
         geoCoords.attrib["point"] = " ".join(map(lambda x: str(round(x, 6)), vertices))
 
         material = appearance.material
@@ -148,14 +152,38 @@ def store(data, path):
 
         if mesh.transform is None:
             translation = [0., 0., 0.]
+            rotation = [1., 0., 0., 0.]
+            scale = [1., 1., 1.]
         else:
-            translation = numpy.array(mesh.transform.value)[:,3][0:3].tolist()
+            translation = mesh.transform.value.getA()[:,3][0:3]
+            translationMatrix = numpy.matrix([
+                    [1., 0., 0., -translation[0]],
+                    [0., 1., 0., -translation[1]],
+                    [0., 0., 1., -translation[2]],
+                    [0., 0., 0.,              1.]])
+            translated = translationMatrix * mesh.transform.value
+
+            xAxis = numpy.array([[1.], [0.], [0.], [1.]])
+            xAxisRot = (translated * xAxis).getA()
+            xAxisT, xAxisRotT = xAxis.transpose()[0][0:3], xAxisRot.transpose()[0][0:3]
+
+            normal = numpy.cross(xAxisT, xAxisRotT)
+            normal = model.normalize(normal)
+            angle = model.angle(xAxisRotT, xAxisT)
+            rotation = numpy.array(normal.tolist() + [angle])
+
+            rotationMatrix = model.rotationMatrix(normal, -angle)
+            rotated = rotationMatrix * translated
+            scale = rotated.getA().diagonal()[0:3]
+
+            debug("Transform %s: translation %s, rotation %s, scale %s"\
+                    % (mesh.ident, str(translation), str(rotation), str(scale)))
 
         transform = etree.SubElement(root, "Transform")
         transform.attrib["DEF"] = "OB_%s" % mesh.ident
         transform.attrib["translation"] = "%f %f %f" % tuple(translation)
-        transform.attrib["scale"] = "1.0 1.0 1.0"
-        transform.attrib["rotation"] = "1.0 0.0 0.0 0.0"
+        transform.attrib["scale"] = "%f %f %f" % tuple(scale)
+        transform.attrib["rotation"] = "%f %f %f %f" % tuple(rotation)
 
         parent = mesh if mesh.parent is None else mesh.parent
         writeGroup(transform, parent)

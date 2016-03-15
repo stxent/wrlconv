@@ -8,7 +8,6 @@
 import math
 import numpy
 import os
-import sys
 import time
 
 import model
@@ -890,7 +889,7 @@ class Render(Scene):
 
         self.data = []
 
-        glutInit(sys.argv)
+        glutInit()
         glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE)
         glutInitWindowSize(self.viewport[0], self.viewport[1])
         self.titleText = "OpenGL 4.1 render"
@@ -961,7 +960,7 @@ class Render(Scene):
         part = 32
         image = "\xFF" * (self.viewport[0] * part) + "\x00" * (self.viewport[0] * (self.viewport[1] - part))
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, self.viewport[0], self.viewport[1], 0, GL_RED, GL_UNSIGNED_BYTE, image)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, self.viewport[0], self.viewport[1], 0, GL_RED, GL_UNSIGNED_BYTE, image)
         glBindTexture(GL_TEXTURE_2D, 0)
         self.overlayMask = Texture(mode=GL_TEXTURE_2D, location=0, identifier=maskBuffer)
         debug("Overlay built, size %ux%u, texture %u" % (self.viewport[0], self.viewport[1], maskBuffer))

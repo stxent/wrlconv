@@ -8,6 +8,8 @@
 import numpy
 import time
 
+import model
+
 VRML_STRICT, VRML_KICAD = range(0, 2)
 
 debugEnabled = False
@@ -70,8 +72,10 @@ def store(data, path, spec=VRML_STRICT):
         stream.write("%spoint [\n" % ("\t" * (level + 2)))
         stream.write("\t" * (level + 3))
         vertices = []
-        for vert in geoVertices:
-            vertices.extend(vert if transform is None else transform.process(vert))
+        if transform is None:
+            [vertices.extend(vertex) for vertex in geoVertices]
+        else:
+            [vertices.extend(transform.process(vertex)) for vertex in geoVertices]
         stream.write(" ".join(map(lambda x: str(round(x, 6)), vertices)))
         stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 2)))
@@ -136,13 +140,37 @@ def store(data, path, spec=VRML_STRICT):
 
         if mesh.transform is None:
             translation = [0., 0., 0.]
+            rotation = [1., 0., 0., 0.]
+            scale = [1., 1., 1.]
         else:
-            translation = numpy.array(mesh.transform.value)[:,3][0:3].tolist()
+            translation = mesh.transform.value.getA()[:,3][0:3]
+            translationMatrix = numpy.matrix([
+                    [1., 0., 0., -translation[0]],
+                    [0., 1., 0., -translation[1]],
+                    [0., 0., 1., -translation[2]],
+                    [0., 0., 0.,              1.]])
+            translated = translationMatrix * mesh.transform.value
+
+            xAxis = numpy.array([[1.], [0.], [0.], [1.]])
+            xAxisRot = (translated * xAxis).getA()
+            xAxisT, xAxisRotT = xAxis.transpose()[0][0:3], xAxisRot.transpose()[0][0:3]
+
+            normal = numpy.cross(xAxisT, xAxisRotT)
+            normal = model.normalize(normal)
+            angle = model.angle(xAxisRotT, xAxisT)
+            rotation = numpy.array(normal.tolist() + [angle])
+
+            rotationMatrix = model.rotationMatrix(normal, -angle)
+            rotated = rotationMatrix * translated
+            scale = rotated.getA().diagonal()[0:3]
+
+            debug("Transform %s: translation %s, rotation %s, scale %s"\
+                    % (mesh.ident, str(translation), str(rotation), str(scale)))
 
         stream.write("%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident))
-        stream.write("%stranslation %f %f %f\n" % tuple(["\t" * (level + 1)] + translation))
-        stream.write("%srotation 1.0 0.0 0.0 0.0\n" % ("\t" * (level + 1)))
-        stream.write("%sscale 1.0 1.0 1.0\n" % ("\t" * (level + 1)))
+        stream.write("%stranslation %f %f %f\n" % tuple(["\t" * (level + 1)] + translation.tolist()))
+        stream.write("%srotation %f %f %f %f\n" % tuple(["\t" * (level + 1)] + rotation.tolist()))
+        stream.write("%sscale %f %f %f\n" % tuple(["\t" * (level + 1)] + scale.tolist()))
         stream.write("%schildren [\n" % ("\t" * (level + 1)))
 
         parent = mesh if mesh.parent is None else mesh.parent
