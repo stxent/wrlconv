@@ -155,9 +155,12 @@ def store(data, path, spec=VRML_STRICT):
             xAxisRot = (translated * xAxis).getA()
             xAxisT, xAxisRotT = xAxis.transpose()[0][0:3], xAxisRot.transpose()[0][0:3]
 
-            normal = numpy.cross(xAxisT, xAxisRotT)
-            normal = model.normalize(normal)
             angle = model.angle(xAxisRotT, xAxisT)
+            if angle != 0.:
+                normal = numpy.cross(xAxisT, xAxisRotT)
+                normal = model.normalize(normal)
+            else:
+                normal = xAxisT
             rotation = numpy.array(normal.tolist() + [angle])
 
             rotationMatrix = model.rotationMatrix(normal, -angle)
