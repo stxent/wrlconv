@@ -5,6 +5,7 @@
 # Copyright (C) 2013 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
+import math
 import numpy
 import time
 
@@ -139,9 +140,9 @@ def store(data, path, spec=VRML_STRICT):
         started = time.time()
 
         if mesh.transform is None:
-            translation = [0., 0., 0.]
-            rotation = [1., 0., 0., 0.]
-            scale = [1., 1., 1.]
+            translation = numpy.array([0., 0., 0.])
+            rotation = numpy.array([1., 0., 0., 0.])
+            scale = numpy.array([1., 1., 1.])
         else:
             translation = mesh.transform.value.getA()[:,3][0:3]
             translationMatrix = numpy.matrix([
@@ -151,21 +152,44 @@ def store(data, path, spec=VRML_STRICT):
                     [0., 0., 0.,              1.]])
             translated = translationMatrix * mesh.transform.value
 
-            xAxis = numpy.array([[1.], [0.], [0.], [1.]])
-            xAxisRot = (translated * xAxis).getA()
-            xAxisT, xAxisRotT = xAxis.transpose()[0][0:3], xAxisRot.transpose()[0][0:3]
+            scale = numpy.array([numpy.linalg.norm(translated.getA()[:,column][0:3]) for column in [0, 1, 2]])
+            scaleMatrix = numpy.matrix([
+                    [1. / scale[0],            0.,            0., 0.],
+                    [           0., 1. / scale[1],            0., 0.],
+                    [           0.,            0., 1. / scale[2], 0.],
+                    [           0.,            0.,            0., 1.]])
+            scaled = translated * scaleMatrix
 
-            angle = model.angle(xAxisRotT, xAxisT)
-            if angle != 0.:
-                normal = numpy.cross(xAxisT, xAxisRotT)
-                normal = model.normalize(normal)
+            #Conversion from rotation matrix form to axis-angle form
+            angle = math.acos(((scaled.trace() - 1.) - 1.) / 2.)
+
+            if angle == 0.:
+                rotation = numpy.array([1., 0., 0., 0.])
             else:
-                normal = xAxisT
-            rotation = numpy.array(normal.tolist() + [angle])
+                skew = (scaled - scaled.transpose()).getA()
+                vector = numpy.array([skew[2][1], skew[0][2], skew[1][0]])
+                vector = (1. / (2. * math.sin(angle))) * vector
+                vector = model.normalize(vector)
 
-            rotationMatrix = model.rotationMatrix(normal, -angle)
-            rotated = rotationMatrix * translated
-            scale = rotated.getA().diagonal()[0:3]
+                if abs(angle) < math.pi:
+                    rotation = numpy.array(vector.tolist() + [angle])
+                else:
+                    tensor = numpy.tensordot(vector, vector, 0)
+                    values = numpy.array([tensor[2][1], tensor[0][2], tensor[1][0]])
+
+                    posIndices, negIndices = [], []
+                    for i in range(0, 3):
+                        if values[i] < 0.:
+                            negIndices.append(i)
+                        elif values[i] > 0.:
+                            posIndices.append(i)
+
+                    if len(posIndices) == 1 and len(negIndices) == 2:
+                        vector[posIndices[0]] *= -1.
+                    elif len(posIndices) == 0 and len(negIndices) == 1:
+                        vector[negIndices[0]] *= -1.
+
+                    rotation = numpy.array(vector.tolist() + [angle])
 
             debug("Transform %s: translation %s, rotation %s, scale %s"\
                     % (mesh.ident, str(translation), str(rotation), str(scale)))

@@ -137,8 +137,10 @@ class X3dTransform(X3dEntry):
         def getValues(string):
             return map(float, string.split(" "))
         if "rotation" in attributes.keys():
-            v = getValues(attributes["rotation"])
-            self.transform.rotate([v[0], v[1], v[2]], v[3])
+            values = getValues(attributes["rotation"])
+            vector, angle = model.normalize(values[0:3]), values[3]
+            vector = model.normalize(vector)
+            self.transform.rotate(vector, angle)
         if "scale" in attributes.keys():
             self.transform.scale(getValues(attributes["scale"]))
         if "translation" in attributes.keys():

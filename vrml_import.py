@@ -290,7 +290,10 @@ class VrmlTransform(VrmlEntry):
             self.transform.translate(map(lambda x: float(result.group(x + 1)), range(0, 3)))
         result = re.search("rotation\s+" + "\s+".join([key] * 4), string, re.I | re.S)
         if result is not None:
-            self.transform.rotate(map(lambda x: float(result.group(x + 1)), range(0, 3)), float(result.group(4)))
+            values = map(lambda x: float(result.group(x + 1)), range(0, 3))
+            vector, angle = model.normalize(values), float(result.group(4))
+            vector = model.normalize(vector)
+            self.transform.rotate(vector, angle)
         result = re.search("scale\s+" + "\s+".join([key] * 3), string, re.I | re.S)
         if result is not None:
             self.transform.scale(map(lambda x: float(result.group(x + 1)), range(0, 3)))
