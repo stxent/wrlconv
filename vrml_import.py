@@ -117,13 +117,13 @@ class VrmlEntry:
                     break
                 stream.seek(-(len(data) - regexp.end()), os.SEEK_CUR)
                 entry = None
-                debug("%sEntry: '%s' '%s' '%s' Balance: %u"\
+                debug("%sEntry: '%s' '%s' '%s' Balance: %u"
                         % (' ' * self.level, regexp.group(1), regexp.group(2), regexp.group(3), balance))
 
                 try:
                     entry = self.chain(regexp.group(3))
                 except:
-                    debug("%sUnsupported chunk sequence: %s->%s"\
+                    debug("%sUnsupported chunk sequence: %s->%s"
                             % (' ' * self.level, self.__class__.__name__, regexp.group(3)))
                     offset = skipChunk(stream)
                     stream.seek(-offset, os.SEEK_CUR)
@@ -233,7 +233,7 @@ class VrmlScene(VrmlEntry):
             translated = dict(zip(used, range(0, len(vertices))))
             polygons = map(lambda poly: [translated[i] for i in poly], mesh.geoPolygons)
 
-            debug("Reindex: mesh %s, %d polygons, from %d to %d vertices" % (mesh.ident, len(polygons),\
+            debug("Reindex: mesh %s, %d polygons, from %d to %d vertices" % (mesh.ident, len(polygons),
                     len(mesh.geoVertices), len(vertices)))
             mesh.geoPolygons = polygons
             mesh.geoVertices = vertices
@@ -378,7 +378,7 @@ class VrmlGeometry(VrmlEntry):
                         debug("%sWrong polygon vertex count: %u" % (' ' * self.level, len(vertices)))
                         break
                     elif len(vertices) > 4:
-                        polygons.extend(map(lambda x: [vertices[0], vertices[x], vertices[x + 1]],\
+                        polygons.extend(map(lambda x: [vertices[0], vertices[x], vertices[x + 1]],
                                 range(1, len(vertices) - 1)))
                     else:
                         polygons.append(vertices)
@@ -495,7 +495,7 @@ class VrmlAppearance(VrmlEntry):
 
 class VrmlMaterial(VrmlEntry):
     IDENT = 0
-    PATTERNS = [(1, "shininess"), (1, "transparency"), (1, "ambientIntensity"),\
+    PATTERNS = [(1, "shininess"), (1, "transparency"), (1, "ambientIntensity"),
             (3, "diffuseColor"), (3, "emissiveColor"), (3, "specularColor")]
 
     def __init__(self, parent):

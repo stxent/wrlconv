@@ -193,7 +193,7 @@ def store(data, path, spec=VRML_STRICT):
 
                     rotation = numpy.array(vector.tolist() + [angle])
 
-            debug("Transform %s: translation %s, rotation %s, scale %s"\
+            debug("Transform %s: translation %s, rotation %s, scale %s"
                     % (mesh.ident, str(translation), str(rotation), str(scale)))
 
         stream.write("%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident))

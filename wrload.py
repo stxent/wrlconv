@@ -68,13 +68,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-v", dest="view", help="render model", default=False, action="store_true")
 parser.add_argument("-o", dest="output", help="write model to specified file", default="")
 parser.add_argument("-t", dest="translation", help="move mesh to new coordinates x,y,z", default='0.,0.,0.')
-parser.add_argument("-r", dest="rotation", help="rotate mesh around vector x,y,z by angle in degrees",\
+parser.add_argument("-r", dest="rotation", help="rotate mesh around vector x,y,z by angle in degrees",
         default='0.,0.,1.,0.')
-parser.add_argument("-s", dest="scale", help="scale shapes by x,y,z",\
+parser.add_argument("-s", dest="scale", help="scale shapes by x,y,z",
         default='1.,1.,1.')
 parser.add_argument("-f", dest="pattern", help="regular expression, filter objects by name", default="")
 parser.add_argument("-d", dest="debug", help="show debug information", default=False, action="store_true")
-parser.add_argument("--kicad", dest="kicad", help="export to KiCad with simplified syntax",\
+parser.add_argument("--kicad", dest="kicad", help="export to KiCad with simplified syntax",
         default=False, action="store_true")
 parser.add_argument("--axes", dest="axes", help="show axes", default=False, action="store_true")
 parser.add_argument("--grid", dest="grid", help="show grid", default=False, action="store_true")

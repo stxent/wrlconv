@@ -79,7 +79,7 @@ class X3dScene(X3dEntry):
             translated = dict(zip(used, range(0, len(vertices))))
             polygons = map(lambda poly: [translated[i] for i in poly], mesh.geoPolygons)
 
-            debug("Reindex: mesh %s, %d polygons, from %d to %d vertices" % (mesh.ident, len(polygons),\
+            debug("Reindex: mesh %s, %d polygons, from %d to %d vertices" % (mesh.ident, len(polygons),
                     len(mesh.geoVertices), len(vertices)))
             mesh.geoPolygons = polygons
             mesh.geoVertices = vertices
@@ -200,7 +200,7 @@ class X3dCoords(X3dEntry):
         if "point" in attributes.keys():
             points = map(float, filter(lambda vertex: len(vertex) > 0, attributes["point"].split(" ")))
             vertices = []
-            [vertices.append(numpy.array(points[i * self.size:(i + 1) * self.size]))\
+            [vertices.append(numpy.array(points[i * self.size:(i + 1) * self.size]))
                     for i in range(0, len(points) / self.size)]
             self.vertices = vertices
             debug("%sFound %u vertices, width %u" % (' ' * self.level, len(self.vertices), self.size))

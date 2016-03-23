@@ -386,17 +386,17 @@ class LineArray(Object):
 
 class Transform:
     def __init__(self):
-        self.value = numpy.matrix([\
-                [1., 0., 0., 0.],\
-                [0., 1., 0., 0.],\
-                [0., 0., 1., 0.],\
+        self.value = numpy.matrix([
+                [1., 0., 0., 0.],
+                [0., 1., 0., 0.],
+                [0., 0., 1., 0.],
                 [0., 0., 0., 1.]])
 
     def translate(self, pos):
-        mat = numpy.matrix([\
-                [0., 0., 0., pos[0]],\
-                [0., 0., 0., pos[1]],\
-                [0., 0., 0., pos[2]],\
+        mat = numpy.matrix([
+                [0., 0., 0., pos[0]],
+                [0., 0., 0., pos[1]],
+                [0., 0., 0., pos[2]],
                 [0., 0., 0.,     0.]])
         self.value = self.value + mat
 
@@ -405,10 +405,10 @@ class Transform:
         self.value = self.value * mat
 
     def scale(self, scale):
-        mat = numpy.matrix([\
-                [scale[0],       0.,       0., 0.],\
-                [      0., scale[1],       0., 0.],\
-                [      0.,       0., scale[2], 0.],\
+        mat = numpy.matrix([
+                [scale[0],       0.,       0., 0.],
+                [      0., scale[1],       0., 0.],
+                [      0.,       0., scale[2], 0.],
                 [      0.,       0.,       0., 1.]])
         self.value = self.value * mat
 

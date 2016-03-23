@@ -78,13 +78,12 @@ lqfpNarrowPin = lookup(exportList, "PatLQFPNarrowPin")[0].parent
 lqfpWidePin = lookup(exportList, "PatLQFPWidePin")[0].parent
 
 #Modified SO models
-lqfpRegions = [\
-        (((0.5, 0.5, 1.0), (-0.5, -0.5, -1.0)), 1),\
-        (((1.5, 1.5, 1.0), (0.5, 0.5, -1.0)), 2),\
-        (((-1.5, 1.5, 1.0), (-0.5, 0.5, -1.0)), 3),\
-        (((1.5, -1.5, 1.0), (0.5, -0.5, -1.0)), 4),\
-        (((-1.5, -1.5, 1.0), (-0.5, -0.5, -1.0)), 5)\
-]
+lqfpRegions = [
+        (((0.5, 0.5, 1.0), (-0.5, -0.5, -1.0)), 1),
+        (((1.5, 1.5, 1.0), (0.5, 0.5, -1.0)), 2),
+        (((-1.5, 1.5, 1.0), (-0.5, 0.5, -1.0)), 3),
+        (((1.5, -1.5, 1.0), (0.5, -0.5, -1.0)), 4),
+        (((-1.5, -1.5, 1.0), (-0.5, -0.5, -1.0)), 5)]
 lqfpAttributedBody = model.AttributedMesh(name="LQFPBody", regions=lqfpRegions)
 lqfpAttributedBody.append(lqfpBody)
 lqfpAttributedBody.visualAppearance = lqfpBody.appearance()
@@ -103,7 +102,7 @@ def createBody(pattern, width, count, name):
     offset = spacing / 2. if sideCount % 2 == 0 else spacing
     dot = (-sideCount / 2. + 1.5) * spacing - offset
 
-    corners = [model.Transform(), model.Transform(),\
+    corners = [model.Transform(), model.Transform(),
             model.Transform(), model.Transform()]
     center = model.Transform()
     center.translate([dot, dot, 0.])

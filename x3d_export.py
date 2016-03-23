@@ -205,7 +205,7 @@ def store(data, path):
 
                     rotation = numpy.array(vector.tolist() + [angle])
 
-            debug("Transform %s: translation %s, rotation %s, scale %s"\
+            debug("Transform %s: translation %s, rotation %s, scale %s"
                     % (mesh.ident, str(translation), str(rotation), str(scale)))
 
         transform = etree.SubElement(root, "Transform")

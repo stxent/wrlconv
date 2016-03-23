@@ -49,7 +49,7 @@ def generateNormals(meshes):
         vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
 
         def getNormal(points):
-            return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],\
+            return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],
                     vertices[points[2]] - vertices[points[0]]))
 
         if smooth:
@@ -179,13 +179,13 @@ class RenderAppearance:
             self.shader = shaders[shaderName]
 
         if self.material.diffuse is not None:
-            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,\
+            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
                     "diffuseTexture"), self.material.diffuse.path))
         if self.material.normal is not None:
-            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,\
+            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
                     "normalTexture"), self.material.normal.path))
         if self.material.specular is not None:
-            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,\
+            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
                     "specularTexture"), self.material.specular.path))
 
     def enable(self, scene):
@@ -277,7 +277,7 @@ class RenderLineArray(RenderObject):
 
         glBindVertexArray(0)
 
-        debug("Point cloud created in %f, id %s, lines %u, vertices %u"\
+        debug("Point cloud created in %f, id %s, lines %u, vertices %u"
                 % (time.time() - started, self.ident, lines / 2, length))
 
     def draw(self, wireframe=False):
@@ -328,13 +328,13 @@ class RenderMesh(RenderObject):
             vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
 
             def getNormal(points):
-                return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],\
+                return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],
                         vertices[points[2]] - vertices[points[0]]))
 
             def getTangent(points, texels):
-                return model.normalize(model.tangent(vertices[points[1]] - vertices[points[0]],\
-                        vertices[points[2]] - vertices[points[0]],\
-                        texVertices[texels[1]] - texVertices[texels[0]],\
+                return model.normalize(model.tangent(vertices[points[1]] - vertices[points[0]],
+                        vertices[points[2]] - vertices[points[0]],
+                        texVertices[texels[1]] - texVertices[texels[0]],
                         texVertices[texels[2]] - texVertices[texels[0]]))
 
             if smooth:
@@ -409,7 +409,7 @@ class RenderMesh(RenderObject):
 
         glBindVertexArray(0)
 
-        debug("Mesh created in %f, id %s, triangles %u, quads %u, vertices %u"\
+        debug("Mesh created in %f, id %s, triangles %u, quads %u, vertices %u"
                 % (time.time() - started, self.ident, triangles / 3, quads / 4, length))
 
     def draw(self, wireframe=False):
@@ -666,7 +666,7 @@ class BackgroundShader(Shader):
         Shader.__init__(self)
 
         if self.program is None:
-            vert, frag = map(lambda path: open(self.dir + path, "rb").read(),\
+            vert, frag = map(lambda path: open(self.dir + path, "rb").read(),
                     ["background.vert", "background.frag"])
             self.create(vert, frag)
 
@@ -760,9 +760,9 @@ class BlurShader(Shader):
         self.directionLoc = glGetUniformLocation(self.program, "direction")
 
         if self.masked:
-            self.maskTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "maskTexture"),\
+            self.maskTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, "maskTexture"),
                     filtering=(GL_NEAREST, GL_NEAREST))
-            self.sourceTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program,\
+            self.sourceTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program,
                     "sourceTexture"))
 
     def enable(self, scene, direction, colorBuffer, sourceBuffer=None, maskBuffer=None):
@@ -803,7 +803,7 @@ class Render(Scene):
 
                 if antialiasing > 0:
                     glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
-                    glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing, GL_DEPTH_COMPONENT,\
+                    glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing, GL_DEPTH_COMPONENT,
                             size[0], size[1])
                     glBindRenderbuffer(GL_RENDERBUFFER, 0)
                 else:

@@ -81,13 +81,12 @@ tssopBodyHole = lookup(exportList, "PatTSSOPBody")[1].parent
 tssopPin = lookup(exportList, "PatTSSOPPin")[0].parent
 
 #Modified SO models
-soRegions = [\
-        (((0.15, 0.15, 1.0), (-0.15, -0.15, -1.0)), 1),\
-        (((1.0, 1.0, 1.0), (0.15, 0.15, -1.0)), 2),\
-        (((-1.0, 1.0, 1.0), (-0.15, 0.15, -1.0)), 3),\
-        (((1.0, -1.0, 1.0), (0.15, -0.15, -1.0)), 4),\
-        (((-1.0, -1.0, 1.0), (-0.15, -0.15, -1.0)), 5)\
-]
+soRegions = [
+        (((0.15, 0.15, 1.0), (-0.15, -0.15, -1.0)), 1),
+        (((1.0, 1.0, 1.0), (0.15, 0.15, -1.0)), 2),
+        (((-1.0, 1.0, 1.0), (-0.15, 0.15, -1.0)), 3),
+        (((1.0, -1.0, 1.0), (0.15, -0.15, -1.0)), 4),
+        (((-1.0, -1.0, 1.0), (-0.15, -0.15, -1.0)), 5)]
 soAttributedBody = model.AttributedMesh(name="SOBody", regions=soRegions)
 soAttributedBody.append(soBody)
 soAttributedBody.visualAppearance = soBody.appearance()
@@ -111,7 +110,7 @@ def createBody(pattern, size, count, name):
     offset = spacing / 2. if sideCount % 2 == 0 else spacing
     dot = (-((size[0] / 2. - 0.75) / 2.54), -((size[1] / 2. - 0.75 - pattern[4]) / 2.54))
 
-    corners = [model.Transform(), model.Transform(),\
+    corners = [model.Transform(), model.Transform(),
             model.Transform(), model.Transform()]
     center = model.Transform()
     center.translate([dot[0], dot[1], 0.])
