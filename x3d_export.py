@@ -188,6 +188,8 @@ def store(data, path):
                 else:
                     tensor = numpy.tensordot(vector, vector, 0)
                     values = numpy.array([tensor[2][1], tensor[0][2], tensor[1][0]])
+                    vector = numpy.diag(tensor)
+                    vector = model.normalize(vector)
 
                     posIndices, negIndices = [], []
                     for i in range(0, 3):
