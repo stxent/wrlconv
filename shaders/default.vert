@@ -19,30 +19,28 @@ layout(location = 2) in vec2 texel;
 layout(location = 3) in vec3 tangent;
 #endif
 
-out vec3 calcPosition;
-out vec3 calcNormal;
-out vec3 calcLightPosition[LIGHT_COUNT];
+out VertexData {
+  vec3 position;
+  vec3 normal;
 #ifdef TEXTURED
-out vec2 calcTexel;
+  vec2 texel;
 #endif
 #ifdef NORMAL_MAP
-out vec3 calcTangent;
+  vec3 tangent;
 #endif
+} outputVertex;
 
 void main(void)
 {
   vec4 pos = modelViewMatrix * vec4(position, 1.0);
 
-  for (int i = 0; i < LIGHT_COUNT; ++i)
-    calcLightPosition[i] = vec3(modelViewMatrix * vec4(lightPosition[i], 1.0));
-
-  calcPosition = pos.xyz;
-  calcNormal = vec3(normalMatrix * vec4(normal, 0.0));
+  outputVertex.position = pos.xyz;
+  outputVertex.normal = vec3(normalMatrix * vec4(normal, 0.0));
 #ifdef TEXTURED
-  calcTexel = texel;
+  outputVertex.texel = texel;
 #endif
 #ifdef NORMAL_MAP
-  calcTangent = vec3(normalMatrix * vec4(tangent, 0.0));
+  outputVertex.tangent = vec3(normalMatrix * vec4(tangent, 0.0));
 #endif
 
   gl_Position = projectionMatrix * pos;

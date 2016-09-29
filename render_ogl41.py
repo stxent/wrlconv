@@ -517,7 +517,11 @@ class Scene:
         self.camera = Scene.Camera()
         self.viewport = (640, 480)
         self.updateMatrix(self.viewport)
-        self.lights = numpy.array([[50., 50., 50.], [-50., -50., -50.]])
+
+        self.lights = []
+        self.lights.append(numpy.matrix([[50.], [50.], [50.], [1.]]))
+        self.lights.append(numpy.matrix([[-50.], [-50.], [-50.], [1.]]))
+
         self.shader = None
         self.shaders = [] #TODO Rename
 
@@ -638,7 +642,10 @@ class ModelShader(Shader):
         ambient = 0.1
         diffuse = numpy.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], numpy.float32)
 
-        glUniform3fv(self.lightLoc, len(scene.lights), numpy.array(scene.lights, numpy.float32))
+        modelViewMatrix = scene.modelViewMatrix.transpose()
+        lights = map(lambda x: (modelViewMatrix * x).getA()[:,0][0:3], scene.lights)
+        glUniform3fv(self.lightLoc, len(lights), numpy.array(lights, numpy.float32))
+
         glUniform3fv(self.lightDiffuseLoc, 2, diffuse)
         glUniform1f(self.lightAmbientLoc, ambient)
 

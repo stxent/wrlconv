@@ -21,7 +21,7 @@ def createModelViewMatrix(eye, center, up):
     forward = normalize(center - eye)
     up = normalize(up)
     side = numpy.cross(forward, up)
-    side = numpy.array([0., 1., 0.]) if numpy.linalg.norm(side) == 0. else  normalize(side)
+    side = numpy.array([0., 1., 0.]) if numpy.linalg.norm(side) == 0. else normalize(side)
     up = numpy.cross(side, forward)
     up = normalize(up)
 

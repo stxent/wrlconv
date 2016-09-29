@@ -14,6 +14,7 @@ uniform sampler2D normalTexture;
 uniform sampler2D specularTexture;
 #endif
 
+uniform vec3 lightPosition[LIGHT_COUNT];
 uniform vec3 lightDiffuseColor[LIGHT_COUNT];
 uniform float lightAmbientIntensity;
 
@@ -22,40 +23,41 @@ uniform vec3 materialSpecularColor;
 uniform vec3 materialEmissiveColor;
 uniform float materialShininess;
 
-in vec3 calcPosition;
-in vec3 calcNormal;
-in vec3 calcLightPosition[LIGHT_COUNT];
+in VertexData {
+  vec3 position;
+  vec3 normal;
 #ifdef TEXTURED
-in vec2 calcTexel;
+  vec2 texel;
 #endif
 #ifdef NORMAL_MAP
-in vec3 calcTangent;
+  vec3 tangent;
 #endif
+} outputVertex;
 
 layout(location = 0) out vec4 color;
 
 void main(void)
 {
-  vec3 view = normalize(-calcPosition.xyz);
+  vec3 view = normalize(-outputVertex.position.xyz);
   color = vec4(materialEmissiveColor, materialDiffuseColor.a);
 
 #ifdef NORMAL_MAP
-  vec3 binormal = cross(calcTangent, calcNormal);
-  vec3 normal = texture2D(normalTexture, calcTexel.st).rgb;
+  vec3 binormal = cross(outputVertex.tangent, outputVertex.normal);
+  vec3 normal = texture2D(normalTexture, outputVertex.texel.st).rgb;
 
   normal = normalize(normal * 2.0 - 1.0);
   mat3 tbnMatrix = mat3(
-      calcTangent.x, binormal.x, calcNormal.x,
-      calcTangent.y, binormal.y, calcNormal.y,
-      calcTangent.z, binormal.z, calcNormal.z);
+      outputVertex.tangent.x, binormal.x, outputVertex.normal.x,
+      outputVertex.tangent.y, binormal.y, outputVertex.normal.y,
+      outputVertex.tangent.z, binormal.z, outputVertex.normal.z);
   view = tbnMatrix * view;
 #else
-  vec3 normal = calcNormal;
+  vec3 normal = outputVertex.normal;
 #endif
 
   for (int i = 0; i < LIGHT_COUNT; i++)
   {
-    vec3 light = normalize(calcLightPosition[i] - calcPosition);
+    vec3 light = normalize(lightPosition[i] - outputVertex.position);
 #ifdef NORMAL_MAP
     light = tbnMatrix * light;
 #endif
@@ -67,14 +69,14 @@ void main(void)
       vec3 reflection = normalize(-reflect(light, normal));
       vec3 specularPart = materialSpecularColor * pow(max(0.0, dot(reflection, view)), materialShininess);
 #ifdef SPECULAR_MAP
-      specularPart *= texture2D(specularTexture, calcTexel.st).rgb;
+      specularPart *= texture2D(specularTexture, outputVertex.texel.st).rgb;
 #endif
       color.rgb += specularPart;
     }
   }
 
 #ifdef DIFFUSE_MAP
-  color *= texture2D(diffuseTexture, calcTexel.st);
+  color *= texture2D(diffuseTexture, outputVertex.texel.st);
 #endif
   color = clamp(color, 0.0, 1.0);
 }
