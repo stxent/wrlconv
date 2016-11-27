@@ -34,8 +34,9 @@ def store(data, path, spec=VRML_STRICT):
         stream.write("%sappearance Appearance {\n" % ("\t" * level))
 
         if material in exportedMaterials:
-            stream.write("%smaterial USE MA_%s\n" % ("\t" * (level + 1), material.color.ident))
-            debug("Export: reused material %s" % material.color.ident)
+            exported = exportedMaterials[exportedMaterials.index(material)]
+            stream.write("%smaterial USE MA_%s\n" % ("\t" * (level + 1), exported.color.ident))
+            debug("Export: reused material %s instead of %s" % (exported.color.ident, material.color.ident))
         else:
             stream.write("%smaterial DEF MA_%s Material {\n" % ("\t" * (level + 1), material.color.ident))
             stream.write("%sdiffuseColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.diffuse.tolist()))
@@ -73,10 +74,7 @@ def store(data, path, spec=VRML_STRICT):
         stream.write("%spoint [\n" % ("\t" * (level + 2)))
         stream.write("\t" * (level + 3))
         vertices = []
-        if transform is None:
-            [vertices.extend(vertex) for vertex in geoVertices]
-        else:
-            [vertices.extend(transform.process(vertex)) for vertex in geoVertices]
+        [vertices.extend(vertex) for vertex in geoVertices]
         stream.write(" ".join(map(lambda x: str(round(x, 6)), vertices)))
         stream.write("\n")
         stream.write("%s]\n" % ("\t" * (level + 2)))
@@ -114,11 +112,11 @@ def store(data, path, spec=VRML_STRICT):
 
         stream.write("%s}\n" % ("\t" * level))
 
-    def writeShape(spec, stream, mesh, transform, level):
+    def writeShape(spec, stream, mesh, level):
         stream.write("%sShape {\n" % ("\t" * level))
 
         writeAppearance(spec, stream, mesh.appearance().material, level + 1)
-        writeGeometry(spec, stream, mesh, transform, level + 1)
+        writeGeometry(spec, stream, mesh, level + 1)
 
         stream.write("%s}\n" % ("\t" * level))
 
@@ -128,7 +126,7 @@ def store(data, path, spec=VRML_STRICT):
         if len(alreadyExported) == 0:
             stream.write("%sDEF ME_%s Group {\n" % ("\t" * level, mesh.ident))
             stream.write("%schildren [\n" % ("\t" * (level + 1)))
-            writeShape(spec, stream, mesh, mesh.transform, level + 2)
+            writeShape(spec, stream, mesh, level + 2)
             stream.write("%s]\n" % ("\t" * (level + 1)))
             stream.write("%s}\n" % ("\t" * level))
             exportedGroups.append(mesh)

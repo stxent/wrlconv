@@ -8,6 +8,7 @@
 import copy
 import math
 import numpy
+from numpy import asarray
 
 def normalize(v):
     length = numpy.linalg.norm(v)
@@ -107,7 +108,7 @@ def tangent(v1, v2, st1, st2):
 
 def rotationMatrix(v, angle):
     cs, sn = math.cos(angle), math.sin(angle)
-    v = [float(v[0]), float(v[1]), float(v[2])]
+    v = numpy.asarray(v)
 
     a11 = cs + v[0] * v[0] * (1 - cs)
     a12 = v[0] * v[1] * (1 - cs) - v[2] * sn

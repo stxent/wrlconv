@@ -509,8 +509,8 @@ class VrmlMaterial(VrmlEntry):
         for pattern in VrmlMaterial.PATTERNS:
             result = re.search(pattern[1] + "\s+" + "\s".join([key] * pattern[0]), string, re.I | re.S)
             if result is not None:
-                debug("%sMaterial attribute %s found" % (' ' * self.level, pattern[1]))
                 values = list(map(lambda x: float(result.group(x + 1)), range(0, pattern[0])))
+                debug("%sMaterial attribute %s found" % (' ' * self.level, pattern[1]))
                 self.values[pattern[1]] = values[0] if len(values) == 1 else numpy.array(values)
 
     def demangled(self):
@@ -531,6 +531,18 @@ class VrmlMaterial(VrmlEntry):
             self.color.specular = self.values["specularColor"]
         if "ambientIntensity" in self.values.keys():
             self.color.ambient = self.color.diffuse * self.values["ambientIntensity"]
+
+        debug("%sMaterial properties:" % (' ' * self.level))
+        debug("%sShininess:      %f" % (' ' * (self.level + 1), self.color.shininess))
+        debug("%sTransparency:   %f" % (' ' * (self.level + 1), self.color.transparency))
+        debug("%sDiffuse Color:  %f, %f, %f" % (' ' * (self.level + 1),
+                self.color.diffuse[0], self.color.diffuse[1], self.color.diffuse[2]))
+        debug("%sEmissive Color: %f, %f, %f" % (' ' * (self.level + 1),
+                self.color.emissive[0], self.color.emissive[1], self.color.emissive[2]))
+        debug("%sSpecular Color: %f, %f, %f" % (' ' * (self.level + 1),
+                self.color.specular[0], self.color.specular[1], self.color.specular[2]))
+        debug("%sAmbient Color:  %f, %f, %f" % (' ' * (self.level + 1),
+                self.color.ambient[0], self.color.ambient[1], self.color.ambient[2]))
 
     def __eq__(self, other):
         if not isinstance(other, VrmlMaterial):

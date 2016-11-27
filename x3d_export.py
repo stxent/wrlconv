@@ -83,8 +83,9 @@ def store(data, path):
 
         ambIntensity = calcIntensity(material.color.ambient, material.color.diffuse)
         if material in exportedMaterials:
-            materialNode.attrib["USE"] = "MA_%s" % material.color.ident
-            debug("Export: reused material %s" % material.color.ident)
+            exported = exportedMaterials[exportedMaterials.index(material)]
+            materialNode.attrib["USE"] = "MA_%s" % exported.color.ident
+            debug("Export: reused material %s instead of %s" % (exported.color.ident, material.color.ident))
         else:
             materialNode.attrib["DEF"] = "MA_%s" % material.color.ident
             materialNode.attrib["diffuseColor"] = "%f %f %f" % tuple(material.color.diffuse)
@@ -111,10 +112,7 @@ def store(data, path):
         geoCoords = etree.SubElement(faceset, "Coordinate")
         geoCoords.attrib["DEF"] = "FS_%s" % mesh.ident
         vertices = []
-        if mesh.transform is None:
-            [vertices.extend(vertex) for vertex in geoVertices]
-        else:
-            [vertices.extend(mesh.transform.process(vertex)) for vertex in geoVertices]
+        [vertices.extend(vertex) for vertex in geoVertices]
         geoCoords.attrib["point"] = " ".join(map(lambda x: str(round(x, 6)), vertices))
 
         material = appearance.material

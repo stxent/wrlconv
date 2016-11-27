@@ -33,8 +33,9 @@ def store(data, path):
         stream.write("%sappearance Appearance {\n" % ("\t" * level))
 
         if material in exportedMaterials:
-            stream.write("%smaterial USE MA_%s\n" % ("\t" * (level + 1), material.color.ident))
-            debug("Export: reused material %s" % material.color.ident)
+            exported = exportedMaterials[exportedMaterials.index(material)]
+            stream.write("%smaterial USE MA_%s\n" % ("\t" * (level + 1), exported.color.ident))
+            debug("Export: reused material %s instead of %s" % (exported.color.ident, material.color.ident))
         else:
             stream.write("%smaterial DEF MA_%s Material {\n" % ("\t" * (level + 1), material.color.ident))
             stream.write("%sdiffuseColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.diffuse.tolist()))

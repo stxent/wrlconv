@@ -13,10 +13,14 @@ import time
 import model
 import geometry
 
-from OpenGL.GL import *
-from OpenGL.GLU import *
-from OpenGL.GLUT import *
-from OpenGL.GL.shaders import *
+try:
+    from OpenGL.GL import *
+    from OpenGL.GLU import *
+    from OpenGL.GLUT import *
+    from OpenGL.GL.shaders import *
+except:
+    print "Error importing OpenGL libraries"
+    exit()
 
 try:
     from PIL import Image
@@ -475,7 +479,7 @@ class Scene:
                 self.camera = horizRotationMatrix * self.camera
                 self.axis = horizRotationMatrix * self.axis
             if vrot != 0.:
-                normal = model.normal(self.camera, self.axis)
+                normal = model.normal(self.camera.getA()[:,0], self.axis.getA()[:,0])
                 normal = model.normalize(normal)
                 vertRotationMatrix = model.rotationMatrix(normal, vrot)
                 self.camera = vertRotationMatrix * self.camera
@@ -523,7 +527,6 @@ class Scene:
         self.lights.append(numpy.matrix([[-50.], [-50.], [-50.], [1.]]))
 
         self.shader = None
-        self.shaders = [] #TODO Rename
 
     def updateMatrix(self, viewport):
         aspect = float(viewport[0]) / float(viewport[1])
@@ -569,11 +572,18 @@ class Shader:
     def enable(self):
         glUseProgram(self.program)
 
-    def create(self, vertex, fragment):
+    def create(self, vertex, fragment, geometry=None, control=None, evaluation=None):
         try:
-            vertexShader = compileShader(vertex, GL_VERTEX_SHADER)
-            fragmentShader = compileShader(fragment, GL_FRAGMENT_SHADER)
-            self.program = compileProgram(vertexShader, fragmentShader)
+            shaders = []
+            shaders.append(compileShader(vertex, GL_VERTEX_SHADER))
+            shaders.append(compileShader(fragment, GL_FRAGMENT_SHADER))
+            if geometry is not None:
+                shaders.append(compileShader(geometry, GL_GEOMETRY_SHADER))
+            if control is not None:
+                shaders.append(compileShader(control, GL_TESS_CONTROL_SHADER))
+            if evaluation is not None:
+                shaders.append(compileShader(evaluation, GL_TESS_EVALUATION_SHADER))
+            self.program = compileProgram(*shaders)
             debug("Shader %u compiled" % self.ident)
         except RuntimeError as runError:
             print(runError.args[0]) #Print error log

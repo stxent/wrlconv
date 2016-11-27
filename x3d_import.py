@@ -266,6 +266,18 @@ class X3dMaterial(X3dEntry):
         if "ambientIntensity" in attributes.keys():
             self.color.ambient = self.color.diffuse * float(attributes["ambientIntensity"])
 
+        debug("%sMaterial properties:" % (' ' * self.level))
+        debug("%sShininess:      %f" % (' ' * (self.level + 1), self.color.shininess))
+        debug("%sTransparency:   %f" % (' ' * (self.level + 1), self.color.transparency))
+        debug("%sDiffuse Color:  %f, %f, %f" % (' ' * (self.level + 1),
+                self.color.diffuse[0], self.color.diffuse[1], self.color.diffuse[2]))
+        debug("%sEmissive Color: %f, %f, %f" % (' ' * (self.level + 1),
+                self.color.emissive[0], self.color.emissive[1], self.color.emissive[2]))
+        debug("%sSpecular Color: %f, %f, %f" % (' ' * (self.level + 1),
+                self.color.specular[0], self.color.specular[1], self.color.specular[2]))
+        debug("%sAmbient Color:  %f, %f, %f" % (' ' * (self.level + 1),
+                self.color.ambient[0], self.color.ambient[1], self.color.ambient[2]))
+
     def demangled(self):
         #Demangle Blender names
         return self.name.replace("MA_", "")
