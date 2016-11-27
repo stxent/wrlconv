@@ -8,8 +8,6 @@ uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat4 normalMatrix;
 
-uniform vec3 lightPosition[LIGHT_COUNT];
-
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
 #ifdef TEXTURED

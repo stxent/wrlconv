@@ -551,7 +551,7 @@ class Shader:
     IDENT = 0
 
     def __init__(self):
-        self.dir = "./shaders/"
+        self.dir = "./shaders_ogl41/"
         self.ident = Shader.IDENT
         Shader.IDENT += 1
         self.program = None
