@@ -8,11 +8,10 @@
 import argparse
 import copy
 import math
-import numpy
 import os
 import re
 
-import geometry
+import helpers
 import model
 import render_ogl41
 import vrml_export
@@ -21,30 +20,13 @@ import vrml_import
 import x3d_export
 import x3d_import
 
-def createGrid():
-    darkGrayMaterial = model.Material()
-    darkGrayMaterial.color.diffuse = numpy.array([0.3] * 3)
-    lightGrayMaterial = model.Material()
-    lightGrayMaterial.color.diffuse = numpy.array([0.5] * 3)
-    zGrid = geometry.Plane((20, 20), (20, 20))
-    zGrid.visualAppearance.material = darkGrayMaterial
-    zGrid.visualAppearance.wireframe = True
-    xGrid = geometry.Plane((2, 20), (2, 20))
-    xGrid.visualAppearance.material = lightGrayMaterial
-    xGrid.visualAppearance.wireframe = True
-    xGrid.rotate([0., 1., 0.], math.pi / 2.)
-    yGrid = geometry.Plane((20, 2), (20, 2))
-    yGrid.visualAppearance.material = lightGrayMaterial
-    yGrid.visualAppearance.wireframe = True
-    yGrid.rotate([1., 0., 0.], math.pi / 2.)
-    return [xGrid, yGrid, zGrid]
-
 #TODO Add input file option
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", dest="view", help="render models", default=False, action="store_true")
 parser.add_argument("-o", dest="output", help="write models to specified directory", default="")
 parser.add_argument("-f", dest="format", help="output file format", default="x3d")
 parser.add_argument("-d", dest="debug", help="show debug information", default=False, action="store_true")
+parser.add_argument("--fast", dest="fast", help="disable visual effects", default=False, action="store_true")
 parser.add_argument(dest="files", nargs="*")
 options = parser.parse_args()
 
@@ -161,7 +143,8 @@ if options.output != "":
         raise Exception()
 
 if options.view:
-    helpers = createGrid()
+    effects = {} if options.fast else {"antialiasing": 4}
+    helperObjects = helpers.createGrid()
     exportList = []
     [exportList.extend(entry[0]) for entry in models]
-    render = render_ogl41.Render(exportList + helpers)
+    render = render_ogl41.Render(helperObjects + exportList, effects)
