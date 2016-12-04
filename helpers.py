@@ -5,7 +5,6 @@
 # Copyright (C) 2016 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
-import json
 import math
 import numpy
 
@@ -58,31 +57,3 @@ def createGrid():
     yGrid.rotate([1., 0., 0.], math.pi / 2.)
 
     return [xGrid, yGrid, zGrid]
-
-def loadMaterials(path):
-    def decodeMaterial(description):
-        material = model.Material()
-        material.color.ident = description["title"]
-        if "shininess" in description.keys():
-            material.color.shininess = float(description["shininess"])
-        if "transparency" in description.keys():
-            material.color.transparency = float(description["transparency"])
-        if "diffuse" in description.keys():
-            material.color.diffuse = numpy.array(description["diffuse"])
-        if "specular" in description.keys():
-            material.color.specular = numpy.array(description["specular"])
-        if "emissive" in description.keys():
-            material.color.emissive = numpy.array(description["emissive"])
-        if "ambient" in description.keys():
-            material.color.ambient = numpy.array(description["ambient"])
-        return material
-
-    materials = {}
-    content = json.loads(open(path, "rb").read())
-    if "materials" in content.keys():
-        for description in content["materials"]:
-            if "title" not in description.keys():
-                raise Exception()
-            materials[description["title"]] = decodeMaterial(description)
-
-    return materials

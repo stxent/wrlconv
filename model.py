@@ -8,7 +8,6 @@
 import copy
 import math
 import numpy
-from numpy import asarray
 
 def normalize(v):
     length = numpy.linalg.norm(v)
