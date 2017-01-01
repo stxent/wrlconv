@@ -50,17 +50,11 @@ class Bezier(Line):
 
 
 def optimize(points):
-    TOLERANCE = 1e-6
-    def eq(a, b):
-        return a - TOLERANCE <= b <= a + TOLERANCE
-    def eqv(a, b):
-        return eq(a[0], b[0]) and eq(a[1], b[1]) and eq(a[2], b[2])
-
     result = []
     for p in points:
         found = False
         for seen in result:
-            if eqv(p, seen):
+            if model.Mesh.comparePoints(p, seen):
                 found = True
                 break
         if not found:
@@ -85,7 +79,7 @@ def rotate(curve, axis, edges):
 
     return slices
 
-def createTriCapMesh(slices, beginning, inverse=False):
+def createTriCapMesh(slices, beginning):
     if beginning:
         vertices = [slices[i][0] for i in range(0, len(slices))]
     else:

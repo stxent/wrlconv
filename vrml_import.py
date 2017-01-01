@@ -374,14 +374,11 @@ class VrmlGeometry(VrmlEntry):
                     vertexString = regexp.group(1).replace(",", "").replace("\t", "")
                     vertices = map(int, filter(lambda x: len(x) > 0, vertexString.split(" ")))
 
-                    if len(vertices) < 3:
+                    try:
+                        polygons.extend(model.Mesh.tesselate(vertices))
+                    except:
                         debug("%sWrong polygon vertex count: %u" % (' ' * self.level, len(vertices)))
                         break
-                    elif len(vertices) > 4:
-                        polygons.extend(map(lambda x: [vertices[0], vertices[x], vertices[x + 1]],
-                                range(1, len(vertices) - 1)))
-                    else:
-                        polygons.append(vertices)
                     position = regexp.end()
                 else:
                     delta, offset = calcBalance(data, None, (), (']'))

@@ -89,6 +89,79 @@ def angle(v1, v2):
         ac *= -1.
     return ac
 
+def divideTriangleByPlane(triangle, p, n):
+    def squashPatch(patch):
+        output = []
+        for i in range(0, len(patch)):
+            unique = True
+            for j in range(0, len(output)):
+                if Mesh.comparePoints(patch[i], output[j]):
+                    unique = False
+            if unique:
+                output.append(patch[i])
+        return output
+
+    crosses = [
+        intersectLinePlane(p, n, triangle[1], triangle[2]),
+        intersectLinePlane(p, n, triangle[2], triangle[0]),
+        intersectLinePlane(p, n, triangle[0], triangle[1])
+    ]
+    raw = [i for i in range(0, len(crosses)) if crosses[i] is None]
+
+    if len(raw) == 3:
+        return [triangle]
+    elif len(raw) == 2:
+        crossed = [i for i in range(0, 3) if i not in raw]
+        tri0 = squashPatch([triangle[crossed[0]], triangle[raw[0]], crosses[crossed[0]]])
+        tri1 = squashPatch([triangle[raw[1]], triangle[crossed[0]], crosses[crossed[0]]])
+        return filter(lambda x: len(x) > 2, [tri0, tri1])
+    elif len(raw) == 1:
+        crossed = [raw[0] + 1 if raw[0] < 2 else 0, raw[0] - 1 if raw[0] > 0 else 2]
+        tri = squashPatch([triangle[raw[0]], crosses[crossed[1]], crosses[crossed[0]]])
+        quad = squashPatch([triangle[crossed[0]], triangle[crossed[1]], crosses[crossed[0]], crosses[crossed[1]]])
+        return filter(lambda x: len(x) > 2, [tri, quad])
+    else:
+        return []
+
+def divideByPlane(patch, p, n):
+    if len(patch) == 3:
+        return divideTriangleByPlane(patch, p, n)
+    else:
+        triangles = []
+        triangles.extend(map(lambda x: [patch[0], patch[x], patch[x + 1]], range(1, len(patch) - 1)))
+
+        output = []
+        [output.extend(divideTriangleByPlane(tri, p, n)) for tri in triangles]
+
+        if len(triangles) == len(output):
+            unique = False
+            for i in range(0, len(triangles)):
+                if len(triangles[i]) == len(output[i]):
+                    for j in range(0, len(triangles[i])):
+                        if not Mesh.comparePoints(triangles[i][j], output[i][j]):
+                            unique = True
+                            break
+                    if unique:
+                        break
+                else:
+                    unique = True
+                    break
+            if not unique:
+                return [patch]
+
+        return output
+
+def intersectLinePlane(planePoint, planeNormal, lineStart, lineEnd):
+    lineVector = normalize(lineEnd - lineStart)
+    if numpy.dot(planeNormal, lineVector) == 0.:
+        return None
+    lineLength = numpy.linalg.norm(lineEnd - lineStart)
+    t = numpy.dot(planeNormal, planePoint - lineStart) / numpy.dot(planeNormal, lineVector)
+    if t <= 0.0 or t >= lineLength:
+        return None
+    else:
+        return lineVector * t + lineStart
+
 def normal(v1, v2):
     return numpy.array([
             v1[1] * v2[2] - v1[2] * v2[1],
@@ -285,12 +358,6 @@ class Mesh(Object):
         if self.parent is not None:
             return
 
-        TOLERANCE = 1e-6
-        def eq(a, b):
-            return a - TOLERANCE <= b <= a + TOLERANCE
-        def eqv(a, b):
-            return eq(a[0], b[0]) and eq(a[1], b[1]) and eq(a[2], b[2])
-
         #TODO Reduce complexity
         retVert = []
         retPoly = copy.deepcopy(self.geoPolygons)
@@ -299,7 +366,7 @@ class Mesh(Object):
             vert = self.geoVertices[vIndex[0]]
             same = []
             for i in range(0, len(self.geoVertices)):
-                if eqv(self.geoVertices[i], vert):
+                if Mesh.comparePoints(self.geoVertices[i], vert):
                     same.append(i)
             last = len(retVert)
             for poly in retPoly:
@@ -311,6 +378,24 @@ class Mesh(Object):
             retVert.append(vert)
         self.geoVertices = retVert
         self.geoPolygons = retPoly
+
+    @staticmethod
+    def comparePoints(p0, p1):
+        def eq(a, b):
+            TOLERANCE = 1e-6
+            return a - TOLERANCE <= b <= a + TOLERANCE
+        return eq(p0[0], p1[0]) and eq(p0[1], p1[1]) and eq(p0[2], p1[2])
+
+    @staticmethod
+    def tesselate(patch):
+        if len(patch) < 3:
+            raise Exception()
+        elif len(patch) < 5:
+            return [patch]
+        else:
+            triangles = []
+            triangles.extend(map(lambda x: [patch[0], patch[x], patch[x + 1]], range(1, len(patch) - 1)))
+            return triangles
 
 
 class AttributedMesh(Mesh):
