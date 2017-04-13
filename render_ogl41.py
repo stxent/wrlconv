@@ -57,25 +57,31 @@ def generateNormals(meshes):
                     vertices[points[2]] - vertices[points[0]]))
 
         if smooth:
-            normals = [numpy.array([0., 0., 0.]) for i in range(0, len(geoVertices))]
+            normals = [numpy.array([0., 0., 0.]) for i in range(0, len(vertices))]
             for poly in geoPolygons:
                 normal = getNormal(poly)
                 for vertex in poly:
                     normals[vertex] += normal
             normals = [model.normalize(vector) for vector in normals]
+
+            for i in range(0, len(vertices)):
+                lastIndex = len(urchin.geoVertices)
+                urchin.geoVertices.append(vertices[i])
+                urchin.geoVertices.append(vertices[i] + normals[i] * normalLength)
+                urchin.geoPolygons.append([lastIndex, lastIndex + 1])
         else:
             normals = [getNormal(gp) for gp in geoPolygons]
 
-        for i in range(0, len(geoPolygons)):
-            gp = geoPolygons[i]
-            position = numpy.array([0., 0., 0.])
-            for vertex in gp:
-                position += vertices[vertex]
-            position /= float(len(gp))
-            lastIndex = len(urchin.geoVertices)
-            urchin.geoVertices.append(position)
-            urchin.geoVertices.append(position + normals[i] * normalLength)
-            urchin.geoPolygons.append([lastIndex, lastIndex + 1])
+            for i in range(0, len(geoPolygons)):
+                gp = geoPolygons[i]
+                position = numpy.array([0., 0., 0.])
+                for vertex in gp:
+                    position += vertices[vertex]
+                position /= float(len(gp))
+                lastIndex = len(urchin.geoVertices)
+                urchin.geoVertices.append(position)
+                urchin.geoVertices.append(position + normals[i] * normalLength)
+                urchin.geoPolygons.append([lastIndex, lastIndex + 1])
 
     return None if len(urchin.geoPolygons) == 0 else urchin
 
