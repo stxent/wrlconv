@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # wrload.py
@@ -7,6 +7,7 @@
 
 import argparse
 import math
+import numpy
 import os
 import re
 
@@ -43,11 +44,11 @@ globalScale = [1., 1., 1.]
 globalTranslation = [0., 0., 0.]
 
 try:
-    globalRotation = map(float, options.rotation.split(","))[0:4]
-    globalScale = map(float, options.scale.split(","))[0:3]
-    globalTranslation = map(float, options.translation.split(","))[0:3]
+    globalRotation = numpy.array([float(x) for x in options.rotation.split(",")[0:4]])
+    globalScale = numpy.array([float(x) for x in options.scale.split(",")[0:3]])
+    globalTranslation = numpy.array([float(x) for x in options.translation.split(",")[0:3]])
 except ValueError:
-    print "Wrong argument"
+    print("Wrong argument")
     exit()
 
 globalRotation[3] *= math.pi / 180.

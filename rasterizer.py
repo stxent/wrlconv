@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # rasterizer.py
@@ -20,8 +20,8 @@ from OpenGL.GL.framebufferobjects import *
 
 def createShader(vertSource, fragSource):
     try:
-        program = compileProgram(compileShader(vertSource, GL_VERTEX_SHADER), 
-                                 compileShader(fragSource, GL_FRAGMENT_SHADER))
+        program = compileProgram(compileShader(vertSource, GL_VERTEX_SHADER),
+                compileShader(fragSource, GL_FRAGMENT_SHADER))
     except RuntimeError as runError:
         print runError.args[0] #Print error log
         print "Shader compilation failed"

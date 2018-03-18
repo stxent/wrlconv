@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # helpers.py
@@ -8,8 +8,12 @@
 import math
 import numpy
 
-import geometry
-import model
+try:
+    import geometry
+    import model
+except ImportError:
+    from . import geometry
+    from . import model
 
 def createAxes(length=4.):
     #Materials

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # x3d_export.py
@@ -11,7 +11,10 @@ import numpy
 import time
 from lxml import etree
 
-import model
+try:
+    import model
+except ImportError:
+    from . import model
 
 debugEnabled = False
 
@@ -62,8 +65,8 @@ def store(data, path):
 
             if len(chain) > 0:
                 multiTextureNode = etree.SubElement(root, "MultiTexture")
-                multiTextureNode.attrib["mode"] = " ".join(map(lambda x: "\"%s\"" % x, modes))
-                multiTextureNode.attrib["source"] = " ".join(map(lambda x: "\"%s\"" % x, sources))
+                multiTextureNode.attrib["mode"] = " ".join(["\"" + x + "\"" for x in modes])
+                multiTextureNode.attrib["source"] = " ".join(["\"" + x + "\"" for x in sources])
 
                 for entry in chain:
                     textureNode = etree.SubElement(multiTextureNode, "ImageTexture")
@@ -106,14 +109,14 @@ def store(data, path):
 
         faceset.attrib["solid"] = "true" if appearance.solid else "false"
         indices = []
-        [indices.extend(poly) for poly in map(lambda poly: poly + [-1], geoPolygons)]
-        faceset.attrib["coordIndex"] = " ".join(map(str, indices))
+        [indices.extend(poly + [-1]) for poly in geoPolygons]
+        faceset.attrib["coordIndex"] = " ".join([str(x) for x in indices])
 
         geoCoords = etree.SubElement(faceset, "Coordinate")
         geoCoords.attrib["DEF"] = "FS_%s" % mesh.ident
         vertices = []
         [vertices.extend(vertex) for vertex in geoVertices]
-        geoCoords.attrib["point"] = " ".join(map(lambda x: str(round(x, 6)), vertices))
+        geoCoords.attrib["point"] = " ".join([str(round(x, 6)) for x in vertices])
 
         material = appearance.material
         if any(texture is not None for texture in [material.diffuse, material.normal, material.specular]):
@@ -122,11 +125,11 @@ def store(data, path):
 
             vertices = []
             [vertices.extend(vertex) for vertex in texVertices]
-            texCoords.attrib["point"] = " ".join(map(lambda x: str(round(x, 6)), vertices))
+            texCoords.attrib["point"] = " ".join([str(round(x, 6)) for x in vertices])
 
             indices = []
-            [indices.extend(poly) for poly in map(lambda poly: poly + [-1], texPolygons)]
-            faceset.attrib["texCoordIndex"] = " ".join(map(str, indices))
+            [indices.extend(poly + [-1]) for poly in texPolygons]
+            faceset.attrib["texCoordIndex"] = " ".join([str(x) for x in indices])
 
 
     def writeShape(root, mesh):
@@ -135,7 +138,7 @@ def store(data, path):
         writeGeometry(shape, mesh)
 
     def writeGroup(root, mesh):
-        alreadyExported = filter(lambda group: group.ident == mesh.ident, exportedGroups)
+        alreadyExported = [group for group in exportedGroups if group.ident == mesh.ident]
 
         group = etree.SubElement(root, "Group")
         if len(alreadyExported) == 0:
@@ -238,8 +241,8 @@ def store(data, path):
     indent(root)
     payload = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8", doctype=doctype)
     #Replace quotes to match X3D specification
-    payload = payload.replace("\"&quot;", "'\"").replace("&quot;\"", "\"'").replace("&quot;", "\"")
+    payload = payload.decode('utf-8').replace("\"&quot;", "'\"").replace("&quot;\"", "\"'").replace("&quot;", "\"")
 
     out = open(path, "wb")
-    out.write(payload)
+    out.write(payload.encode('utf-8'))
     out.close()

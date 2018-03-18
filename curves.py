@@ -8,7 +8,10 @@
 import numpy
 import math
 
-import model
+try:
+    import model
+except ImportError:
+    from . import model
 
 
 class Line:
@@ -62,7 +65,7 @@ def optimize(points):
 
     return result
 
-def rotate(curve, axis, edges):
+def rotate(curve, axis, edges=None, angles=None):
     def pointToVector(p):
         return numpy.resize(numpy.append(p, [1.]), (4, 1))
     def vectorToPoint(v):
@@ -73,8 +76,13 @@ def rotate(curve, axis, edges):
     points = optimize(points)
     slices = []
 
-    for i in range(0, edges):
-        mat = model.rotationMatrix(axis, (math.pi * 2. / float(edges)) * float(i))
+    if edges is not None and angles is None:
+        angles = [(math.pi * 2. / float(edges)) * float(i) for i in range(0, edges)]
+    elif edges is not None or angles is None:
+        raise Exception()
+
+    for angle in angles:
+        mat = model.rotationMatrix(axis, angle)
         slices.append([vectorToPoint(mat * pointToVector(p)) for p in points])
 
     return slices
@@ -113,12 +121,17 @@ def createRotationMesh(slices, wrap=True, inverse=False):
             a, b = i, i + 1 if i < len(slices) - 1 else 0
             if inverse:
                 a, b = b, a
-            geoPolygons.append([
-                    a * size + vertex,
-                    b * size + vertex,
-                    b * size + vertex + 1,
-                    a * size + vertex + 1
-            ])
+
+            indices = []
+
+            indices += [a * size + vertex]
+            if not model.Mesh.comparePoints(geoVertices[a * size + vertex], geoVertices[b * size + vertex]):
+                indices += [b * size + vertex]
+            if not model.Mesh.comparePoints(geoVertices[a * size + vertex + 1], geoVertices[b * size + vertex + 1]):
+                indices += [b * size + vertex + 1]
+            indices += [a * size + vertex + 1]
+
+            geoPolygons.append(indices)
 
     #Generate object
     mesh = model.Mesh()

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # model.py
@@ -361,7 +361,7 @@ class Mesh(Object):
         #TODO Reduce complexity
         retVert = []
         retPoly = copy.deepcopy(self.geoPolygons)
-        vIndex = range(0, len(self.geoVertices))
+        vIndex = list(range(0, len(self.geoVertices)))
         while len(vIndex):
             vert = self.geoVertices[vIndex[0]]
             same = []

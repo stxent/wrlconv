@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # x3d_import.py
@@ -9,7 +9,10 @@ import numpy
 import re
 from xml.parsers import expat
 
-import model
+try:
+    import model
+except ImportError:
+    from . import model
 
 debugEnabled = False
 
@@ -54,7 +57,7 @@ class X3dScene(X3dEntry):
             mesh.texPolygons = geometry.texPolygons
             if appearance is not None:
                 newMaterial = appearance.squash()
-                materials = filter(lambda mat: mat == newMaterial, exportedMaterials)
+                materials = [mat for mat in exportedMaterials if mat == newMaterial]
                 if len(materials) > 0:
                     debug("Squash: reused material %s" % materials[0].color.ident)
                     mesh.visualAppearance.material = materials[0]
@@ -77,7 +80,7 @@ class X3dScene(X3dEntry):
 
             vertices = [mesh.geoVertices[i] for i in used]
             translated = dict(zip(used, range(0, len(vertices))))
-            polygons = map(lambda poly: [translated[i] for i in poly], mesh.geoPolygons)
+            polygons = [[translated[i] for i in poly] for poly in mesh.geoPolygons]
 
             debug("Reindex: mesh %s, %d polygons, from %d to %d vertices" % (mesh.ident, len(polygons),
                     len(mesh.geoVertices), len(vertices)))
@@ -124,7 +127,7 @@ class X3dScene(X3dEntry):
                         return [currentMesh]
             return []
         entries = []
-        map(entries.extend, map(lambda x: squash(x, self.transform), self.ancestors))
+        [entries.extend(squash(x, self.transform)) for x in self.ancestors]
         return entries
 
 
@@ -132,10 +135,10 @@ class X3dTransform(X3dEntry):
     def __init__(self, parent):
         X3dEntry.__init__(self, parent)
         self.transform = model.Transform()
-        
+
     def parse(self, attributes):
         def getValues(string):
-            return map(float, string.split(" "))
+            return [float(x) for x in string.split(" ")]
         if "rotation" in attributes.keys():
             values = getValues(attributes["rotation"])
             vector, angle = model.normalize(values[0:3]), values[3]
@@ -178,8 +181,14 @@ class X3dGeometry(X3dEntry):
             self.smooth = True if attributes["smooth"] == "true" else False
 
         def parsePolygons(string):
-            chunks = filter(lambda poly: len(poly) > 0, map(lambda entry: entry.strip(), string.split("-1")))
-            polygons = map(lambda poly: map(int, filter(lambda vertex: len(vertex) > 0, poly.split(" "))), chunks)
+            chunks = []
+            for entry in string.split("-1"):
+                poly = entry.strip()
+                if len(poly) > 0:
+                    chunks.append(poly)
+            polygons = []
+            for poly in chunks:
+                polygons.append([int(vertex) for vertex in poly.split(" ") if len(vertex) > 0])
             return polygons
 
         if "coordIndex" in attributes.keys():
@@ -198,10 +207,10 @@ class X3dCoords(X3dEntry):
 
     def parse(self, attributes):
         if "point" in attributes.keys():
-            points = map(float, filter(lambda vertex: len(vertex) > 0, attributes["point"].split(" ")))
+            points = [float(point) for point in attributes["point"].split(" ") if len(point) > 0]
             vertices = []
             [vertices.append(numpy.array(points[i * self.size:(i + 1) * self.size]))
-                    for i in range(0, len(points) / self.size)]
+                    for i in range(0, int(len(points) / self.size))]
             self.vertices = vertices
             debug("%sFound %u vertices, width %u" % (' ' * self.level, len(self.vertices), self.size))
 
@@ -250,7 +259,7 @@ class X3dMaterial(X3dEntry):
 
     def parse(self, attributes):
         def getValues(string):
-            return numpy.array(list(map(float, string.split(" "))))
+            return numpy.array([float(x) for x in string.split(" ")])
 
         self.color.ident = self.demangled()
         if "shininess" in attributes.keys():
@@ -293,7 +302,7 @@ class X3dTexture(X3dEntry):
 
     def parse(self, attributes):
         if "url" in attributes.keys():
-            self.texture.path = map(lambda x: x.replace("\"", ""), attributes["url"].split(" "))
+            self.texture.path = [x.replace("\"", "") for x in attributes["url"].split(" ")]
 
 
 class X3dMultiTexture(X3dEntry):
@@ -305,9 +314,9 @@ class X3dMultiTexture(X3dEntry):
     def parse(self, attributes):
         modes, sources = [], []
         if "source" in attributes.keys():
-            sources = map(lambda x: x.replace("\"", ""), attributes["source"].split(" "))
+            sources = [x.replace("\"", "") for x in attributes["source"].split(" ")]
         if "mode" in attributes.keys():
-            modes = map(lambda x: x.replace("\"", ""), attributes["mode"].split(" "))
+            modes = [x.replace("\"", "") for x in attributes["mode"].split(" ")]
         texCount = max(len(modes), len(sources))
         modes.extend([""] * (texCount - len(modes)))
         modes.extend(["MODULATE"] * (texCount - len(sources)))
@@ -362,7 +371,7 @@ class X3dParser:
     def start(self, tag, attributes):
 #        level = self.current.level if self.current is not None else 0
 #        debug("%sEnter tag %s, current %s" % (' ' * level, tag, self.current.__class__.__name__))
-        
+
         if tag == "Scene":
             if self.scene is not None:
                 debug("Error")
@@ -375,7 +384,7 @@ class X3dParser:
             reused = False
             if "USE" in attributes.keys():
                 entryName = attributes["USE"]
-                defined = filter(lambda x: x.name == entryName, self.entries)
+                defined = [entry for entry in self.entries if entry.name == entryName]
                 if len(defined) > 0:
                     debug("%sReused entry %s" % (' ' * self.current.level, entryName))
                     entry = defined[0]
@@ -383,7 +392,7 @@ class X3dParser:
                 if entry is None:
                     debug("%sEntry %s not found" % (' ' * self.current.level, entryName))
             elif isinstance(self.current, (X3dScene, X3dTransform)):
-                if tag in ("Transform", "Group", "Collision", "Switch"):                
+                if tag in ("Transform", "Group", "Collision", "Switch"):
                     entry = X3dTransform(self.current)
                 elif tag == "Shape":
                     entry = X3dShape(self.current)
@@ -432,7 +441,7 @@ class X3dParser:
 
     def data(self, data):
         pass
-    
+
     def extract(self):
         return self.scene.extract() if self.scene is not None else []
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # render_ogl41.py
@@ -10,8 +10,12 @@ import numpy
 import os
 import time
 
-import model
-import geometry
+try:
+    import geometry
+    import model
+except ImportError:
+    from . import geometry
+    from . import model
 
 try:
     from OpenGL.GL import *
@@ -19,7 +23,7 @@ try:
     from OpenGL.GLUT import *
     from OpenGL.GL.shaders import *
 except:
-    print "Error importing OpenGL libraries"
+    print("Error importing OpenGL libraries")
     exit()
 
 try:
@@ -90,25 +94,25 @@ def buildObjectGroups(shaders, inputObjects):
     objects = inputObjects
 
     #Render meshes
-    meshes = filter(lambda entry: entry.style == model.Object.PATCHES, objects)
+    meshes = [entry for entry in objects if entry.style == model.Object.PATCHES]
 
     normals = generateNormals(meshes)
     if normals is not None:
         inputObjects.append(normals)
 
     keys = []
-    [keys.append(item) for item in map(lambda mesh: mesh.appearance().material, meshes) if item not in keys]
+    [keys.append(item) for item in [mesh.appearance().material for mesh in meshes] if item not in keys]
 
-    groups = map(lambda key: filter(lambda mesh: mesh.appearance().material == key, objects), keys)
+    groups = [[mesh for mesh in objects if mesh.appearance().material == key] for key in keys]
     [renderObjects.append(RenderMesh(shaders, group)) for group in groups]
 
     #Render line arrays
-    arrays = filter(lambda entry: entry.style == model.Object.LINES, objects)
+    arrays = [entry for entry in objects if entry.style == model.Object.LINES]
     if len(arrays) > 0:
         renderObjects.append(RenderLineArray(shaders, arrays))
 
-    sortedObjects = filter(lambda entry: entry.appearance.material.color.transparency <= 0.001, renderObjects)
-    sortedObjects += filter(lambda entry: entry.appearance.material.color.transparency > 0.001, renderObjects)
+    sortedObjects = [entry for entry in renderObjects if entry.appearance.material.color.transparency <= 0.001]
+    sortedObjects += [entry for entry in renderObjects if entry.appearance.material.color.transparency > 0.001]
 
     return sortedObjects
 
@@ -266,7 +270,7 @@ class RenderLineArray(RenderObject):
 
                 for vertex in range(0, count):
                     start, end = 3 * offset, 3 * (offset + 1)
-                    self.vertices[start:end] = numpy.array(numpy.swapaxes(vertices[gp[vertex]][0:3], 0, 1))
+                    self.vertices[start:end] = vertices[gp[vertex]][0:3]
                     self.colors[start:end] = color
                     offset += 1
 
@@ -381,7 +385,7 @@ class RenderMesh(RenderObject):
                 for vertex in range(0, count):
                     geoStart, geoEnd, texStart, texEnd = 3 * offset, 3 * (offset + 1), 2 * offset, 2 * (offset + 1)
 
-                    self.vertices[geoStart:geoEnd] = numpy.array(numpy.swapaxes(vertices[gp[vertex]][0:3], 0, 1))
+                    self.vertices[geoStart:geoEnd] = vertices[gp[vertex]][0:3]
                     self.normals[geoStart:geoEnd] = normals[gp[vertex]] if smooth else normals[i]
                     if textured:
                         self.texels[texStart:texEnd] = texVertices[tp[vertex]]
@@ -605,8 +609,8 @@ class UnlitShader(Shader):
         Shader.__init__(self)
 
         if self.program is None:
-            vert, frag = map(lambda path: open(self.dir + path, "rb").read(), ["unlit.vert", "unlit.frag"])
-            self.create(vert, frag)
+            loadShaderFile = lambda path: open(self.dir + path, "rb").read().decode('utf-8')
+            self.create(loadShaderFile("unlit.vert"), loadShaderFile("unlit.frag"))
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
         self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
@@ -634,7 +638,8 @@ class ModelShader(Shader):
             if specular:
                 flags += ["#define SPECULAR_MAP"]
 
-            code = map(lambda path: open(self.dir + path, "rb").read(), ["default.vert", "default.frag"])
+            code = map(lambda path: open(self.dir + path, "rb").read().decode('utf-8'),
+                    ["default.vert", "default.frag"])
             code = map(lambda text: text.split("\n"), code)
             code = map(lambda text: [text[0]] + flags + text[1:], code)
             vert, frag = map("\n".join, code)
@@ -659,7 +664,7 @@ class ModelShader(Shader):
         diffuse = numpy.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], numpy.float32)
 
         modelViewMatrix = scene.modelViewMatrix.transpose()
-        lights = map(lambda x: (modelViewMatrix * x).getA()[:,0][0:3], scene.lights)
+        lights = [(modelViewMatrix * x).getA()[:,0][0:3] for x in scene.lights]
         glUniform3fv(self.lightLoc, len(lights), numpy.array(lights, numpy.float32))
 
         glUniform3fv(self.lightDiffuseLoc, 2, diffuse)
@@ -689,9 +694,8 @@ class BackgroundShader(Shader):
         Shader.__init__(self)
 
         if self.program is None:
-            vert, frag = map(lambda path: open(self.dir + path, "rb").read(),
-                    ["background.vert", "background.frag"])
-            self.create(vert, frag)
+            loadShaderFile = lambda path: open(self.dir + path, "rb").read().decode('utf-8')
+            self.create(loadShaderFile("background.vert"), loadShaderFile("background.frag"))
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
         self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
@@ -721,11 +725,12 @@ class MergeShader(Shader):
             if self.antialiasing > 0:
                 flags += ["#define AA_SAMPLES %u" % antialiasing]
 
-            code = map(lambda path: open(self.dir + path, "rb").read(), ["merge.vert", "merge.frag"])
-            code = map(lambda text: text.split("\n"), code)
-            code = map(lambda text: [text[0]] + flags + text[1:], code)
-            vert, frag = map("\n".join, code)
-            self.create(vert, frag)
+            def loadShaderFile(path):
+                source = open(self.dir + path, "rb").read().decode('utf-8').split("\n")
+                source = [source[0]] + flags + source[1:]
+                return "\n".join(source)
+
+            self.create(loadShaderFile("merge.vert"), loadShaderFile("merge.frag"))
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
         self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
@@ -763,11 +768,12 @@ class BlurShader(Shader):
             if self.masked:
                 flags += ["#define MASKED"]
 
-            code = map(lambda path: open(self.dir + path, "rb").read(), ["blur.vert", "blur.frag"])
-            code = map(lambda text: text.split("\n"), code)
-            code = map(lambda text: [text[0]] + flags + text[1:], code)
-            vert, frag = map("\n".join, code)
-            self.create(vert, frag)
+            def loadShaderFile(path):
+                source = open(self.dir + path, "rb").read().decode('utf-8').split("\n")
+                source = [source[0]] + flags + source[1:]
+                return "\n".join(source)
+
+            self.create(loadShaderFile("blur.vert"), loadShaderFile("blur.frag"))
 
         self.projectionLoc = glGetUniformLocation(self.program, "projectionMatrix")
         self.modelViewLoc = glGetUniformLocation(self.program, "modelViewMatrix")
@@ -1089,24 +1095,24 @@ class Render(Scene):
     def keyHandler(self, key, x, y):
         updated = False
 
-        if key in ("\x1b", "q", "Q"):
+        if key in (b"\x1b", b"q", b"Q"):
             exit()
-        elif key in ("1"):
+        elif key in (b"1"):
             self.camera.front()
             updated = True
-        elif key in ("3"):
+        elif key in (b"3"):
             self.camera.side()
             updated = True
-        elif key in ("5"):
+        elif key in (b"5"):
             self.ortho = not self.ortho
             updated = True
-        elif key in ("7"):
+        elif key in (b"7"):
             self.camera.top()
             updated = True
-        elif key in ("."):
+        elif key in (b"."):
             self.camera.home()
             updated = True
-        elif key in ("z", "Z"):
+        elif key in (b"z", b"Z"):
             self.wireframe = not self.wireframe
 
         if updated:

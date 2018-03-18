@@ -1,15 +1,19 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # vrml_import.py
 # Copyright (C) 2015 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
+import functools
 import numpy
 import os
 import re
 
-import model
+try:
+    import model
+except ImportError:
+    from . import model
 
 debugEnabled = False
 
@@ -20,7 +24,7 @@ def debug(text):
 def skipChunk(stream):
     balance = 1
     while True:
-        data = stream.readline()
+        data = stream.readline().decode('utf-8')
         if len(data) == 0:
             break
         for i in range(0, len(data)):
@@ -99,7 +103,7 @@ class VrmlEntry:
         delta, offset, balance = 0, 0, 0
         #Highest level
         while True:
-            data = stream.readline()
+            data = stream.readline().decode('utf-8')
             if len(data) == 0:
                 break
             regexp = VrmlEntry.DEF_PATTERN.search(data)
@@ -208,7 +212,7 @@ class VrmlScene(VrmlEntry):
             mesh.texPolygons = geometry.texPolygons
             if appearance is not None:
                 newMaterial = appearance.squash()
-                materials = filter(lambda mat: mat == newMaterial, exportedMaterials)
+                materials = [mat for mat in exportedMaterials if mat == newMaterial]
                 if len(materials) > 0:
                     debug("Squash: reused material %s" % materials[0].color.ident)
                     mesh.visualAppearance.material = materials[0]
@@ -231,7 +235,7 @@ class VrmlScene(VrmlEntry):
 
             vertices = [mesh.geoVertices[i] for i in used]
             translated = dict(zip(used, range(0, len(vertices))))
-            polygons = map(lambda poly: [translated[i] for i in poly], mesh.geoPolygons)
+            polygons = [[translated[i] for i in poly] for poly in mesh.geoPolygons]
 
             debug("Reindex: mesh %s, %d polygons, from %d to %d vertices" % (mesh.ident, len(polygons),
                     len(mesh.geoVertices), len(vertices)))
@@ -256,7 +260,7 @@ class VrmlScene(VrmlEntry):
                     if isinstance(subentry, VrmlGeometry):
                         geometry = subentry
                 if geometry is not None:
-                    alreadyExported = filter(lambda mesh: mesh.ident == name[-1], exportedMeshes)
+                    alreadyExported = [mesh for mesh in exportedMeshes if mesh.ident == name[-1]]
                     if len(alreadyExported) > 0:
                         debug("Squash: reused mesh %s" % name[-1])
                         #Create concrete shape
@@ -274,7 +278,7 @@ class VrmlScene(VrmlEntry):
                         return [currentMesh]
             return []
         entries = []
-        map(entries.extend, map(lambda x: squash(x, self.transform), self.objects))
+        [entries.extend(squash(x, self.transform)) for x in self.objects]
         return entries
 
 
@@ -287,16 +291,16 @@ class VrmlTransform(VrmlEntry):
         key = "([+e\d\-\.]+)"
         result = re.search("translation\s+" + "\s+".join([key] * 3), string, re.I | re.S)
         if result is not None:
-            self.transform.translate(map(lambda x: float(result.group(x + 1)), range(0, 3)))
+            self.transform.translate([float(result.group(x)) for x in range(1, 4)])
         result = re.search("rotation\s+" + "\s+".join([key] * 4), string, re.I | re.S)
         if result is not None:
-            values = map(lambda x: float(result.group(x + 1)), range(0, 3))
+            values = [float(result.group(x)) for x in range(1, 4)]
             vector, angle = model.normalize(values), float(result.group(4))
             vector = model.normalize(vector)
             self.transform.rotate(vector, angle)
         result = re.search("scale\s+" + "\s+".join([key] * 3), string, re.I | re.S)
         if result is not None:
-            self.transform.scale(map(lambda x: float(result.group(x + 1)), range(0, 3)))
+            self.transform.scale([float(result.group(x)) for x in range(1, 4)])
 
     def demangled(self):
         #Demangle Blender names
@@ -372,7 +376,7 @@ class VrmlGeometry(VrmlEntry):
                         break
 
                     vertexString = regexp.group(1).replace(",", "").replace("\t", "")
-                    vertices = map(int, filter(lambda x: len(x) > 0, vertexString.split(" ")))
+                    vertices = [int(x) for x in vertexString.split(" ") if len(x) > 0]
 
                     try:
                         polygons.extend(model.Mesh.tesselate(vertices))
@@ -390,7 +394,7 @@ class VrmlGeometry(VrmlEntry):
                     stream.seek(-offset, os.SEEK_CUR)
                 debug("%sBalance mismatch: %u, offset: %u" % (' ' * self.level, balance, offset))
                 break
-            data = stream.readline()
+            data = stream.readline().decode('utf-8')
             if len(data) == 0:
                 break
             position = 0
@@ -446,7 +450,7 @@ class VrmlCoords(VrmlEntry):
                         stream.seek(-offset, os.SEEK_CUR)
                     debug("%sBalance mismatch: %u, offset: %u" % (' ' * self.level, balance, offset))
                     break
-                data = stream.readline()
+                data = stream.readline().decode('utf-8')
                 if len(data) == 0:
                     break
                 vPos = 0
@@ -475,11 +479,11 @@ class VrmlAppearance(VrmlEntry):
             return False
         if len(self.objects) != len(other.objects) or len(self.objects) == 0:
             return False
-        return reduce(lambda a, b: a and b, map(lambda c: c in other.objects, self.objects))
+        return functools.reduce(lambda a, b: a and b, map(lambda c: c in other.objects, self.objects))
 
     def __ne__(self, other):
         return not self == other
-    
+
     def squash(self):
         material = model.Material()
         for entry in self.objects:
@@ -506,7 +510,7 @@ class VrmlMaterial(VrmlEntry):
         for pattern in VrmlMaterial.PATTERNS:
             result = re.search(pattern[1] + "\s+" + "\s".join([key] * pattern[0]), string, re.I | re.S)
             if result is not None:
-                values = list(map(lambda x: float(result.group(x + 1)), range(0, pattern[0])))
+                values = [float(result.group(x)) for x in range(1, pattern[0] + 1)]
                 debug("%sMaterial attribute %s found" % (' ' * self.level, pattern[1]))
                 self.values[pattern[1]] = values[0] if len(values) == 1 else numpy.array(values)
 
@@ -564,7 +568,7 @@ class VrmlTexture(VrmlEntry):
             path = (tmp.group(1), os.getcwd() + "/" + tmp.group(1))
             self.texture.path = path
             self.texture.ident = self.name
-                
+
     def __eq__(self, other):
         if not isinstance(other, VrmlTexture):
             return False

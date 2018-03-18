@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # geometry.py
@@ -8,7 +8,10 @@
 import math
 import numpy
 
-import model
+try:
+    import model
+except ImportError:
+    from . import model
 
 
 class Geosphere(model.Mesh):
