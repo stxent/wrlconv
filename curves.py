@@ -23,7 +23,7 @@ class Line:
         self.segments = segments
 
     def point(self, t):
-        #Argument t is in range [0.0, 1.0]
+        # Argument t is in range [0.0, 1.0]
         if t < 0.0 or t > 1.0:
             raise Exception()
         else:
@@ -44,7 +44,7 @@ class Bezier(Line):
         self.tb = numpy.array(list(endTension))
 
     def point(self, t):
-        #Argument t is in range [0.0, 1.0]
+        # Argument t is in range [0.0, 1.0]
         if t < 0.0 or t > 1.0:
             raise Exception()
         else:
@@ -102,7 +102,7 @@ def createTriCapMesh(slices, beginning):
     else:
         [geoPolygons.append([indices[i - 1], indices[i], len(vertices)]) for i in range(0, len(indices))]
 
-    #Generate object
+    # Generate object
     mesh = model.Mesh()
     mesh.geoVertices = geoVertices
     mesh.geoPolygons = geoPolygons
@@ -133,7 +133,7 @@ def createRotationMesh(slices, wrap=True, inverse=False):
 
             geoPolygons.append(indices)
 
-    #Generate object
+    # Generate object
     mesh = model.Mesh()
     mesh.geoVertices = geoVertices
     mesh.geoPolygons = geoPolygons

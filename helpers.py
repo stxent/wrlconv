@@ -16,7 +16,7 @@ except ImportError:
     from . import model
 
 def createAxes(length=4.):
-    #Materials
+    # Materials
     redMaterial = model.Material()
     redMaterial.color.diffuse = numpy.array([1., 0., 0.])
     greenMaterial = model.Material()
@@ -24,16 +24,16 @@ def createAxes(length=4.):
     blueMaterial = model.Material()
     blueMaterial.color.diffuse = numpy.array([0., 0., 1.])
 
-    #Objects
-    xAxis = model.LineArray(name="xAxisHelper")
+    # Objects
+    xAxis = model.LineArray(name='xAxisHelper')
     xAxis.visualAppearance.material = redMaterial
     xAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([length, 0., 0.])])
     xAxis.geoPolygons.append([0, 1])
-    yAxis = model.LineArray(name="yAxisHelper")
+    yAxis = model.LineArray(name='yAxisHelper')
     yAxis.visualAppearance.material = greenMaterial
     yAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([0., length, 0.])])
     yAxis.geoPolygons.append([0, 1])
-    zAxis = model.LineArray(name="zAxisHelper")
+    zAxis = model.LineArray(name='zAxisHelper')
     zAxis.visualAppearance.material = blueMaterial
     zAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([0., 0., length / 2.])])
     zAxis.geoPolygons.append([0, 1])
@@ -41,13 +41,13 @@ def createAxes(length=4.):
     return [xAxis, yAxis, zAxis]
 
 def createGrid():
-    #Materials
+    # Materials
     darkGrayMaterial = model.Material()
     darkGrayMaterial.color.diffuse = numpy.array([0.3] * 3)
     lightGrayMaterial = model.Material()
     lightGrayMaterial.color.diffuse = numpy.array([0.5] * 3)
 
-    #Objects
+    # Objects
     zGrid = geometry.Plane((10, 10), (10, 10))
     zGrid.visualAppearance.material = darkGrayMaterial
     zGrid.visualAppearance.wireframe = True

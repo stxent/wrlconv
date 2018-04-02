@@ -412,7 +412,7 @@ class AttributedMesh(Mesh):
 
     @staticmethod
     def intersection(region, point):
-        #Check whether the point is within the region
+        # Check whether the point is within the region
         t, b = region[0], region[1]
         return b[0] <= point[0] <= t[0] and b[1] <= point[1] <= t[1] and b[2] <= point[2] <= t[2]
 

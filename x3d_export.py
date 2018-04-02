@@ -23,14 +23,14 @@ def debug(text):
         print(text)
 
 def indent(element, level=0):
-    i = "\n" + "\t" * level
+    i = '\n' + '\t' * level
     if len(element):
         if not element.text or not element.text.strip():
-            element.text = i + "\t"
+            element.text = i + '\t'
         for entry in element:
             indent(entry, level + 1)
             if not entry.tail or not entry.tail.strip():
-                entry.tail = i + "\t"
+                entry.tail = i + '\t'
         if not entry.tail or not entry.tail.strip():
             entry.tail = i
     else:
@@ -42,36 +42,36 @@ def store(data, path):
 
     def writeTexture(root, material):
         if material.diffuse is not None and material.normal is None and material.specular is None:
-            textureNode = etree.SubElement(root, "ImageTexture")
-            textureNode.attrib["DEF"] = material.diffuse.ident
-            textureNode.attrib["url"] = "\"%s\" \"%s\"" % tuple(material.diffuse.path)
+            textureNode = etree.SubElement(root, 'ImageTexture')
+            textureNode.attrib['DEF'] = material.diffuse.ident
+            textureNode.attrib['url'] = '\'%s\' \'%s\'' % tuple(material.diffuse.path)
         else:
             chain, modes, sources = [], [], []
             if material.normal is not None:
                 chain.append(material.normal)
-                modes.append("DOTPRODUCT3")
-                sources.append("DIFFUSE")
+                modes.append('DOTPRODUCT3')
+                sources.append('DIFFUSE')
             if material.diffuse is not None:
                 chain.append(material.diffuse)
-                modes.append("MODULATE")
+                modes.append('MODULATE')
                 if material.normal is not None:
-                    sources.append("")
+                    sources.append('')
                 else:
-                    sources.append("DIFFUSE")
+                    sources.append('DIFFUSE')
             if material.specular is not None:
                 chain.append(material.specular)
-                modes.append("MODULATE")
-                sources.append("SPECULAR")
+                modes.append('MODULATE')
+                sources.append('SPECULAR')
 
             if len(chain) > 0:
-                multiTextureNode = etree.SubElement(root, "MultiTexture")
-                multiTextureNode.attrib["mode"] = " ".join(["\"" + x + "\"" for x in modes])
-                multiTextureNode.attrib["source"] = " ".join(["\"" + x + "\"" for x in sources])
+                multiTextureNode = etree.SubElement(root, 'MultiTexture')
+                multiTextureNode.attrib['mode'] = ' '.join(['\'%s\'' % x for x in modes])
+                multiTextureNode.attrib['source'] = ' '.join(['\'%s\'' % x for x in sources])
 
                 for entry in chain:
-                    textureNode = etree.SubElement(multiTextureNode, "ImageTexture")
-                    textureNode.attrib["DEF"] = entry.ident
-                    textureNode.attrib["url"] = "\"%s\" \"%s\"" % tuple(entry.path)
+                    textureNode = etree.SubElement(multiTextureNode, 'ImageTexture')
+                    textureNode.attrib['DEF'] = entry.ident
+                    textureNode.attrib['url'] = '\'%s\' \'%s\'' % tuple(entry.path)
 
     def writeAppearance(root, material):
         def calcIntensity(ambient, diffuse):
@@ -81,22 +81,22 @@ def store(data, path):
                     result += ambient[index] / diffuse[index]
             return result / 3.
 
-        appearanceNode = etree.SubElement(root, "Appearance")
-        materialNode = etree.SubElement(appearanceNode, "Material")
+        appearanceNode = etree.SubElement(root, 'Appearance')
+        materialNode = etree.SubElement(appearanceNode, 'Material')
 
         ambIntensity = calcIntensity(material.color.ambient, material.color.diffuse)
         if material in exportedMaterials:
             exported = exportedMaterials[exportedMaterials.index(material)]
-            materialNode.attrib["USE"] = "MA_%s" % exported.color.ident
-            debug("Export: reused material %s instead of %s" % (exported.color.ident, material.color.ident))
+            materialNode.attrib['USE'] = 'MA_%s' % exported.color.ident
+            debug('Export: reused material %s instead of %s' % (exported.color.ident, material.color.ident))
         else:
-            materialNode.attrib["DEF"] = "MA_%s" % material.color.ident
-            materialNode.attrib["diffuseColor"] = "%f %f %f" % tuple(material.color.diffuse)
-            materialNode.attrib["specularColor"] = "%f %f %f" % tuple(material.color.specular)
-            materialNode.attrib["emissiveColor"] = "%f %f %f" % tuple(material.color.emissive)
-            materialNode.attrib["ambientIntensity"] = str(ambIntensity)
-            materialNode.attrib["shininess"] = str(material.color.shininess)
-            materialNode.attrib["transparency"] = str(material.color.transparency)
+            materialNode.attrib['DEF'] = 'MA_%s' % material.color.ident
+            materialNode.attrib['diffuseColor'] = '%f %f %f' % tuple(material.color.diffuse)
+            materialNode.attrib['specularColor'] = '%f %f %f' % tuple(material.color.specular)
+            materialNode.attrib['emissiveColor'] = '%f %f %f' % tuple(material.color.emissive)
+            materialNode.attrib['ambientIntensity'] = str(ambIntensity)
+            materialNode.attrib['shininess'] = str(material.color.shininess)
+            materialNode.attrib['transparency'] = str(material.color.transparency)
             exportedMaterials.append(material)
 
         writeTexture(appearanceNode, material)
@@ -105,23 +105,22 @@ def store(data, path):
         appearance = mesh.appearance()
         geoVertices, geoPolygons = mesh.geometry()
 
-        faceset = etree.SubElement(root, "IndexedFaceSet")
-
-        faceset.attrib["solid"] = "true" if appearance.solid else "false"
+        faceset = etree.SubElement(root, 'IndexedFaceSet')
+        faceset.attrib['solid'] = 'true' if appearance.solid else 'false'
         indices = []
         [indices.extend(poly + [-1]) for poly in geoPolygons]
-        faceset.attrib["coordIndex"] = " ".join([str(x) for x in indices])
+        faceset.attrib['coordIndex'] = ' '.join([str(x) for x in indices])
 
-        geoCoords = etree.SubElement(faceset, "Coordinate")
-        geoCoords.attrib["DEF"] = "FS_%s" % mesh.ident
+        geoCoords = etree.SubElement(faceset, 'Coordinate')
+        geoCoords.attrib['DEF'] = 'FS_%s' % mesh.ident
         vertices = []
         [vertices.extend(vertex) for vertex in geoVertices]
-        geoCoords.attrib["point"] = " ".join([str(round(x, 6)) for x in vertices])
+        geoCoords.attrib['point'] = ' '.join([str(round(x, 6)) for x in vertices])
 
         material = appearance.material
         if any(texture is not None for texture in [material.diffuse, material.normal, material.specular]):
             texVertices, texPolygons = mesh.texture()
-            texCoords = etree.SubElement(faceset, "TextureCoordinate")
+            texCoords = etree.SubElement(faceset, 'TextureCoordinate')
 
             vertices = []
             [vertices.extend(vertex) for vertex in texVertices]
@@ -133,21 +132,21 @@ def store(data, path):
 
 
     def writeShape(root, mesh):
-        shape = etree.SubElement(root, "Shape")
+        shape = etree.SubElement(root, 'Shape')
         writeAppearance(shape, mesh.appearance().material)
         writeGeometry(shape, mesh)
 
     def writeGroup(root, mesh):
         alreadyExported = [group for group in exportedGroups if group.ident == mesh.ident]
 
-        group = etree.SubElement(root, "Group")
+        group = etree.SubElement(root, 'Group')
         if len(alreadyExported) == 0:
-            group.attrib["DEF"] = "ME_%s" % mesh.ident
+            group.attrib['DEF'] = 'ME_%s' % mesh.ident
             writeShape(group, mesh)
             exportedGroups.append(mesh)
         else:
-            group.attrib["USE"] = "ME_%s" % mesh.ident
-            debug("Export: reused group %s" % mesh.ident)
+            group.attrib['USE'] = 'ME_%s' % mesh.ident
+            debug('Export: reused group %s' % mesh.ident)
 
     def writeTransform(root, mesh):
         started = time.time()
@@ -173,7 +172,7 @@ def store(data, path):
                     [           0.,            0.,            0., 1.]])
             scaled = translated * scaleMatrix
 
-            #Conversion from rotation matrix form to axis-angle form
+            # Conversion from rotation matrix form to axis-angle form
             angle = math.acos(((scaled.trace() - 1.) - 1.) / 2.)
 
             if angle == 0.:
@@ -206,43 +205,43 @@ def store(data, path):
 
                     rotation = numpy.array(vector.tolist() + [angle])
 
-            debug("Transform %s: translation %s, rotation %s, scale %s"
+            debug('Transform %s: translation %s, rotation %s, scale %s'
                     % (mesh.ident, str(translation), str(rotation), str(scale)))
 
-        transform = etree.SubElement(root, "Transform")
-        transform.attrib["DEF"] = "OB_%s" % mesh.ident
-        transform.attrib["translation"] = "%f %f %f" % tuple(translation)
-        transform.attrib["scale"] = "%f %f %f" % tuple(scale)
-        transform.attrib["rotation"] = "%f %f %f %f" % tuple(rotation)
+        transform = etree.SubElement(root, 'Transform')
+        transform.attrib['DEF'] = 'OB_%s' % mesh.ident
+        transform.attrib['translation'] = '%f %f %f' % tuple(translation)
+        transform.attrib['scale'] = '%f %f %f' % tuple(scale)
+        transform.attrib['rotation'] = '%f %f %f %f' % tuple(rotation)
 
         parent = mesh if mesh.parent is None else mesh.parent
         writeGroup(transform, parent)
 
-        debug("Mesh exported in %f, name %s" % (time.time() - started, mesh.ident))
+        debug('Mesh exported in %f, name %s' % (time.time() - started, mesh.ident))
 
     doctype = '<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.0//EN" "http://www.web3d.org/specifications/x3d-3.0.dtd">'
-    fileName = os.path.basename(path)
+    filename = os.path.basename(path)
 
-    root = etree.Element("X3D")
-    root.attrib["version"] = "3.0"
-    root.attrib["profile"] = "Immersive"
-#    root.attrib["xmlns:xsd"] = "http://www.w3.org/2001/XMLSchema-instance"
-#    root.attrib["xsd:noNamespaceSchemaLocation"] = "http://www.web3d.org/specifications/x3d-3.0.xsd"
+    root = etree.Element('X3D')
+    root.attrib['version'] = '3.0'
+    root.attrib['profile'] = 'Immersive'
+    # root.attrib['xmlns:xsd'] = 'http://www.w3.org/2001/XMLSchema-instance'
+    # root.attrib['xsd:noNamespaceSchemaLocation'] = 'http://www.web3d.org/specifications/x3d-3.0.xsd'
 
-    head = etree.SubElement(root, "head")
-    etree.SubElement(head, "meta", name="filename", content=fileName)
-    etree.SubElement(head, "meta", name="generator", content="x3d_export.py")
+    head = etree.SubElement(root, 'head')
+    etree.SubElement(head, 'meta', name='filename', content=filename)
+    etree.SubElement(head, 'meta', name='generator', content='x3d_export.py')
 
-    scene = etree.SubElement(root, "Scene")
+    scene = etree.SubElement(root, 'Scene')
 
     for shape in data:
         writeTransform(scene, shape)
 
     indent(root)
-    payload = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8", doctype=doctype)
-    #Replace quotes to match X3D specification
-    payload = payload.decode('utf-8').replace("\"&quot;", "'\"").replace("&quot;\"", "\"'").replace("&quot;", "\"")
+    payload = etree.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8', doctype=doctype)
+    # Replace quotes to match X3D specification
+    payload = payload.decode('utf-8').replace('"&quot;', '\'"').replace('&quot;"', '"\'').replace('&quot;', '"')
 
-    out = open(path, "wb")
+    out = open(path, 'wb')
     out.write(payload.encode('utf-8'))
     out.close()

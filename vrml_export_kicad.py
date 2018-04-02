@@ -90,7 +90,7 @@ def store(data, path):
         return output
 
     def encodeGroup(mesh, topTransform, topName, level):
-        output = ""
+        output = ''
         transform = topTransform if mesh.transform is None else mesh.transform
 
         output += "%sDEF ME_%s_%s Group {\n" % ("\t" * level, topName, mesh.ident)
@@ -101,7 +101,7 @@ def store(data, path):
         return output
 
     def encodeTransform(mesh, level=0):
-        output = ""
+        output = ''
         started = time.time()
 
         output += "%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident)
@@ -120,14 +120,14 @@ def store(data, path):
         output += "%s]\n" % ("\t" * (level + 1))
         output += "%s}\n" % ("\t" * level)
 
-        debug("Mesh exported in %f, name %s" % (time.time() - started, mesh.ident))
+        debug('Mesh exported in %f, name %s' % (time.time() - started, mesh.ident))
         return output
 
     sortedData = [entry for entry in data if entry.appearance().material.color.transparency <= 0.001]
     sortedData += [entry for entry in data if entry.appearance().material.color.transparency > 0.001]
 
-    out = open(path, "wb")
-    out.write("#VRML V2.0 utf8\n#Created by vrml_export_kicad.py\n".encode('utf-8'))
+    out = open(path, 'wb')
+    out.write('#VRML V2.0 utf8\n#Created by vrml_export_kicad.py\n'.encode('utf-8'))
     for shape in sortedData:
         out.write(encodeTransform(shape).encode('utf-8'))
     out.close()

@@ -129,7 +129,7 @@ def store(data, path, spec=VRML_STRICT):
         return output
 
     def encodeGroup(spec, mesh, level):
-        output = ""
+        output = ''
         alreadyExported = [group for group in exportedGroups if group.ident == mesh.ident]
 
         if len(alreadyExported) == 0:
@@ -146,7 +146,7 @@ def store(data, path, spec=VRML_STRICT):
         return output
 
     def encodeTransform(spec, mesh, level=0):
-        output = ""
+        output = ''
         started = time.time()
 
         if mesh.transform is None:
@@ -170,7 +170,7 @@ def store(data, path, spec=VRML_STRICT):
                     [           0.,            0.,            0., 1.]])
             scaled = translated * scaleMatrix
 
-            #Conversion from rotation matrix form to axis-angle form
+            # Conversion from rotation matrix form to axis-angle form
             angle = math.acos(((scaled.trace() - 1.) - 1.) / 2.)
 
             if angle == 0.:
@@ -203,7 +203,7 @@ def store(data, path, spec=VRML_STRICT):
 
                     rotation = numpy.array(vector.tolist() + [angle])
 
-            debug("Transform %s: translation %s, rotation %s, scale %s"
+            debug('Transform %s: translation %s, rotation %s, scale %s'
                     % (mesh.ident, str(translation), str(rotation), str(scale)))
 
         output += "%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident)
@@ -218,11 +218,11 @@ def store(data, path, spec=VRML_STRICT):
         output += "%s]\n" % ("\t" * (level + 1))
         output += "%s}\n" % ("\t" * level)
 
-        debug("Mesh exported in %f, name %s" % (time.time() - started, mesh.ident))
+        debug('Mesh exported in %f, name %s' % (time.time() - started, mesh.ident))
         return output
 
-    out = open(path, "wb")
-    out.write("#VRML V2.0 utf8\n#Created by vrml_export.py\n".encode('utf-8'))
+    out = open(path, 'wb')
+    out.write('#VRML V2.0 utf8\n#Created by vrml_export.py\n'.encode('utf-8'))
     for shape in data:
         out.write(encodeTransform(spec, shape).encode('utf-8'))
     out.close()
