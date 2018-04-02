@@ -14,138 +14,135 @@ try:
 except ImportError:
     from . import model
 
-VRML_STRICT, VRML_KICAD = range(0, 2)
 debugEnabled = False
 
 def debug(text):
     if debugEnabled:
         print(text)
 
-def store(data, path, spec=VRML_STRICT):
+def indent(level):
+    return '\t' * level
+
+def store(data, path):
     exportedGroups, exportedMaterials = [], []
 
-    def encodeAppearance(spec, material, level):
+    def encodeAppearance(material, level):
         def calcIntensity(ambient, diffuse):
-            result = 0.
-            for index in range(0, 3):
-                if diffuse[index]:
-                    result += ambient[index] / diffuse[index]
-            return result / 3.
+            return sum([ambient[i] / diffuse[i] for i in range(0, 3) if diffuse[i] != 0.0]) / 3.0
 
-        output = ""
         ambIntensity = min(calcIntensity(material.color.ambient, material.color.diffuse), 1.0)
-        output += "%sappearance Appearance {\n" % ("\t" * level)
+        output = indent(level) + 'appearance Appearance {\n'
 
         if material in exportedMaterials:
             exported = exportedMaterials[exportedMaterials.index(material)]
-            output += "%smaterial USE MA_%s\n" % ("\t" * (level + 1), exported.color.ident)
-            debug("Export: reused material %s instead of %s" % (exported.color.ident, material.color.ident))
+            output += indent(level + 1) + 'material USE MA_%s\n' % exported.color.ident
+            debug('Export: reused material %s instead of %s' % (exported.color.ident, material.color.ident))
         else:
-            output += "%smaterial DEF MA_%s Material {\n" % ("\t" * (level + 1), material.color.ident)
-            output += "%sdiffuseColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.diffuse.tolist())
-            output += "%sambientIntensity %f\n" % ("\t" * (level + 2), ambIntensity)
-            output += "%sspecularColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.specular.tolist())
-            output += "%semissiveColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.emissive.tolist())
-            output += "%sshininess %f\n" % ("\t" * (level + 2), material.color.shininess)
-            output += "%stransparency %f\n" % ("\t" * (level + 2), material.color.transparency)
-            output += "%s}\n" % ("\t" * (level + 1))
+            output += indent(level + 1) + 'material DEF MA_%s Material {\n' % material.color.ident
+            output += indent(level + 2) + 'diffuseColor %f %f %f\n' % tuple(material.color.diffuse)
+            output += indent(level + 2) + 'ambientIntensity %f\n' % ambIntensity
+            output += indent(level + 2) + 'specularColor %f %f %f\n' % tuple(material.color.specular)
+            output += indent(level + 2) + 'emissiveColor %f %f %f\n' % tuple(material.color.emissive)
+            output += indent(level + 2) + 'shininess %f\n' % material.color.shininess
+            output += indent(level + 2) + 'transparency %f\n' % material.color.transparency
+            output += indent(level + 1) + '}\n'
             exportedMaterials.append(material)
 
             def encodeTexture(path, name, level):
-                if name != "":
-                    output += "%stexture DEF %s ImageTexture {\n" % ("\t" * level, name)
+                if name != '':
+                    output += indent(level) + 'texture DEF %s ImageTexture {\n' % name
                 else:
-                    output += "%stexture %s {\n" % ("\t" * level)
-                output += "%surl \"%s\"\n" % ("\t" * (level + 1), path)
-                output += "%s}\n" % ("\t" * level)
+                    output += indent(level) + 'texture %s {\n' % name
+                output += indent(level + 1) + 'url \'%s\'\n' % path
+                output += indent(level) + '}\n'
 
             if material.diffuse is not None:
                 output += encodeTexture(material.diffuse.path[0], material.diffuse.ident, level + 1)
 
-        output += "%s}\n" % ("\t" * level)
+        output += indent(level) + '}\n'
         return output
 
-    def encodeGeometry(spec, mesh, level):
-        output = ""
-        output += "%sgeometry IndexedFaceSet {\n" % ("\t" * level)
+    def encodeGeometry(mesh, level):
+        output = indent(level) + 'geometry IndexedFaceSet {\n'
 
         appearance = mesh.appearance()
-        output += "%ssolid %s\n" % ("\t" * (level + 1), "TRUE" if appearance.solid else "FALSE")
-        output += "%ssmooth %s\n" % ("\t" * (level + 1), "TRUE" if appearance.smooth else "FALSE")
+        output += indent(level + 1) + 'solid %s\n' % ('TRUE' if appearance.solid else 'FALSE')
+        output += indent(level + 1) + 'smooth %s\n' % ('TRUE' if appearance.smooth else 'FALSE')
 
         geoVertices, geoPolygons = mesh.geometry()
 
-        output += "%scoord DEF FS_%s Coordinate {\n" % ("\t" * (level + 1), mesh.ident)
-        output += "%spoint [\n" % ("\t" * (level + 2))
-        output += "\t" * (level + 3)
+        # Export vertices
+        output += indent(level + 1) + 'coord DEF FS_%s Coordinate {\n' % mesh.ident
+        output += indent(level + 2) + 'point [\n'
+        output += indent(level + 3)
         vertices = []
         [vertices.extend(vertex) for vertex in geoVertices]
-        output += " ".join([str(round(x, 6)) for x in vertices])
-        output += "\n"
-        output += "%s]\n" % ("\t" * (level + 2))
-        output += "%s}\n" % ("\t" * (level + 1))
+        output += ' '.join([str(round(x, 6)) for x in vertices])
+        output += '\n'
+        output += indent(level + 2) + ']\n'
+        output += indent(level + 1) + '}\n'
 
-        output += "%scoordIndex [\n" % ("\t" * (level + 1))
-        output += "\t" * (level + 2)
+        # Export polygons
+        output += indent(level + 1) + 'coordIndex [\n'
+        output += indent(level + 2)
         indices = []
         [indices.extend(poly + [-1]) for poly in geoPolygons]
-        output += " ".join([str(x) for x in indices])
-        output += "\n"
-        output += "%s]\n" % ("\t" * (level + 1))
+        output += ' '.join([str(x) for x in indices])
+        output += '\n'
+        output += indent(level + 1) + ']\n'
 
         material = appearance.material
         if any(texture is not None for texture in [material.diffuse, material.normal, material.specular]):
             texVertices, texPolygons = mesh.texture()
 
-            output += "%stexCoord TextureCoordinate {\n" % ("\t" * (level + 1))
-            output += "%spoint [\n" % ("\t" * (level + 2))
-            output += "\t" * (level + 3)
+            # Export texture vertices
+            output += indent(level + 1) + 'texCoord TextureCoordinate {\n'
+            output += indent(level + 2) + 'point [\n'
+            output += indent(level + 3)
             vertices = []
             [vertices.extend(vertex) for vertex in texVertices]
-            output += " ".join([str(round(x, 6)) for x in vertices])
-            output += "\n"
-            output += "%s]\n" % ("\t" * (level + 2))
-            output += "%s}\n" % ("\t" * (level + 1))
+            output += ' '.join([str(round(x, 6)) for x in vertices])
+            output += '\n'
+            output += indent(level + 2) + ']\n'
+            output += indent(level + 1) + '}\n'
 
-            output += "%stexCoordIndex [\n" % ("\t" * (level + 1))
-            output += "\t" * (level + 2)
+            # Export texture indices
+            output += indent(level + 1) + 'texCoordIndex [\n'
+            output += indent(level + 2)
             indices = []
             [indices.extend(poly + [-1]) for poly in texPolygons]
-            output += " ".join([str(x) for x in indices])
-            output += "\n"
-            output += "%s]\n" % ("\t" * (level + 1))
+            output += ' '.join([str(x) for x in indices])
+            output += '\n'
+            output += indent(level + 1) + ']\n'
 
-        output += "%s}\n" % ("\t" * level)
+        output += indent(level) + '}\n'
         return output
 
-    def encodeShape(spec, mesh, level):
-        output = ""
-        output += "%sShape {\n" % ("\t" * level)
-
-        output += encodeAppearance(spec, mesh.appearance().material, level + 1)
-        output += encodeGeometry(spec, mesh, level + 1)
-
-        output += "%s}\n" % ("\t" * level)
+    def encodeShape(mesh, level):
+        output = indent(level) + 'Shape {\n'
+        output += encodeAppearance(mesh.appearance().material, level + 1)
+        output += encodeGeometry(mesh, level + 1)
+        output += indent(level) + '}\n'
         return output
 
-    def encodeGroup(spec, mesh, level):
+    def encodeGroup(mesh, level):
         output = ''
         alreadyExported = [group for group in exportedGroups if group.ident == mesh.ident]
 
         if len(alreadyExported) == 0:
-            output += "%sDEF ME_%s Group {\n" % ("\t" * level, mesh.ident)
-            output += "%schildren [\n" % ("\t" * (level + 1))
-            output += encodeShape(spec, mesh, level + 2)
-            output += "%s]\n" % ("\t" * (level + 1))
-            output += "%s}\n" % ("\t" * level)
+            output += indent(level) + 'DEF ME_%s Group {\n' % mesh.ident
+            output += indent(level + 1) + 'children [\n'
+            output += encodeShape(mesh, level + 2)
+            output += indent(level + 1) + ']\n'
+            output += indent(level) + '}\n'
             exportedGroups.append(mesh)
         else:
-            output += "%sUSE ME_%s\n" % ("\t" * level, mesh.ident)
-            debug("Export: reused group %s" % mesh.ident)
+            output += indent(level) + 'USE ME_%s\n' % mesh.ident
+            debug('Export: reused group %s' % mesh.ident)
 
         return output
 
-    def encodeTransform(spec, mesh, level=0):
+    def encodeTransform(mesh, level=0):
         output = ''
         started = time.time()
 
@@ -206,17 +203,17 @@ def store(data, path, spec=VRML_STRICT):
             debug('Transform %s: translation %s, rotation %s, scale %s'
                     % (mesh.ident, str(translation), str(rotation), str(scale)))
 
-        output += "%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident)
-        output += "%stranslation %f %f %f\n" % tuple(["\t" * (level + 1)] + translation.tolist())
-        output += "%srotation %f %f %f %f\n" % tuple(["\t" * (level + 1)] + rotation.tolist())
-        output += "%sscale %f %f %f\n" % tuple(["\t" * (level + 1)] + scale.tolist())
-        output += "%schildren [\n" % ("\t" * (level + 1))
+        output += indent(level) + 'DEF OB_%s Transform {\n' % mesh.ident
+        output += indent(level + 1) + 'translation %f %f %f\n' % tuple(translation)
+        output += indent(level + 1) + 'rotation %f %f %f %f\n' % tuple(rotation)
+        output += indent(level + 1) + 'scale %f %f %f\n' % tuple(scale)
+        output += indent(level + 1) + 'children [\n'
 
         parent = mesh if mesh.parent is None else mesh.parent
-        output += encodeGroup(spec, parent, level + 2)
+        output += encodeGroup(parent, level + 2)
 
-        output += "%s]\n" % ("\t" * (level + 1))
-        output += "%s}\n" % ("\t" * level)
+        output += indent(level + 1) + ']\n'
+        output += indent(level) + '}\n'
 
         debug('Mesh exported in %f, name %s' % (time.time() - started, mesh.ident))
         return output
@@ -224,5 +221,5 @@ def store(data, path, spec=VRML_STRICT):
     out = open(path, 'wb')
     out.write('#VRML V2.0 utf8\n#Created by vrml_export.py\n'.encode('utf-8'))
     for shape in data:
-        out.write(encodeTransform(spec, shape).encode('utf-8'))
+        out.write(encodeTransform(shape).encode('utf-8'))
     out.close()

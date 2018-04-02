@@ -19,96 +19,88 @@ def debug(text):
     if debugEnabled:
         print(text)
 
+def indent(level):
+    return '\t' * level
+
 def store(data, path):
     exportedMaterials = []
 
     def encodeAppearance(material, level):
         def calcIntensity(ambient, diffuse):
-            result = 0.
-            for index in range(0, 3):
-                if diffuse[index]:
-                    result += ambient[index] / diffuse[index]
-            return result / 3.
+            return sum([ambient[i] / diffuse[i] for i in range(0, 3) if diffuse[i] != 0.0]) / 3.0
 
-        output = ""
         ambIntensity = min(calcIntensity(material.color.ambient, material.color.diffuse), 1.0)
-        output += "%sappearance Appearance {\n" % ("\t" * level)
+        output = indent(level) + 'appearance Appearance {\n'
 
         if material in exportedMaterials:
             exported = exportedMaterials[exportedMaterials.index(material)]
-            output += "%smaterial USE MA_%s\n" % ("\t" * (level + 1), exported.color.ident)
-            debug("Export: reused material %s instead of %s" % (exported.color.ident, material.color.ident))
+            output += indent(level + 1) + 'material USE MA_%s\n' % exported.color.ident
+            debug('Export: reused material %s instead of %s' % (exported.color.ident, material.color.ident))
         else:
-            output += "%smaterial DEF MA_%s Material {\n" % ("\t" * (level + 1), material.color.ident)
-            output += "%sdiffuseColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.diffuse.tolist())
-            output += "%sambientIntensity %f\n" % ("\t" * (level + 2), ambIntensity)
-            output += "%sspecularColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.specular.tolist())
-            output += "%semissiveColor %f %f %f\n" % tuple(["\t" * (level + 2)] + material.color.emissive.tolist())
-            output += "%sshininess %f\n" % ("\t" * (level + 2), material.color.shininess)
-            output += "%stransparency %f\n" % ("\t" * (level + 2), material.color.transparency)
-            output += "%s}\n" % ("\t" * (level + 1))
+            output += indent(level + 1) + 'material DEF MA_%s Material {\n' % material.color.ident
+            output += indent(level + 2) + 'diffuseColor %f %f %f\n' % tuple(material.color.diffuse)
+            output += indent(level + 2) + 'ambientIntensity %f\n' % ambIntensity
+            output += indent(level + 2) + 'specularColor %f %f %f\n' % tuple(material.color.specular)
+            output += indent(level + 2) + 'emissiveColor %f %f %f\n' % tuple(material.color.emissive)
+            output += indent(level + 2) + 'shininess %f\n' % material.color.shininess
+            output += indent(level + 2) + 'transparency %f\n' % material.color.transparency
+            output += indent(level + 1) + '}\n'
             exportedMaterials.append(material)
 
-        output += "%s}\n" % ("\t" * level)
+        output += indent(level) + '}\n'
         return output
 
     def encodeGeometry(mesh, transform, level):
-        output = ""
-        output += "%sgeometry IndexedFaceSet {\n" % ("\t" * level)
-        output += "%ssolid FALSE\n" % ("\t" * (level + 1))
+        output = ''
+        output += indent(level) + 'geometry IndexedFaceSet {\n'
+        output += indent(level + 1) + 'solid FALSE\n'
 
         geoVertices, geoPolygons = mesh.geometry()
 
-        output += "%scoord DEF FS_%s Coordinate {\n" % ("\t" * (level + 1), mesh.ident)
-        output += "%spoint [\n" % ("\t" * (level + 2))
-        for vert in geoVertices:
-            resultingVert = transform.process(vert)
-            output += "\t"
-            output += " ".join(map(lambda x: str(round(x, 6)), resultingVert))
-            output += "\n"
-        output += "%s]\n" % ("\t" * (level + 2))
-        output += "%s}\n" % ("\t" * (level + 1))
+        # Export vertices
+        output += indent(level + 1) + 'coord DEF FS_%s Coordinate {\n' % mesh.ident
+        output += indent(level + 2) + 'point [\n'
+        for vertex in geoVertices:
+            output += '\t' + ' '.join([str(round(x, 6)) for x in transform.process(vertex)]) + '\n'
+        output += indent(level + 2) + ']\n'
+        output += indent(level + 1) + '}\n'
 
-        output += "%scoordIndex [\n" % ("\t" * (level + 1))
-        for poly in map(lambda poly: poly + [-1], geoPolygons):
-            output += "\t"
-            output += " ".join(map(str, poly))
-            output += "\n"
-        output += "%s]\n" % ("\t" * (level + 1))
+        # Export polygons
+        output += indent(level + 1) + 'coordIndex [\n'
+        for poly in geoPolygons:
+            output += '\t' + ' '.join([str(x) for x in poly]) + ' -1\n'
+        output += indent(level + 1) + ']\n'
 
-        output += "%s}\n" % ("\t" * level)
+        output += indent(level) + '}\n'
         return output
 
     def encodeShape(mesh, transform, level):
-        output = ""
-        output += "%sShape {\n" % ("\t" * level)
-
-        output += encodeAppearance( mesh.appearance().material, level + 1)
+        output = indent(level) + 'Shape {\n'
+        output += encodeAppearance(mesh.appearance().material, level + 1)
         output += encodeGeometry(mesh, transform, level + 1)
-
-        output += "%s}\n" % ("\t" * level)
+        output += indent(level) + '}\n'
         return output
 
     def encodeGroup(mesh, topTransform, topName, level):
         output = ''
         transform = topTransform if mesh.transform is None else mesh.transform
 
-        output += "%sDEF ME_%s_%s Group {\n" % ("\t" * level, topName, mesh.ident)
-        output += "%schildren [\n" % ("\t" * (level + 1))
+        output += indent(level) + 'DEF ME_%s_%s Group {\n' % (topName, mesh.ident)
+        output += indent(level + 1) + 'children [\n'
         output += encodeShape(mesh, transform, level + 2)
-        output += "%s]\n" % ("\t" * (level + 1))
-        output += "%s}\n" % ("\t" * level)
+        output += indent(level + 1) + ']\n'
+        output += indent(level) + '}\n'
         return output
 
     def encodeTransform(mesh, level=0):
         output = ''
         started = time.time()
 
-        output += "%sDEF OB_%s Transform {\n" % ("\t" * level, mesh.ident)
-        output += "%stranslation 0.0 0.0 0.0\n" % ("\t" * (level + 1))
-        output += "%srotation 1.0 0.0 0.0 0.0\n" % ("\t" * (level + 1))
-        output += "%sscale 1.0 1.0 1.0\n" % ("\t" * (level + 1))
-        output += "%schildren [\n" % ("\t" * (level + 1))
+        output += indent(level) + 'DEF OB_%s Transform {\n' % mesh.ident
+        output += indent(level + 1) + 'translation 0.0 0.0 0.0\n'
+        output += indent(level + 1) + 'rotation 1.0 0.0 0.0 0.0\n'
+        output += indent(level + 1) + 'scale 1.0 1.0 1.0\n'
+        output += indent(level + 1) + 'children [\n'
 
         parent = mesh if mesh.parent is None else mesh.parent
         if mesh.transform is not None:
@@ -117,8 +109,8 @@ def store(data, path):
             transform = model.Transform()
         output += encodeGroup(parent, transform, mesh.ident, level + 2)
 
-        output += "%s]\n" % ("\t" * (level + 1))
-        output += "%s}\n" % ("\t" * level)
+        output += indent(level + 1) + ']\n'
+        output += indent(level) + '}\n'
 
         debug('Mesh exported in %f, name %s' % (time.time() - started, mesh.ident))
         return output
