@@ -34,16 +34,16 @@ def store(data, path):
 
         if material in exportedMaterials:
             exported = exportedMaterials[exportedMaterials.index(material)]
-            output += indent(level + 1) + 'material USE MA_%s\n' % exported.color.ident
-            debug('Export: reused material %s instead of %s' % (exported.color.ident, material.color.ident))
+            output += indent(level + 1) + 'material USE MA_{:s}\n'.format(exported.color.ident)
+            debug('Export: reused material {:s} instead of {:s}'.format(exported.color.ident, material.color.ident))
         else:
-            output += indent(level + 1) + 'material DEF MA_%s Material {\n' % material.color.ident
-            output += indent(level + 2) + 'diffuseColor %f %f %f\n' % tuple(material.color.diffuse)
-            output += indent(level + 2) + 'ambientIntensity %f\n' % ambIntensity
-            output += indent(level + 2) + 'specularColor %f %f %f\n' % tuple(material.color.specular)
-            output += indent(level + 2) + 'emissiveColor %f %f %f\n' % tuple(material.color.emissive)
-            output += indent(level + 2) + 'shininess %f\n' % material.color.shininess
-            output += indent(level + 2) + 'transparency %f\n' % material.color.transparency
+            output += indent(level + 1) + 'material DEF MA_{:s} Material {{\n'.format(material.color.ident)
+            output += indent(level + 2) + 'diffuseColor {:g} {:g} {:g}\n'.format(*material.color.diffuse)
+            output += indent(level + 2) + 'ambientIntensity {:g}\n'.format(ambIntensity)
+            output += indent(level + 2) + 'specularColor {:g} {:g} {:g}\n'.format(*material.color.specular)
+            output += indent(level + 2) + 'emissiveColor {:g} {:g} {:g}\n'.format(*material.color.emissive)
+            output += indent(level + 2) + 'shininess {:g}\n'.format(material.color.shininess)
+            output += indent(level + 2) + 'transparency {:g}\n'.format(material.color.transparency)
             output += indent(level + 1) + '}\n'
             exportedMaterials.append(material)
 
@@ -58,7 +58,7 @@ def store(data, path):
         geoVertices, geoPolygons = mesh.geometry()
 
         # Export vertices
-        output += indent(level + 1) + 'coord DEF FS_%s Coordinate {\n' % mesh.ident
+        output += indent(level + 1) + 'coord DEF FS_{:s} Coordinate {{\n'.format(mesh.ident)
         output += indent(level + 2) + 'point [\n'
         for vertex in geoVertices:
             output += '\t' + ' '.join([str(round(x, 6)) for x in transform.process(vertex)]) + '\n'
@@ -85,7 +85,7 @@ def store(data, path):
         output = ''
         transform = topTransform if mesh.transform is None else mesh.transform
 
-        output += indent(level) + 'DEF ME_%s_%s Group {\n' % (topName, mesh.ident)
+        output += indent(level) + 'DEF ME_{:s}_{:s} Group {{\n'.format(topName, mesh.ident)
         output += indent(level + 1) + 'children [\n'
         output += encodeShape(mesh, transform, level + 2)
         output += indent(level + 1) + ']\n'
@@ -96,7 +96,7 @@ def store(data, path):
         output = ''
         started = time.time()
 
-        output += indent(level) + 'DEF OB_%s Transform {\n' % mesh.ident
+        output += indent(level) + 'DEF OB_{:s} Transform {{\n'.format(mesh.ident)
         output += indent(level + 1) + 'translation 0.0 0.0 0.0\n'
         output += indent(level + 1) + 'rotation 1.0 0.0 0.0 0.0\n'
         output += indent(level + 1) + 'scale 1.0 1.0 1.0\n'
@@ -112,7 +112,7 @@ def store(data, path):
         output += indent(level + 1) + ']\n'
         output += indent(level) + '}\n'
 
-        debug('Mesh exported in %f, name %s' % (time.time() - started, mesh.ident))
+        debug('Mesh exported in {:f}, name {:s}'.format(time.time() - started, mesh.ident))
         return output
 
     sortedData = [entry for entry in data if entry.appearance().material.color.transparency <= 0.001]

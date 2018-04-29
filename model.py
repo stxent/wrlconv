@@ -11,7 +11,7 @@ import numpy
 
 def normalize(v):
     length = numpy.linalg.norm(v)
-    return v if length == 0. else v / length
+    return v if length == 0.0 else v / length
 
 def createModelViewMatrix(eye, center, up):
     eye = numpy.array(eye)[:,0][0:3]
@@ -21,41 +21,48 @@ def createModelViewMatrix(eye, center, up):
     forward = normalize(center - eye)
     up = normalize(up)
     side = numpy.cross(forward, up)
-    side = numpy.array([0., 1., 0.]) if numpy.linalg.norm(side) == 0. else normalize(side)
+    side = numpy.array([0.0, 1.0, 0.0]) if numpy.linalg.norm(side) == 0.0 else normalize(side)
     up = numpy.cross(side, forward)
     up = normalize(up)
 
     result = numpy.matrix([
-            [     1.,      0.,      0., 0.],
-            [     0.,      1.,      0., 0.],
-            [     0.,      0.,      1., 0.],
-            [-eye[0], -eye[1], -eye[2], 1.]])
+            [    1.0,     0.0,     0.0, 0.0],
+            [    0.0,     1.0,     0.0, 0.0],
+            [    0.0,     0.0,     1.0, 0.0],
+            [-eye[0], -eye[1], -eye[2], 1.0]])
     result *= numpy.matrix([
-            [side[0], up[0], -forward[0], 0.],
-            [side[1], up[1], -forward[1], 0.],
-            [side[2], up[2], -forward[2], 0.],
-            [     0.,    0.,          0., 1.]])
+            [side[0], up[0], -forward[0], 0.0],
+            [side[1], up[1], -forward[1], 0.0],
+            [side[2], up[2], -forward[2], 0.0],
+            [    0.0,   0.0,         0.0, 1.0]])
     return result
 
 def createPerspectiveMatrix(aspect, angle, distance):
     n, f = distance
-    fov = angle / 2. * math.pi / 360.
-    h = 1. / math.tan(fov)
+    fov = angle * math.pi / 720.0
+    h = 1.0 / math.tan(fov)
     w = h / aspect
     return numpy.matrix([
-            [ w, 0.,                      0.,  0.],
-            [0.,  h,                      0.,  0.],
-            [0., 0.,      -(f + n) / (f - n), -1.],
-            [0., 0., -(2. * f * n) / (f - n),  0.]])
+            [  w, 0.0,                      0.0,  0.0],
+            [0.0,   h,                      0.0,  0.0],
+            [0.0, 0.0,       -(f + n) / (f - n), -1.0],
+            [0.0, 0.0, -(2.0 * f * n) / (f - n),  0.0]])
 
 def createOrthographicMatrix(area, distance):
     n, f = distance
     w, h = area
     return numpy.matrix([
-            [1. / w,     0.,                 0., 0.],
-            [    0., 1. / h,                 0., 0.],
-            [    0.,     0.,      -2. / (f - n), 0.],
-            [    0.,     0., -(f + n) / (f - n), 1.]])
+            [1.0 / w,     0.0,                0.0, 0.0],
+            [    0.0, 1.0 / h,                0.0, 0.0],
+            [    0.0,     0.0,     -2.0 / (f - n), 0.0],
+            [    0.0,     0.0, -(f + n) / (f - n), 1.0]])
+
+def metricToImperial(values):
+    # Convert millimeters to hundreds of mils
+    try:
+        return [v / 2.54 for v in values]
+    except TypeError:
+        return values / 2.54
 
 def uvWrapPlanar(mesh, borders=None):
     if borders is None:
@@ -81,12 +88,12 @@ def angle(v1, v2):
     mag1 = math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2])
     mag2 = math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2])
     mag = mag1 * mag2
-    if mag == 0.:
-        return 0.
+    if mag == 0.0:
+        return 0.0
     res = (v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]) / mag
     ac = math.acos(res)
-    if v2[0] * v1[1] - v2[1] * v1[0] < 0:
-        ac *= -1.
+    if v2[0] * v1[1] - v2[1] * v1[0] < 0.0:
+        ac *= -1.0
     return ac
 
 def divideTriangleByPlane(triangle, p, n):
@@ -153,7 +160,7 @@ def divideByPlane(patch, p, n):
 
 def intersectLinePlane(planePoint, planeNormal, lineStart, lineEnd):
     lineVector = normalize(lineEnd - lineStart)
-    if numpy.dot(planeNormal, lineVector) == 0.:
+    if numpy.dot(planeNormal, lineVector) == 0.0:
         return None
     lineLength = numpy.linalg.norm(lineEnd - lineStart)
     t = numpy.dot(planeNormal, planePoint - lineStart) / numpy.dot(planeNormal, lineVector)
@@ -163,40 +170,35 @@ def intersectLinePlane(planePoint, planeNormal, lineStart, lineEnd):
         return lineVector * t + lineStart
 
 def normal(v1, v2):
-    return numpy.array([
-            v1[1] * v2[2] - v1[2] * v2[1],
-            v1[2] * v2[0] - v1[0] * v2[2],
-            v1[0] * v2[1] - v1[1] * v2[0]])
+    return numpy.cross(v1[0:3], v2[0:3])
 
 def tangent(v1, v2, st1, st2):
     div = st1[1] * st2[0] - st1[0] * st2[1]
-    if div == 0:
+    if div != 0:
+        coef = 1.0 / div
+        return (v1[0:3] * -st2[1] + v2[0:3] * st1[1]) * coef
+    else:
         return numpy.array([0.0, 0.0, 1.0])
-    coef = 1. / div
-    return numpy.array([
-            coef * (v1[0] * -st2[1] + v2[0] * st1[1]),
-            coef * (v1[1] * -st2[1] + v2[1] * st1[1]),
-            coef * (v1[2] * -st2[1] + v2[2] * st1[1])])
 
 def rotationMatrix(v, angle):
     cs, sn = math.cos(angle), math.sin(angle)
-    v = numpy.asarray(v)
+    v = numpy.asfarray(v)
 
-    a11 = cs + v[0] * v[0] * (1 - cs)
-    a12 = v[0] * v[1] * (1 - cs) - v[2] * sn
-    a13 = v[0] * v[2] * (1 - cs) + v[1] * sn
-    a21 = v[1] * v[0] * (1 - cs) + v[2] * sn
-    a22 = cs + v[1] * v[1] * (1 - cs)
-    a23 = v[1] * v[2] * (1 - cs) - v[0] * sn
-    a31 = v[2] * v[0] * (1 - cs) - v[1] * sn
-    a32 = v[2] * v[1] * (1 - cs) + v[0] * sn
-    a33 = cs + v[2] * v[2] * (1 - cs)
+    a11 = cs + v[0] * v[0] * (1.0 - cs)
+    a12 = v[0] * v[1] * (1.0 - cs) - v[2] * sn
+    a13 = v[0] * v[2] * (1.0 - cs) + v[1] * sn
+    a21 = v[1] * v[0] * (1.0 - cs) + v[2] * sn
+    a22 = cs + v[1] * v[1] * (1.0 - cs)
+    a23 = v[1] * v[2] * (1.0 - cs) - v[0] * sn
+    a31 = v[2] * v[0] * (1.0 - cs) - v[1] * sn
+    a32 = v[2] * v[1] * (1.0 - cs) + v[0] * sn
+    a33 = cs + v[2] * v[2] * (1.0 - cs)
 
     return numpy.matrix([
-            [a11, a12, a13, 0.],
-            [a21, a22, a23, 0.],
-            [a31, a32, a33, 0.],
-            [ 0.,  0.,  0., 1.]])
+            [a11, a12, a13, 0.0],
+            [a21, a22, a23, 0.0],
+            [a31, a32, a33, 0.0],
+            [0.0, 0.0, 0.0, 1.0]])
 
 
 class Material:
@@ -205,10 +207,10 @@ class Material:
         TOLERANCE = 0.001
 
         def __init__(self, name=None):
-            self.diffuse = numpy.array([1., 1., 1.])
-            self.ambient = numpy.array([0., 0., 0.])
-            self.specular = numpy.array([0., 0., 0.])
-            self.emissive = numpy.array([0., 0., 0.])
+            self.diffuse = numpy.array([1.0, 1.0, 1.0])
+            self.ambient = numpy.array([0.0, 0.0, 0.0])
+            self.specular = numpy.array([0.0, 0.0, 0.0])
+            self.emissive = numpy.array([0.0, 0.0, 0.0])
             self.shininess = 0.
             self.transparency = 0.
             if name is None:
@@ -224,12 +226,12 @@ class Material:
                 return a - Material.Color.TOLERANCE <= b <= a + Material.Color.TOLERANCE
             def eqv(a, b):
                 return eq(a[0], b[0]) and eq(a[1], b[1]) and eq(a[2], b[2])
-            return eq(self.transparency, other.transparency)\
-                    and eqv(self.diffuse, other.diffuse)\
-                    and eqv(self.ambient, other.ambient)\
-                    and eqv(self.specular, other.specular)\
-                    and eqv(self.emissive, other.emissive)\
-                    and eq(self.shininess, other.shininess)
+            return (eq(self.transparency, other.transparency)
+                    and eqv(self.diffuse, other.diffuse)
+                    and eqv(self.ambient, other.ambient)
+                    and eqv(self.specular, other.specular)
+                    and eqv(self.emissive, other.emissive)
+                    and eq(self.shininess, other.shininess))
 
         def __ne__(self, other):
             return not self == other
@@ -472,17 +474,17 @@ class LineArray(Object):
 class Transform:
     def __init__(self):
         self.value = numpy.matrix([
-                [1., 0., 0., 0.],
-                [0., 1., 0., 0.],
-                [0., 0., 1., 0.],
-                [0., 0., 0., 1.]])
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0]])
 
     def translate(self, pos):
         mat = numpy.matrix([
-                [0., 0., 0., pos[0]],
-                [0., 0., 0., pos[1]],
-                [0., 0., 0., pos[2]],
-                [0., 0., 0.,     0.]])
+                [0.0, 0.0, 0.0, pos[0]],
+                [0.0, 0.0, 0.0, pos[1]],
+                [0.0, 0.0, 0.0, pos[2]],
+                [0.0, 0.0, 0.0,    0.0]])
         self.value = self.value + mat
 
     def rotate(self, vector, angle):
@@ -491,14 +493,14 @@ class Transform:
 
     def scale(self, scale):
         mat = numpy.matrix([
-                [scale[0],       0.,       0., 0.],
-                [      0., scale[1],       0., 0.],
-                [      0.,       0., scale[2], 0.],
-                [      0.,       0.,       0., 1.]])
+                [scale[0],      0.0,      0.0, 0.0],
+                [     0.0, scale[1],      0.0, 0.0],
+                [     0.0,      0.0, scale[2], 0.0],
+                [     0.0,      0.0,      0.0, 1.0]])
         self.value = self.value * mat
 
     def process(self, vertex):
-        mat = self.value * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.]])
+        mat = self.value * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.0]])
         return numpy.array(mat)[:,0][0:3]
 
     def __mul__(self, other):

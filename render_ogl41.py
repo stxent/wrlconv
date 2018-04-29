@@ -142,9 +142,9 @@ class RenderAppearance:
                     raise Exception()
                 im = Image.open(path[1])
                 try:
-                    self.size, image = im.size, im.tostring('raw', 'RGBA', 0, -1)
-                except SystemError:
-                    self.size, image = im.size, im.tostring('raw', 'RGBX', 0, -1)
+                    self.size, image = im.size, im.tobytes('raw', 'RGBA', 0, -1)
+                except ValueError:
+                    self.size, image = im.size, im.tobytes('raw', 'RGBX', 0, -1)
             else:
                 self.size = (8, 8)
                 pBlack, pPink = '\x00\x00\x00\xFF', '\xFF\x00\xFF\xFF'

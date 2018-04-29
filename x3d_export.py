@@ -44,7 +44,7 @@ def store(data, path):
         if material.diffuse is not None and material.normal is None and material.specular is None:
             textureNode = etree.SubElement(root, 'ImageTexture')
             textureNode.attrib['DEF'] = material.diffuse.ident
-            textureNode.attrib['url'] = '\'%s\' \'%s\'' % tuple(material.diffuse.path)
+            textureNode.attrib['url'] = '\'{:s}\' \'{:s}\''.format(*material.diffuse.path)
         else:
             chain, modes, sources = [], [], []
             if material.normal is not None:
@@ -65,13 +65,13 @@ def store(data, path):
 
             if len(chain) > 0:
                 multiTextureNode = etree.SubElement(root, 'MultiTexture')
-                multiTextureNode.attrib['mode'] = ' '.join(['\'%s\'' % x for x in modes])
-                multiTextureNode.attrib['source'] = ' '.join(['\'%s\'' % x for x in sources])
+                multiTextureNode.attrib['mode'] = ' '.join(['\'{:s}\''.format(x) for x in modes])
+                multiTextureNode.attrib['source'] = ' '.join(['\'{:s}\''.format(x) for x in sources])
 
                 for entry in chain:
                     textureNode = etree.SubElement(multiTextureNode, 'ImageTexture')
                     textureNode.attrib['DEF'] = entry.ident
-                    textureNode.attrib['url'] = '\'%s\' \'%s\'' % tuple(entry.path)
+                    textureNode.attrib['url'] = '\'{:s}\' \'{:s}\''.format(*entry.path)
 
     def writeAppearance(root, material):
         def calcIntensity(ambient, diffuse):
@@ -79,7 +79,7 @@ def store(data, path):
             for index in range(0, 3):
                 if diffuse[index]:
                     result += ambient[index] / diffuse[index]
-            return result / 3.
+            return result / 3.0
 
         appearanceNode = etree.SubElement(root, 'Appearance')
         materialNode = etree.SubElement(appearanceNode, 'Material')
@@ -87,13 +87,13 @@ def store(data, path):
         ambIntensity = calcIntensity(material.color.ambient, material.color.diffuse)
         if material in exportedMaterials:
             exported = exportedMaterials[exportedMaterials.index(material)]
-            materialNode.attrib['USE'] = 'MA_%s' % exported.color.ident
-            debug('Export: reused material %s instead of %s' % (exported.color.ident, material.color.ident))
+            materialNode.attrib['USE'] = 'MA_{:s}'.format(exported.color.ident)
+            debug('Export: reused material {:s} instead of {:s}'.format(exported.color.ident, material.color.ident))
         else:
-            materialNode.attrib['DEF'] = 'MA_%s' % material.color.ident
-            materialNode.attrib['diffuseColor'] = '%f %f %f' % tuple(material.color.diffuse)
-            materialNode.attrib['specularColor'] = '%f %f %f' % tuple(material.color.specular)
-            materialNode.attrib['emissiveColor'] = '%f %f %f' % tuple(material.color.emissive)
+            materialNode.attrib['DEF'] = 'MA_{:s}'.format(material.color.ident)
+            materialNode.attrib['diffuseColor'] = '{:g} {:g} {:g}'.format(*material.color.diffuse)
+            materialNode.attrib['specularColor'] = '{:g} {:g} {:g}'.format(*material.color.specular)
+            materialNode.attrib['emissiveColor'] = '{:g} {:g} {:g}'.format(*material.color.emissive)
             materialNode.attrib['ambientIntensity'] = str(ambIntensity)
             materialNode.attrib['shininess'] = str(material.color.shininess)
             materialNode.attrib['transparency'] = str(material.color.transparency)
@@ -112,7 +112,7 @@ def store(data, path):
         faceset.attrib['coordIndex'] = ' '.join([str(x) for x in indices])
 
         geoCoords = etree.SubElement(faceset, 'Coordinate')
-        geoCoords.attrib['DEF'] = 'FS_%s' % mesh.ident
+        geoCoords.attrib['DEF'] = 'FS_{:s}'.format(mesh.ident)
         vertices = []
         [vertices.extend(vertex) for vertex in geoVertices]
         geoCoords.attrib['point'] = ' '.join([str(round(x, 6)) for x in vertices])
@@ -124,11 +124,11 @@ def store(data, path):
 
             vertices = []
             [vertices.extend(vertex) for vertex in texVertices]
-            texCoords.attrib["point"] = " ".join([str(round(x, 6)) for x in vertices])
+            texCoords.attrib['point'] = ' '.join([str(round(x, 6)) for x in vertices])
 
             indices = []
             [indices.extend(poly + [-1]) for poly in texPolygons]
-            faceset.attrib["texCoordIndex"] = " ".join([str(x) for x in indices])
+            faceset.attrib['texCoordIndex'] = ' '.join([str(x) for x in indices])
 
 
     def writeShape(root, mesh):
@@ -141,46 +141,46 @@ def store(data, path):
 
         group = etree.SubElement(root, 'Group')
         if len(alreadyExported) == 0:
-            group.attrib['DEF'] = 'ME_%s' % mesh.ident
+            group.attrib['DEF'] = 'ME_{:s}'.format(mesh.ident)
             writeShape(group, mesh)
             exportedGroups.append(mesh)
         else:
-            group.attrib['USE'] = 'ME_%s' % mesh.ident
-            debug('Export: reused group %s' % mesh.ident)
+            group.attrib['USE'] = 'ME_{:s}'.format(mesh.ident)
+            debug('Export: reused group {:s}'.format(mesh.ident))
 
     def writeTransform(root, mesh):
         started = time.time()
 
         if mesh.transform is None:
-            translation = numpy.array([0., 0., 0.])
-            rotation = numpy.array([1., 0., 0., 0.])
-            scale = numpy.array([1., 1., 1.])
+            translation = numpy.array([0.0, 0.0, 0.0])
+            rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
+            scale = numpy.array([1.0, 1.0, 1.0])
         else:
             translation = mesh.transform.value.getA()[:,3][0:3]
             translationMatrix = numpy.matrix([
-                    [1., 0., 0., -translation[0]],
-                    [0., 1., 0., -translation[1]],
-                    [0., 0., 1., -translation[2]],
-                    [0., 0., 0.,              1.]])
+                    [1.0, 0.0, 0.0, -translation[0]],
+                    [0.0, 1.0, 0.0, -translation[1]],
+                    [0.0, 0.0, 1.0, -translation[2]],
+                    [0.0, 0.0, 0.0,             1.0]])
             translated = translationMatrix * mesh.transform.value
 
             scale = numpy.array([numpy.linalg.norm(translated.getA()[:,column][0:3]) for column in [0, 1, 2]])
             scaleMatrix = numpy.matrix([
-                    [1. / scale[0],            0.,            0., 0.],
-                    [           0., 1. / scale[1],            0., 0.],
-                    [           0.,            0., 1. / scale[2], 0.],
-                    [           0.,            0.,            0., 1.]])
+                    [1.0 / scale[0],            0.0,            0.0, 0.0],
+                    [           0.0, 1.0 / scale[1],            0.0, 0.0],
+                    [           0.0,            0.0, 1.0 / scale[2], 0.0],
+                    [           0.0,            0.0,            0.0, 1.0]])
             scaled = translated * scaleMatrix
 
             # Conversion from rotation matrix form to axis-angle form
-            angle = math.acos(((scaled.trace() - 1.) - 1.) / 2.)
+            angle = math.acos(((scaled.trace() - 1.0) - 1.0) / 2.0)
 
-            if angle == 0.:
-                rotation = numpy.array([1., 0., 0., 0.])
+            if angle == 0.0:
+                rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
             else:
                 skew = (scaled - scaled.transpose()).getA()
                 vector = numpy.array([skew[2][1], skew[0][2], skew[1][0]])
-                vector = (1. / (2. * math.sin(angle))) * vector
+                vector = (1.0 / (2.0 * math.sin(angle))) * vector
                 vector = model.normalize(vector)
 
                 if abs(angle) < math.pi:
@@ -193,31 +193,31 @@ def store(data, path):
 
                     posIndices, negIndices = [], []
                     for i in range(0, 3):
-                        if values[i] < 0.:
+                        if values[i] < 0.0:
                             negIndices.append(i)
-                        elif values[i] > 0.:
+                        elif values[i] > 0.0:
                             posIndices.append(i)
 
                     if len(posIndices) == 1 and len(negIndices) == 2:
-                        vector[posIndices[0]] *= -1.
+                        vector[posIndices[0]] *= -1.0
                     elif len(posIndices) == 0 and len(negIndices) == 1:
-                        vector[negIndices[0]] *= -1.
+                        vector[negIndices[0]] *= -1.0
 
                     rotation = numpy.array(vector.tolist() + [angle])
 
-            debug('Transform %s: translation %s, rotation %s, scale %s'
-                    % (mesh.ident, str(translation), str(rotation), str(scale)))
+            debug('Transform {:s}: translation {:s}, rotation {:s}, scale {:s}'.format(
+                    mesh.ident, str(translation), str(rotation), str(scale)))
 
         transform = etree.SubElement(root, 'Transform')
-        transform.attrib['DEF'] = 'OB_%s' % mesh.ident
-        transform.attrib['translation'] = '%f %f %f' % tuple(translation)
-        transform.attrib['scale'] = '%f %f %f' % tuple(scale)
-        transform.attrib['rotation'] = '%f %f %f %f' % tuple(rotation)
+        transform.attrib['DEF'] = 'OB_{:s}'.format(mesh.ident)
+        transform.attrib['translation'] = '{:g} {:g} {:g}'.format(*translation)
+        transform.attrib['scale'] = '{:g} {:g} {:g}'.format(*scale)
+        transform.attrib['rotation'] = '{:g} {:g} {:g} {:g}'.format(*rotation)
 
         parent = mesh if mesh.parent is None else mesh.parent
         writeGroup(transform, parent)
 
-        debug('Mesh exported in %f, name %s' % (time.time() - started, mesh.ident))
+        debug('Mesh exported in {:f}, name {:s}'.format(time.time() - started, mesh.ident))
 
     doctype = '<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.0//EN" "http://www.web3d.org/specifications/x3d-3.0.dtd">'
     filename = os.path.basename(path)
