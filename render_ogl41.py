@@ -97,18 +97,30 @@ def buildObjectGroups(shaders, inputObjects):
     meshes = [entry for entry in objects if entry.style == model.Object.PATCHES]
     objects.extend(generateMeshNormals(meshes))
 
+    # Join meshes with the same material in groups
+    meshMats = [mesh.appearance().material for mesh in meshes]
+    meshKeys = []
+    [meshKeys.append(mat) for mat in meshMats if mat not in meshKeys]
+    meshGroups = [[mesh for mesh in meshes if mesh.appearance().material == key] for key in meshKeys]
 
-    keys = []
-    [keys.append(item) for item in [mesh.appearance().material for mesh in meshes] if item not in keys]
-
-    groups = [[mesh for mesh in objects if mesh.appearance().material == key] for key in keys]
-    [renderObjects.append(RenderMesh(shaders, group)) for group in groups]
+    for group in meshGroups:
+        renderObjects.append(RenderMesh(shaders, group))
+        debug('Render group of {:d} mesh(es) created'.format(len(group)))
 
     # Render line arrays
     arrays = [entry for entry in objects if entry.style == model.Object.LINES]
-    if len(arrays) > 0:
-        renderObjects.append(RenderLineArray(shaders, arrays))
 
+    # Join line arrays in groups
+    arrayMats = [array.appearance().material for array in arrays]
+    arrayKeys = []
+    [arrayKeys.append(mat) for mat in arrayMats if mat not in arrayKeys]
+    arrayGroups = [[array for array in arrays if array.appearance().material == key] for key in arrayKeys]
+
+    for group in arrayGroups:
+        renderObjects.append(RenderLineArray(shaders, group))
+        debug('Render group of {:d} line array(s) created'.format(len(group)))
+
+    # Sort by material transparency
     sortedObjects = [entry for entry in renderObjects if entry.appearance.material.color.transparency <= 0.001]
     sortedObjects += [entry for entry in renderObjects if entry.appearance.material.color.transparency > 0.001]
 
