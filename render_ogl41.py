@@ -574,9 +574,10 @@ class Shader:
     IDENT = 0
 
     def __init__(self):
-        self.dir = './shaders_ogl41/'
         self.ident = Shader.IDENT
         Shader.IDENT += 1
+
+        self.dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'shaders_ogl41')
         self.program = None
 
     def activateTexture(self, channel, texture):
@@ -619,7 +620,7 @@ class UnlitShader(Shader):
         Shader.__init__(self)
 
         if self.program is None:
-            loadShaderFile = lambda path: open(self.dir + path, 'rb').read().decode('utf-8')
+            loadShaderFile = lambda path: open(os.path.join(self.dir, path), 'rb').read().decode('utf-8')
             self.create(loadShaderFile('unlit.vert'), loadShaderFile('unlit.frag'))
 
         self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
@@ -648,7 +649,7 @@ class ModelShader(Shader):
                 flags += ['#define SPECULAR_MAP']
 
             def loadShaderFile(path):
-                source = open(self.dir + path, 'rb').read().decode('utf-8').split('\n')
+                source = open(os.path.join(self.dir, path), 'rb').read().decode('utf-8').split('\n')
                 source = [source[0]] + flags + source[1:]
                 return '\n'.join(source)
 
@@ -703,7 +704,7 @@ class BackgroundShader(Shader):
         Shader.__init__(self)
 
         if self.program is None:
-            loadShaderFile = lambda path: open(self.dir + path, 'rb').read().decode('utf-8')
+            loadShaderFile = lambda path: open(os.path.join(self.dir, path), 'rb').read().decode('utf-8')
             self.create(loadShaderFile('background.vert'), loadShaderFile('background.frag'))
 
         self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
@@ -735,7 +736,7 @@ class MergeShader(Shader):
                 flags += ['#define AA_SAMPLES ' + str(antialiasing)]
 
             def loadShaderFile(path):
-                source = open(self.dir + path, 'rb').read().decode('utf-8').split('\n')
+                source = open(os.path.join(self.dir, path), 'rb').read().decode('utf-8').split('\n')
                 source = [source[0]] + flags + source[1:]
                 return '\n'.join(source)
 
@@ -778,7 +779,7 @@ class BlurShader(Shader):
                 flags += ['#define MASKED']
 
             def loadShaderFile(path):
-                source = open(self.dir + path, 'rb').read().decode('utf-8').split('\n')
+                source = open(os.path.join(self.dir, path), 'rb').read().decode('utf-8').split('\n')
                 source = [source[0]] + flags + source[1:]
                 return '\n'.join(source)
 
@@ -889,11 +890,6 @@ class Render(Scene):
             self.blurMasked = None
             self.merge = None
 
-            oldDir = os.getcwd()
-            scriptDir = os.path.dirname(os.path.realpath(__file__))
-            if len(scriptDir) > 0:
-                os.chdir(scriptDir)
-
             self.background = BackgroundShader()
 
             self.shaders['Colored'] = DefaultShader()
@@ -913,8 +909,6 @@ class Render(Scene):
             if overlay:
                 self.blur = BlurShader(masked=False)
                 self.blurMasked = BlurShader(masked=True)
-
-            os.chdir(oldDir)
 
 
     def __init__(self, objects=[], options={}):
