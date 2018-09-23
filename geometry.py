@@ -21,22 +21,22 @@ class Geosphere(model.Mesh):
 
         model.Mesh.__init__(self)
 
-        r = (1. + math.sqrt(5.)) / 4.
+        r = (1.0 + math.sqrt(5.0)) / 4.0
         vertices = []
-        vertices.append(numpy.array([-.5,   r,  0.]))
-        vertices.append(numpy.array([ .5,   r,  0.]))
-        vertices.append(numpy.array([-.5,  -r,  0.]))
-        vertices.append(numpy.array([ .5,  -r,  0.]))
-        vertices.append(numpy.array([ 0., -.5,   r]))
-        vertices.append(numpy.array([ 0.,  .5,   r]))
-        vertices.append(numpy.array([ 0., -.5,  -r]))
-        vertices.append(numpy.array([ 0.,  .5,  -r]))
-        vertices.append(numpy.array([  r,  0., -.5]))
-        vertices.append(numpy.array([  r,  0.,  .5]))
-        vertices.append(numpy.array([ -r,  0., -.5]))
-        vertices.append(numpy.array([ -r,  0.,  .5]))
-        for i in range(0, len(vertices)):
-            vertices[i] = model.normalize(vertices[i])
+        vertices.append(numpy.array([-0.5,    r,  0.0]))
+        vertices.append(numpy.array([ 0.5,    r,  0.0]))
+        vertices.append(numpy.array([-0.5,   -r,  0.0]))
+        vertices.append(numpy.array([ 0.5,   -r,  0.0]))
+        vertices.append(numpy.array([ 0.0, -0.5,    r]))
+        vertices.append(numpy.array([ 0.0,  0.5,    r]))
+        vertices.append(numpy.array([ 0.0, -0.5,   -r]))
+        vertices.append(numpy.array([ 0.0,  0.5,   -r]))
+        vertices.append(numpy.array([   r,  0.0, -0.5]))
+        vertices.append(numpy.array([   r,  0.0,  0.5]))
+        vertices.append(numpy.array([  -r,  0.0, -0.5]))
+        vertices.append(numpy.array([  -r,  0.0,  0.5]))
+        vertices = [model.normalize(v) * radius for v in vertices]
+
         polygons = []
         polygons.extend([[ 0, 11,  5], [ 0,  5,  1], [ 0,  1,  7], [ 0,  7, 10], [ 0, 10, 11]])
         polygons.extend([[ 1,  5,  9], [ 5, 11,  4], [11, 10,  2], [10,  7,  6], [ 7,  1,  8]])
@@ -44,7 +44,7 @@ class Geosphere(model.Mesh):
         polygons.extend([[ 4,  9,  5], [ 2,  4, 11], [ 6,  2, 10], [ 8,  6,  7], [ 9,  8,  1]])
 
         def getMiddlePoint(v1, v2):
-            return model.normalize(v1 + (v2 - v1) / 2)
+            return model.normalize(v1 + (v2 - v1) / 2.0) * radius
 
         for i in range(0, depth):
             pNext = []
