@@ -61,7 +61,7 @@ def store(data, path):
         output += indent(level + 1) + 'coord DEF FS_{:s} Coordinate {{\n'.format(mesh.ident)
         output += indent(level + 2) + 'point [\n'
         for vertex in geoVertices:
-            output += '\t' + ' '.join([str(round(x, 6)) for x in transform.process(vertex)]) + '\n'
+            output += '\t' + ' '.join([str(round(x, 6)) for x in transform.apply(vertex)]) + '\n'
         output += indent(level + 2) + ']\n'
         output += indent(level + 1) + '}\n'
 

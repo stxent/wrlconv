@@ -54,7 +54,7 @@ def generateNormals(meshes):
         geoVertices, geoPolygons = mesh.geometry()
         smooth = mesh.appearance().smooth
 
-        vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
+        vertices = geoVertices if mesh.transform is None else [mesh.transform.apply(v) for v in geoVertices]
 
         def getNormal(points):
             return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],
@@ -259,7 +259,7 @@ class RenderLineArray(RenderObject):
             geoVertices, geoPolygons = mesh.geometry()
             color = mesh.appearance().material.color.diffuse
 
-            vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
+            vertices = geoVertices if mesh.transform is None else [mesh.transform.apply(v) for v in geoVertices]
 
             for gp in geoPolygons:
                 count = len(gp)
@@ -339,7 +339,7 @@ class RenderMesh(RenderObject):
             geoVertices, geoPolygons = mesh.geometry()
             texVertices, texPolygons = mesh.texture()
 
-            vertices = geoVertices if mesh.transform is None else [mesh.transform.process(v) for v in geoVertices]
+            vertices = geoVertices if mesh.transform is None else [mesh.transform.apply(v) for v in geoVertices]
 
             def getNormal(points):
                 return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],

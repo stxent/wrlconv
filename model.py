@@ -347,7 +347,7 @@ class Mesh(Object):
         if other.transform is None:
             self.geoVertices += geoVertices
         else:
-            self.geoVertices += [other.transform.process(v) for v in geoVertices]
+            self.geoVertices += [other.transform.apply(v) for v in geoVertices]
 
         texSize = len(self.texVertices)
         texVertices, texPolygons = other.texture()
@@ -355,6 +355,13 @@ class Mesh(Object):
         for entry in texPolygons:
             self.texPolygons.append([texSize + vertex for vertex in entry])
         self.texVertices += texVertices
+
+    def applyTransform(self, transform=None):
+        if transform is None:
+            transform = self.transform
+            self.transform = None
+        if transform is not None:
+            self.geoVertices = [transform.apply(v) for v in self.geoVertices]
 
     def optimize(self):
         if self.parent is not None:
@@ -431,7 +438,7 @@ class AttributedMesh(Mesh):
         for i in range(0, len(self.geoVertices)):
             if self.attributes[i] >= len(transforms):
                 raise Exception()
-            self.geoVertices[i] = transforms[self.attributes[i]].process(self.geoVertices[i])
+            self.geoVertices[i] = transforms[self.attributes[i]].apply(self.geoVertices[i])
 
     def append(self, other):
         #TODO Optimize
@@ -468,7 +475,7 @@ class LineArray(Object):
         if other.transform is None:
             self.geoVertices += geoVertices
         else:
-            self.geoVertices += [other.transform.process(v) for v in geoVertices]
+            self.geoVertices += [other.transform.apply(v) for v in geoVertices]
 
 
 class Transform:
@@ -499,7 +506,7 @@ class Transform:
                 [     0.0,      0.0,      0.0, 1.0]])
         self.value = self.value * mat
 
-    def process(self, vertex):
+    def apply(self, vertex):
         mat = self.value * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.0]])
         return numpy.array(mat)[:,0][0:3]
 
