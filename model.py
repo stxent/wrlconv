@@ -211,8 +211,8 @@ class Material:
             self.ambient = numpy.array([0.0, 0.0, 0.0])
             self.specular = numpy.array([0.0, 0.0, 0.0])
             self.emissive = numpy.array([0.0, 0.0, 0.0])
-            self.shininess = 0.
-            self.transparency = 0.
+            self.shininess = 0.0
+            self.transparency = 0.0
             if name is None:
                 self.ident = str(Material.Color.IDENT)
                 Material.Color.IDENT += 1
@@ -264,10 +264,13 @@ class Material:
         self.specular = None
 
     def __eq__(self, other):
-        if not isinstance(other, Material):
+        if isinstance(other, Material):
+            return self.color == other.color\
+                    and self.diffuse == other.diffuse\
+                    and self.normal == other.normal\
+                    and self.specular == other.specular
+        else:
             return False
-        return self.color == other.color and self.diffuse == other.diffuse and self.normal == other.normal\
-                and self.specular == other.specular
 
     def __ne__(self, other):
         return not self == other

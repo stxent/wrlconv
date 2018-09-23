@@ -39,13 +39,13 @@ def debug(text):
     if debugEnabled:
         print(text)
 
-def generateNormals(meshes):
+def generateMeshNormals(meshes):
     blueMaterial = model.Material()
     blueMaterial.color.diffuse = numpy.array([0., 0., 1.])
     normalLength = 0.2
 
     urchin = model.LineArray(name='Normals')
-    urchin.visualAppearance.material = blueMaterial
+    urchin.appearance().material = blueMaterial
 
     for mesh in meshes:
         if not mesh.appearance().normals:
@@ -87,7 +87,7 @@ def generateNormals(meshes):
                 urchin.geoVertices.append(position + normals[i] * normalLength)
                 urchin.geoPolygons.append([lastIndex, lastIndex + 1])
 
-    return None if len(urchin.geoPolygons) == 0 else urchin
+    return [] if len(urchin.geoPolygons) == 0 else [urchin]
 
 def buildObjectGroups(shaders, inputObjects):
     renderObjects = []
@@ -95,10 +95,8 @@ def buildObjectGroups(shaders, inputObjects):
 
     # Render meshes
     meshes = [entry for entry in objects if entry.style == model.Object.PATCHES]
+    objects.extend(generateMeshNormals(meshes))
 
-    normals = generateNormals(meshes)
-    if normals is not None:
-        inputObjects.append(normals)
 
     keys = []
     [keys.append(item) for item in [mesh.appearance().material for mesh in meshes] if item not in keys]
@@ -157,8 +155,8 @@ class RenderAppearance:
             glBindTexture(self.mode, self.buffer)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
             glTexImage2D(self.mode, 0, GL_RGBA8, self.size[0], self.size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, image)
-            debug('Texture loaded: %s, width: %d, height: %d, id: %d'
-                    % (path[0], self.size[0], self.size[1], self.buffer))
+            debug('Texture loaded: {:s}, width: {:d}, height: {:d}, id: {:d}'.format(
+                    path[0], self.size[0], self.size[1], self.buffer))
 
 
     def __init__(self, shaders, appearance):
@@ -291,8 +289,8 @@ class RenderLineArray(RenderObject):
 
         glBindVertexArray(0)
 
-        debug('Point cloud created in %f, id %s, lines %u, vertices %u'
-                % (time.time() - started, self.ident, lines / 2, length))
+        debug('Point cloud created in {:f}, id {:s}, lines {:d}, vertices {:d}'.format(
+                time.time() - started, self.ident, int(lines / 2), length))
 
     def draw(self, wireframe=False):
         glBindVertexArray(self.vao)
@@ -423,8 +421,8 @@ class RenderMesh(RenderObject):
 
         glBindVertexArray(0)
 
-        debug('Mesh created in %f, id %s, triangles %u, quads %u, vertices %u'
-                % (time.time() - started, self.ident, triangles / 3, quads / 4, length))
+        debug('Mesh created in {:f}, id {:s}, triangles {:d}, quads {:d}, vertices {:d}'.format(
+                time.time() - started, self.ident, int(triangles / 3), int(quads / 4), length))
 
     def draw(self, wireframe=False):
         if wireframe or self.appearance.wireframe:
@@ -594,10 +592,10 @@ class Shader:
             if evaluation is not None:
                 shaders.append(compileShader(evaluation, GL_TESS_EVALUATION_SHADER))
             self.program = compileProgram(*shaders)
-            debug('Shader %u compiled' % self.ident)
+            debug('Shader {:d} compiled'.format(self.ident))
         except RuntimeError as runError:
             print(runError.args[0]) # Print error log
-            print('Shader %u compilation failed' % self.ident)
+            print('Shader {:d} compilation failed'.format(self.ident))
             exit()
         except:
             print('Unknown shader error')
@@ -722,7 +720,7 @@ class MergeShader(Shader):
         if self.program is None:
             flags = []
             if self.antialiasing > 0:
-                flags += ['#define AA_SAMPLES %u' % antialiasing]
+                flags += ['#define AA_SAMPLES ' + str(antialiasing)]
 
             def loadShaderFile(path):
                 source = open(self.dir + path, 'rb').read().decode('utf-8').split('\n')
@@ -854,7 +852,8 @@ class Render(Scene):
 
             glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
-            debug('Framebuffer built, size %ux%u, color %u, depth %u' % (size[0], size[1], self.color, self.depth))
+            debug('Framebuffer built, size {:d}x{:d}, color {:d}, depth {:d}'.format(
+                    size[0], size[1], self.color, self.depth))
 
         def free(self):
             if self.color:
@@ -991,7 +990,7 @@ class Render(Scene):
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, self.viewport[0], self.viewport[1], 0, GL_RED, GL_UNSIGNED_BYTE, image)
         glBindTexture(GL_TEXTURE_2D, 0)
         self.overlayMask = Texture(mode=GL_TEXTURE_2D, location=0, identifier=maskBuffer)
-        debug('Overlay built, size %ux%u, texture %u' % (self.viewport[0], self.viewport[1], maskBuffer))
+        debug('Overlay built, size {:d}x{:d}, texture {:d}'.format(self.viewport[0], self.viewport[1], maskBuffer))
 
     def drawScene(self):
         # First pass
