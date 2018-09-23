@@ -52,6 +52,114 @@ class Bezier(Line):
                     + (self.b + self.tb) * 3 * math.pow(t, 2) * (1.0 - t) + self.b * math.pow(t, 3)
 
 
+class BezierQuad(model.Mesh):
+    def __init__(self, a, b, c, d, resolution, inverse=False):
+        '''
+        a[0] a[1] a[2] a[3]
+        b[0] b[1] b[2] b[3]
+        c[0] c[1] c[2] c[3]
+        d[0] d[1] d[2] d[3]
+        '''
+        model.Mesh.__init__(self)
+
+        if resolution[0] < 1 or resolution[1] < 1:
+            raise Exception()
+
+        self.a = a
+        self.b = b
+        self.c = c
+        self.d = d
+
+        self.tesselate(numpy.array(resolution) + 1, inverse)
+
+    def interpolate(self, u, v):
+        def makeCurve(row):
+            return Bezier(row[0], row[1] - row[0], row[3], row[2] - row[3], 3)
+
+        a = makeCurve(self.a)
+        b = makeCurve(self.b)
+        c = makeCurve(self.c)
+        d = makeCurve(self.d)
+
+        q = makeCurve((a.point(v), b.point(v), c.point(v), d.point(v)))
+        return q.point(u)
+
+    def tesselate(self, resolution, inverse):
+        step = ([1.0 / (resolution[0] - 1), 1.0 / (resolution[1] - 1)])
+        total = resolution[0] * resolution[1]
+        for y in range(0, resolution[1]):
+            for x in range(0, resolution[0]):
+                self.geoVertices.append(self.interpolate(x * step[0], y * step[1]))
+
+        for y in range(0, resolution[1] - 1):
+            for x in range(0, resolution[0] - 1):
+                p1 = y * resolution[0] + x
+                p2 = (p1 + 1) % total
+                p3 = ((y + 1) * resolution[0] + x) % total
+                p4 = (p3 + 1) % total
+                if inverse:
+                    self.geoPolygons.append([p1, p3, p4, p2])
+                else:
+                    self.geoPolygons.append([p1, p2, p4, p3])
+
+
+class BezierTriangle(model.Mesh):
+    def __init__(self, a, b, c, mean, resolution, inverse=False):
+        '''
+                    a[0]
+                a[1]    a[2]
+            b[2]    mean    c[1]
+        b[0]    b[1]    c[2]    c[0]
+        '''
+        model.Mesh.__init__(self)
+
+        if resolution < 1:
+            raise Exception()
+
+        self.a = a
+        self.b = b
+        self.c = c
+        self.mean = mean
+
+        self.tesselate(resolution, inverse)
+
+    def interpolate(self, u, v, w):
+        return self.a[0] * math.pow(u, 3.0) + self.c[0] * math.pow(v, 3.0) + self.b[0] * math.pow(w, 3.0)\
+                + self.a[2] * 3.0 * v * math.pow(u, 2.0) + self.a[1] * 3.0 * w * math.pow(u, 2.0)\
+                + self.c[1] * 3.0 * u * math.pow(v, 2.0) + self.c[2] * 3.0 * w * math.pow(v, 2.0)\
+                + self.b[1] * 3.0 * v * math.pow(w, 2.0) + self.b[2] * 3.0 * u * math.pow(w, 2.0)\
+                + self.mean * 6.0 * u * v * w
+
+    def tesselate(self, resolution, inverse):
+        pu = numpy.array([1.0, 0.0, 0.0])
+        pv = numpy.array([0.0, 1.0, 0.0])
+        pw = numpy.array([0.0, 0.0, 1.0])
+
+        self.geoVertices.append(self.interpolate(*list(pu)))
+
+        def rowOffset(row):
+            return sum(range(0, row + 1))
+
+        for i in range(1, resolution + 1):
+            v = (pu * (resolution - i) + pv * i) / resolution
+            w = (pu * (resolution - i) + pw * i) / resolution
+
+            for j in range(0, i + 1):
+                u = (v * (i - j) + w * j) / i
+                self.geoVertices.append(self.interpolate(*list(u)))
+
+            if inverse:
+                for j in range(0, i):
+                    self.geoPolygons.append([rowOffset(i) + j + 1, rowOffset(i) + j, rowOffset(i - 1) + j])
+                for j in range(0, i - 1):
+                    self.geoPolygons.append([rowOffset(i - 1) + j, rowOffset(i - 1) + j + 1, rowOffset(i) + j + 1])
+            else:
+                for j in range(0, i):
+                    self.geoPolygons.append([rowOffset(i - 1) + j, rowOffset(i) + j, rowOffset(i) + j + 1])
+                for j in range(0, i - 1):
+                    self.geoPolygons.append([rowOffset(i) + j + 1, rowOffset(i - 1) + j + 1, rowOffset(i - 1) + j])
+
+
 def optimize(points):
     result = []
     for p in points:
