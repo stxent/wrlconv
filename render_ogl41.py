@@ -457,95 +457,89 @@ class RenderMesh(RenderObject):
 
 class Scene:
     class Camera:
-        DISTANCE = 20.
+        def __init__(self, fov=90.0, distance=20.0, translationRate=0.02, rotationRate=math.pi / 12.0, scalingRate=1.1):
+            self.fov = fov
+            self.distance = distance
+            self.translationRate = translationRate
+            self.rotationRate = rotationRate
+            self.scalingRate = scalingRate
+            self.reset()
 
-        def __init__(self):
-            self.fov = 90.
-            self.home()
-
-        def home(self):
-            self.pov = numpy.matrix([[0.], [0.], [0.], [1.]])
-            self.camera = numpy.matrix([[0.], [-Render.Camera.DISTANCE], [0.], [1.]])
-            self.axis = numpy.matrix([[0.], [0.], [1.], [0.]])
+        def reset(self):
+            self.pov = numpy.array([0.0, 0.0, 0.0, 1.0])
+            self.camera = numpy.array([0.0, -self.distance, 0.0, 1.0])
+            self.axis = numpy.array([0.0, 0.0, 1.0, 0.0])
 
         def front(self):
-            self.camera -= self.pov
-            distance = numpy.linalg.norm(numpy.array(self.camera[:,0][0:3]))
-            self.camera = numpy.matrix([[0.], [-distance], [0.], [0.]])
-            self.axis = numpy.matrix([[0.], [0.], [1.], [0.]])
-            self.camera += self.pov
+            distance = numpy.linalg.norm(self.camera - self.pov)
+            self.camera = numpy.array([0.0, -distance, 0.0, 0.0]) + self.pov
+            self.axis = numpy.array([0.0, 0.0, 1.0, 0.0])
 
         def side(self):
-            self.camera -= self.pov
-            distance = numpy.linalg.norm(numpy.array(self.camera[:,0][0:3]))
-            self.camera = numpy.matrix([[distance], [0.], [0.], [0.]])
-            self.axis = numpy.matrix([[0.], [0.], [1.], [0.]])
-            self.camera += self.pov
+            distance = numpy.linalg.norm(self.camera - self.pov)
+            self.camera = numpy.array([distance, 0.0, 0.0, 0.0]) + self.pov
+            self.axis = numpy.array([0.0, 0.0, 1.0, 0.0])
 
         def top(self):
-            self.camera -= self.pov
-            distance = numpy.linalg.norm(numpy.array(self.camera[:,0][0:3]))
-            self.camera = numpy.matrix([[0.], [0.], [distance], [0.]])
-            self.axis = numpy.matrix([[0.], [1.], [0.], [0.]])
-            self.camera += self.pov
+            distance = numpy.linalg.norm(self.camera - self.pov)
+            self.camera = numpy.array([0.0, 0.0, distance, 0.0]) + self.pov
+            self.axis = numpy.array([0.0, 1.0, 0.0, 0.0])
 
         def rotate(self, hrot, vrot):
-            self.camera -= self.pov
-            if hrot != 0.:
+            camera = self.camera - self.pov
+            axis = self.axis
+            if hrot != 0.0:
                 horizRotationMatrix = numpy.matrix([
-                        [math.cos(hrot), -math.sin(hrot), 0., 0.],
-                        [math.sin(hrot),  math.cos(hrot), 0., 0.],
-                        [            0.,              0., 1., 0.],
-                        [            0.,              0., 0., 1.]])
-                self.camera = horizRotationMatrix * self.camera
-                self.axis = horizRotationMatrix * self.axis
-            if vrot != 0.:
-                normal = model.normal(self.camera.getA()[:,0], self.axis.getA()[:,0])
-                normal = model.normalize(normal)
-                vertRotationMatrix = model.rotationMatrix(normal, vrot)
-                self.camera = vertRotationMatrix * self.camera
-                self.axis = vertRotationMatrix * self.axis
-            self.camera += self.pov
+                        [ math.cos(hrot), math.sin(hrot), 0.0, 0.0],
+                        [-math.sin(hrot), math.cos(hrot), 0.0, 0.0],
+                        [            0.0,            0.0, 1.0, 0.0],
+                        [            0.0,            0.0, 0.0, 1.0]])
+                camera = (camera * horizRotationMatrix).getA()[0]
+                axis = (axis * horizRotationMatrix).getA()[0]
+            if vrot != 0.0:
+                normal = numpy.cross(camera[0:3], self.axis[0:3])
+                normal /= numpy.linalg.norm(normal)
+                vertRotationMatrix = model.rotationMatrix(normal, vrot).transpose()
+                camera = (camera * vertRotationMatrix).getA()[0]
+                axis = (axis * vertRotationMatrix).getA()[0]
+            self.camera = camera + self.pov
+            self.axis = axis
 
         def move(self, x, y):
-            self.camera -= self.pov
-            axis = numpy.array(self.axis)[:,0][0:3]
-            camera = numpy.array(self.camera)[:,0][0:3]
-            normal = model.normalize(model.normal(axis, camera))
+            camera = self.camera - self.pov
+            normal = numpy.cross(self.axis[0:3], camera[0:3])
+            normal /= numpy.linalg.norm(normal)
+            distance = numpy.linalg.norm(camera)
+            width = 2.0 * math.tan(self.fov / 2.0) * distance
 
-            width = 2. * math.tan(self.fov / 2.) * numpy.linalg.norm(camera)
+            offset = normal * (-x / width) + self.axis[0:3] * (-y / width)
+            offset *= distance * self.translationRate
+            offset = numpy.array([*offset, 0.0])
 
-            offset = normal * (-x / width) + axis * (-y / width)
-            rotationMatrix = numpy.matrix([
-                    [1., 0., 0., offset[0]],
-                    [0., 1., 0., offset[1]],
-                    [0., 0., 1., offset[2]],
-                    [0., 0., 0.,        1.]])
-            self.camera += self.pov
-            self.camera = rotationMatrix * self.camera
-            self.pov = rotationMatrix * self.pov
+            self.camera += offset
+            self.pov += offset
 
         def zoom(self, z):
-            scaleMatrix = numpy.matrix([
-                    [ z, 0., 0., 0.],
-                    [0.,  z, 0., 0.],
-                    [0., 0.,  z, 0.],
-                    [0., 0., 0., 1.]])
-            self.camera -= self.pov
-            self.camera = scaleMatrix * self.camera
-            self.camera += self.pov
+            scale = numpy.array([z, z, z, 1.0])
+            self.camera = (self.camera - self.pov) * scale + self.pov
+
+        def zoomIn(self):
+            self.zoom(1.0 / self.scalingRate)
+
+        def zoomOut(self):
+            self.zoom(self.scalingRate)
 
 
     def __init__(self):
         self.ortho = False
-        self.depth = (0.1, 1000.)
+        self.depth = (0.001, 1000.0)
         self.camera = Scene.Camera()
         self.viewport = (640, 480)
         self.updateMatrix(self.viewport)
 
         self.lights = []
-        self.lights.append(numpy.matrix([[50.], [50.], [50.], [1.]]))
-        self.lights.append(numpy.matrix([[-50.], [-50.], [-50.], [1.]]))
+        self.lights.append(numpy.array([50.0, 50.0, 50.0, 1.0]))
+        self.lights.append(numpy.array([-50.0, -50.0, -50.0, 1.0]))
 
         self.shader = None
 
@@ -559,7 +553,8 @@ class Scene:
         else:
             self.projectionMatrix = model.createPerspectiveMatrix(aspect, self.camera.fov, self.depth)
 
-        self.modelViewMatrix = model.createModelViewMatrix(self.camera.camera, self.camera.pov, self.camera.axis)
+        self.modelViewMatrix = model.createModelViewMatrix(self.camera.camera[0:3], self.camera.pov[0:3],
+                self.camera.axis[0:3])
         self.normalMatrix = numpy.transpose(numpy.linalg.inv(self.modelViewMatrix))
 
     def enableShader(self, shader, arguments):
@@ -674,8 +669,7 @@ class ModelShader(Shader):
         ambient = 0.1
         diffuse = numpy.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], numpy.float32)
 
-        modelViewMatrix = scene.modelViewMatrix.transpose()
-        lights = [(modelViewMatrix * x).getA()[:,0][0:3] for x in scene.lights]
+        lights = [(light * scene.modelViewMatrix).getA()[0][0:3] for light in scene.lights]
         glUniform3fv(self.lightLoc, len(lights), numpy.array(lights, numpy.float32))
 
         glUniform3fv(self.lightDiffuseLoc, 2, diffuse)
@@ -711,9 +705,9 @@ class BackgroundShader(Shader):
         self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
         self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
 
-        camera = numpy.matrix([[0.], [0.], [1.], [0.]])
-        axis = numpy.matrix([[0.], [1.], [0.], [0.]])
-        pov = numpy.matrix([[0.], [0.], [0.], [1.]])
+        camera = numpy.array([0.0, 0.0, 1.0])
+        axis = numpy.array([0.0, 1.0, 0.0])
+        pov = numpy.zeros(3)
 
         self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
         self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
@@ -746,9 +740,9 @@ class MergeShader(Shader):
         self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
         self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
 
-        camera = numpy.matrix([[0.], [0.], [1.], [0.]])
-        axis = numpy.matrix([[0.], [1.], [0.], [0.]])
-        pov = numpy.matrix([[0.], [0.], [0.], [1.]])
+        camera = numpy.array([0.0, 0.0, 1.0])
+        axis = numpy.array([0.0, 1.0, 0.0])
+        pov = numpy.zeros(3)
 
         self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
         self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
@@ -789,9 +783,9 @@ class BlurShader(Shader):
         self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
         self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
 
-        camera = numpy.matrix([[0.], [0.], [1.], [0.]])
-        axis = numpy.matrix([[0.], [1.], [0.], [0.]])
-        pov = numpy.matrix([[0.], [0.], [0.], [1.]])
+        camera = numpy.array([0.0, 0.0, 1.0])
+        axis = numpy.array([0.0, 1.0, 0.0])
+        pov = numpy.zeros(3)
 
         self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
         self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
@@ -1079,9 +1073,9 @@ class Render(Scene):
             if self.cameraMove:
                 self.cameraCursor = [x, y]
         elif bNumber == 3 and bAction == GLUT_DOWN:
-            self.camera.zoom(0.9)
+            self.camera.zoomIn()
         elif bNumber == 4 and bAction == GLUT_DOWN:
-            self.camera.zoom(1.1)
+            self.camera.zoomOut()
         self.updateMatrix(self.viewport)
         glutPostRedisplay()
 
@@ -1098,28 +1092,43 @@ class Render(Scene):
         glutPostRedisplay()
 
     def keyHandler(self, key, x, y):
-        updated = False
+        redisplay = True
+        updated = True
 
         if key in (b'\x1B', b'q', b'Q'):
             exit()
         elif key in (b'1'):
             self.camera.front()
-            updated = True
+        elif key in (b'2'):
+            self.camera.rotate(0.0, -self.camera.rotationRate)
         elif key in (b'3'):
             self.camera.side()
-            updated = True
+        elif key in (b'4'):
+            self.camera.rotate(-self.camera.rotationRate, 0.0)
         elif key in (b'5'):
             self.ortho = not self.ortho
-            updated = True
+        elif key in (b'6'):
+            self.camera.rotate(self.camera.rotationRate, 0.0)
         elif key in (b'7'):
             self.camera.top()
-            updated = True
+        elif key in (b'8'):
+            self.camera.rotate(0.0, self.camera.rotationRate)
+        elif key in (b'9'):
+            self.camera.rotate(math.pi, 0.0)
         elif key in (b'.'):
-            self.camera.home()
-            updated = True
+            self.camera.reset()
+        elif key in (b'-'):
+            self.camera.zoomOut()
+        elif key in (b'+'):
+            self.camera.zoomIn()
         elif key in (b'z', b'Z'):
             self.wireframe = not self.wireframe
+            updated = False
+        else:
+            redisplay = False
+            updated = False
 
         if updated:
             self.updateMatrix(self.viewport)
-        glutPostRedisplay()
+        if redisplay:
+            glutPostRedisplay()

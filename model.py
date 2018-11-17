@@ -13,17 +13,12 @@ def normalize(v):
     length = numpy.linalg.norm(v)
     return v / length if length != 0.0 else v
 
-def createModelViewMatrix(eye, center, up):
-    eye = numpy.array(eye)[:,0][0:3]
-    center = numpy.array(center)[:,0][0:3]
-    up = numpy.array(up)[:,0][0:3]
 
+def createModelViewMatrix(eye, center, up):
     forward = normalize(center - eye)
-    up = normalize(up)
-    side = numpy.cross(forward, up)
+    side = numpy.cross(forward, normalize(up))
     side = numpy.array([0.0, 1.0, 0.0]) if numpy.linalg.norm(side) == 0.0 else normalize(side)
-    up = numpy.cross(side, forward)
-    up = normalize(up)
+    up = normalize(numpy.cross(side, forward))
 
     result = numpy.matrix([
             [    1.0,     0.0,     0.0, 0.0],
@@ -102,7 +97,6 @@ def tangent(v1, v2, st1, st2):
 
 def rotationMatrix(v, angle):
     cs, sn = math.cos(angle), math.sin(angle)
-    v = numpy.asfarray(v)
 
     a11 = cs + v[0] * v[0] * (1.0 - cs)
     a12 = v[0] * v[1] * (1.0 - cs) - v[2] * sn
