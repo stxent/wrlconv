@@ -35,18 +35,30 @@ class Line:
 
 
 class Bezier(Line):
-    def __init__(self, start, startTension, end, endTension, segments):
-        Line.__init__(self, start, end, segments)
-        self.ta = numpy.array(list(startTension))
-        self.tb = numpy.array(list(endTension))
+    def __init__(self, start, startTension, end, endTension, resolution):
+        Line.__init__(self, start, end, resolution)
+        '''
+        Bernstein polynomial of degree 3
+        p0 is self.a
+        p1 is sum of self.a and startTension
+        p2 is sum of self.b and endTension
+        p3 is self.b
+        '''
+
+        self.ca = self.a + numpy.array(list(startTension))
+        self.cb = self.b + numpy.array(list(endTension))
 
     def point(self, t):
         # Argument t is in range [0.0, 1.0]
-        if t < 0.0 or t > 1.0:
-            raise Exception()
+        if t >= 0.0 and t <= 1.0:
+            # Bernstein basis polynomials
+            b03 = (1.0 - t) ** 3.0
+            b13 = 3.0 * t * ((1.0 - t) ** 2.0)
+            b23 = 3.0 * (t ** 2.0) * (1.0 - t)
+            b33 = t ** 3.0
+            return self.a * b03 + self.ca * b13 + self.cb * b23 + self.b * b33
         else:
-            return self.a * math.pow(1.0 - t, 3) + (self.a + self.ta) * 3 * t * math.pow(1.0 - t, 2)\
-                    + (self.b + self.tb) * 3 * math.pow(t, 2) * (1.0 - t) + self.b * math.pow(t, 3)
+            raise Exception()
 
 
 class BezierQuad(model.Mesh):
@@ -166,11 +178,6 @@ def optimize(points):
         return []
 
 def rotate(curve, axis, edges=None, angles=None):
-    def pointToVector(p):
-        return numpy.resize(numpy.append(p, [1.]), (4, 1))
-    def vectorToPoint(v):
-        return v.getA()[:,0][0:3]
-
     points = []
     [points.extend(element.tesselate()) for element in curve]
     points = optimize(points)
@@ -182,8 +189,8 @@ def rotate(curve, axis, edges=None, angles=None):
         raise Exception()
 
     for angle in angles:
-        mat = model.rotationMatrix(axis, angle)
-        slices.append([vectorToPoint(mat * pointToVector(p)) for p in points])
+        mat = model.rotationMatrix(axis, angle).transpose()
+        slices.append([(numpy.array([*p, 1.0]) * mat).getA()[0][0:3] for p in points])
 
     return slices
 
