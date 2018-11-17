@@ -482,38 +482,37 @@ class LineArray(Object):
 
 
 class Transform:
-    def __init__(self):
-        self.value = numpy.matrix([
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0]])
+    def __init__(self, matrix=None):
+        if matrix is not None:
+            self.matrix = matrix
+        else:
+            self.matrix = numpy.identity(4)
 
     def translate(self, pos):
-        mat = numpy.matrix([
+        matrix = numpy.matrix([
                 [0.0, 0.0, 0.0, pos[0]],
                 [0.0, 0.0, 0.0, pos[1]],
                 [0.0, 0.0, 0.0, pos[2]],
                 [0.0, 0.0, 0.0,    0.0]])
-        self.value = self.value + mat
+        self.matrix = self.matrix + matrix
 
     def rotate(self, vector, angle):
-        mat = rotationMatrix(vector, angle)
-        self.value = self.value * mat
+        matrix = rotationMatrix(vector, angle)
+        self.matrix = self.matrix * matrix
 
     def scale(self, scale):
-        mat = numpy.matrix([
+        matrix = numpy.matrix([
                 [scale[0],      0.0,      0.0, 0.0],
                 [     0.0, scale[1],      0.0, 0.0],
                 [     0.0,      0.0, scale[2], 0.0],
                 [     0.0,      0.0,      0.0, 1.0]])
-        self.value = self.value * mat
+        self.matrix = self.matrix * matrix
 
     def apply(self, vertex):
-        mat = self.value * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.0]])
-        return numpy.array(mat)[:,0][0:3]
+        matrix = self.matrix * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.0]])
+        return numpy.array(matrix)[:,0][0:3]
 
     def __mul__(self, other):
-        transform = copy.deepcopy(self)
-        transform.value *= other.value
+        transform = Transform()
+        transform.matrix = self.matrix * other.matrix
         return transform

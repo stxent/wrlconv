@@ -156,13 +156,13 @@ def store(data, path):
             rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
             scale = numpy.array([1.0, 1.0, 1.0])
         else:
-            translation = mesh.transform.value.getA()[:,3][0:3]
+            translation = mesh.transform.matrix.getA()[:,3][0:3]
             translationMatrix = numpy.matrix([
                     [1.0, 0.0, 0.0, -translation[0]],
                     [0.0, 1.0, 0.0, -translation[1]],
                     [0.0, 0.0, 1.0, -translation[2]],
                     [0.0, 0.0, 0.0,             1.0]])
-            translated = translationMatrix * mesh.transform.value
+            translated = translationMatrix * mesh.transform.matrix
 
             scale = numpy.array([numpy.linalg.norm(translated.getA()[:,column][0:3]) for column in [0, 1, 2]])
             scaleMatrix = numpy.matrix([
