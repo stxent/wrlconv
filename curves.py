@@ -158,17 +158,12 @@ class BezierTriangle(model.Mesh):
 
 
 def optimize(points):
-    result = []
-    for p in points:
-        found = False
-        for seen in result:
-            if model.Mesh.comparePoints(p, seen):
-                found = True
-                break
-        if not found:
-            result.append(p)
-
-    return result
+    if len(points) >= 1:
+        result = [points[0]]
+        [result.append(p) for p in points[1:] if not model.Mesh.isclose(p, result[-1])]
+        return result
+    else:
+        return []
 
 def rotate(curve, axis, edges=None, angles=None):
     def pointToVector(p):
@@ -230,9 +225,9 @@ def createRotationMesh(slices, wrap=True, inverse=False):
             indices = []
 
             indices += [a * size + vertex]
-            if not model.Mesh.comparePoints(geoVertices[a * size + vertex], geoVertices[b * size + vertex]):
+            if not model.Mesh.isclose(geoVertices[a * size + vertex], geoVertices[b * size + vertex]):
                 indices += [b * size + vertex]
-            if not model.Mesh.comparePoints(geoVertices[a * size + vertex + 1], geoVertices[b * size + vertex + 1]):
+            if not model.Mesh.isclose(geoVertices[a * size + vertex + 1], geoVertices[b * size + vertex + 1]):
                 indices += [b * size + vertex + 1]
             indices += [a * size + vertex + 1]
 

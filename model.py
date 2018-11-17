@@ -125,7 +125,6 @@ def rotationMatrix(v, angle):
 class Material:
     class Color:
         IDENT = 0
-        TOLERANCE = 0.001
 
         def __init__(self, name=None):
             self.diffuse = numpy.ones(3)
@@ -141,18 +140,18 @@ class Material:
                 self.ident = name
 
         def __eq__(self, other):
-            if not isinstance(other, Material.Color):
-                return False
-            def eq(a, b):
-                return a - Material.Color.TOLERANCE <= b <= a + Material.Color.TOLERANCE
             def eqv(a, b):
-                return eq(a[0], b[0]) and eq(a[1], b[1]) and eq(a[2], b[2])
-            return (eq(self.transparency, other.transparency)
-                    and eqv(self.diffuse, other.diffuse)
-                    and eqv(self.ambient, other.ambient)
-                    and eqv(self.specular, other.specular)
-                    and eqv(self.emissive, other.emissive)
-                    and eq(self.shininess, other.shininess))
+                return math.isclose(a[0], b[0]) and math.isclose(a[1], b[1]) and math.isclose(a[2], b[2])
+
+            if isinstance(other, Material.Color):
+                return (math.isclose(self.transparency, other.transparency)
+                        and math.isclose(self.shininess, other.shininess)
+                        and eqv(self.diffuse, other.diffuse)
+                        and eqv(self.ambient, other.ambient)
+                        and eqv(self.specular, other.specular)
+                        and eqv(self.emissive, other.emissive))
+            else:
+                return False
 
         def __ne__(self, other):
             return not self == other
@@ -300,7 +299,7 @@ class Mesh(Object):
             vert = self.geoVertices[vIndex[0]]
             same = []
             for i in range(0, len(self.geoVertices)):
-                if Mesh.comparePoints(self.geoVertices[i], vert):
+                if Mesh.isclose(self.geoVertices[i], vert):
                     same.append(i)
             last = len(retVert)
             for poly in retPoly:
@@ -314,11 +313,9 @@ class Mesh(Object):
         self.geoPolygons = retPoly
 
     @staticmethod
-    def comparePoints(p0, p1):
-        def eq(a, b):
-            TOLERANCE = 1e-6
-            return a - TOLERANCE <= b <= a + TOLERANCE
-        return eq(p0[0], p1[0]) and eq(p0[1], p1[1]) and eq(p0[2], p1[2])
+    def isclose(a, b):
+        # Default relative tolerance 1e-9 is used
+        return math.isclose(a[0], b[0]) and math.isclose(a[1], b[1]) and math.isclose(a[2], b[2])
 
     @staticmethod
     def tesselate(patch):
