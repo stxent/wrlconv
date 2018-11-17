@@ -9,10 +9,23 @@ import copy
 import math
 import numpy
 
+def angle(v1, v2):
+    v1n = normalize(v1[0:3])
+    v2n = normalize(v2[0:3])
+    return math.acos(numpy.clip(numpy.dot(v1n, v2n), -1.0, +1.0))
+
 def normalize(v):
     length = numpy.linalg.norm(v)
     return v / length if length != 0.0 else v
 
+def tangent(v1, v2, st1, st2):
+    div = st1[1] * st2[0] - st1[0] * st2[1]
+
+    if div != 0.0:
+        mult = 1.0 / div
+        return (v1[0:3] * -st2[1] + v2[0:3] * st1[1]) * mult
+    else:
+        return numpy.array([0.0, 0.0, 1.0])
 
 def createModelViewMatrix(eye, center, up):
     forward = normalize(center - eye)
@@ -71,29 +84,6 @@ def uvWrapPlanar(mesh, borders=None):
             v = (mesh.geoVertices[index][1] - borders[0][1]) / size[1]
             mesh.texVertices.append(numpy.array([u, v]))
         mesh.texPolygons.append(poly)
-
-def angle(v1, v2):
-    mag1 = math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2])
-    mag2 = math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2])
-    mag = mag1 * mag2
-    if mag == 0.0:
-        return 0.0
-    res = (v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]) / mag
-    ac = math.acos(res)
-    if v2[0] * v1[1] - v2[1] * v1[0] < 0.0:
-        ac *= -1.0
-    return ac
-
-def normal(v1, v2):
-    return numpy.cross(v1[0:3], v2[0:3])
-
-def tangent(v1, v2, st1, st2):
-    div = st1[1] * st2[0] - st1[0] * st2[1]
-    if div != 0:
-        coef = 1.0 / div
-        return (v1[0:3] * -st2[1] + v2[0:3] * st1[1]) * coef
-    else:
-        return numpy.array([0.0, 0.0, 1.0])
 
 def rotationMatrix(v, angle):
     cs, sn = math.cos(angle), math.sin(angle)
@@ -221,6 +211,9 @@ class Object:
             self.transform = Transform()
         self.transform.scale(arg)
 
+    def rename(self, name):
+        self.ident = name
+
 
 class Mesh(Object):
     class Appearance:
@@ -274,7 +267,7 @@ class Mesh(Object):
             self.texPolygons.append([texSize + vertex for vertex in entry])
         self.texVertices += texVertices
 
-    def applyTransform(self, transform=None):
+    def apply(self, transform=None):
         if transform is None:
             transform = self.transform
             self.transform = None
@@ -390,6 +383,9 @@ class LineArray(Object):
             self.geoVertices += geoVertices
         else:
             self.geoVertices += [other.transform.apply(v) for v in geoVertices]
+
+    def optimize(self):
+        pass # TODO
 
 
 class Transform:

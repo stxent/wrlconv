@@ -57,7 +57,8 @@ def generateMeshNormals(meshes):
         vertices = geoVertices if mesh.transform is None else [mesh.transform.apply(v) for v in geoVertices]
 
         def getNormal(points):
-            return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],
+            return model.normalize(numpy.cross(
+                    vertices[points[1]] - vertices[points[0]],
                     vertices[points[2]] - vertices[points[0]]))
 
         if smooth:
@@ -352,7 +353,8 @@ class RenderMesh(RenderObject):
             vertices = geoVertices if mesh.transform is None else [mesh.transform.apply(v) for v in geoVertices]
 
             def getNormal(points):
-                return model.normalize(model.normal(vertices[points[1]] - vertices[points[0]],
+                return model.normalize(numpy.cross(
+                        vertices[points[1]] - vertices[points[0]],
                         vertices[points[2]] - vertices[points[0]]))
 
             def getTangent(points, texels):
