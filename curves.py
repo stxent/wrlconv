@@ -177,6 +177,76 @@ def optimize(points):
     else:
         return []
 
+def loft(path, shape, rotation=None, scaling=None):
+    if len(path) < 2:
+        raise Exception()
+    if rotation is None:
+        rotation = lambda t: numpy.zeros(3)
+    if scaling is None:
+        scaling = lambda t: numpy.ones(3)
+
+    up = numpy.array([0.0, 0.0, 1.0])
+
+    # First pass to estimate v0
+    nonZeroProduct = None
+    products = []
+
+    for i in range(0, len(path) - 1):
+        v2 = model.normalize(path[i + 1][0:3] - path[i][0:3])
+        v0 = model.normalize(numpy.cross(up, v2))
+        if numpy.linalg.norm(v0) == 0.0:
+            v0 = None
+        elif nonZeroProduct is None:
+            nonZeroProduct = v0
+        products.append((v0, v2))
+
+    # Second pass
+    segments = []
+
+    for product in products:
+        if product[0] is not None:
+            nonZeroProduct = product[0]
+            v0 = product[0]
+        elif nonZeroProduct is not None:
+            v0 = nonZeroProduct
+        else:
+            v0 = numpy.array([1.0, 0.0, 0.0])
+        v2 = product[1]
+        v1 = model.normalize(numpy.cross(v2, v0))
+
+        m = numpy.matrix([
+                [v0[0], v1[0], v2[0], 0.0],
+                [v0[1], v1[1], v2[1], 0.0],
+                [v0[2], v1[2], v2[2], 0.0],
+                [  0.0,   0.0,   0.0, 1.0]])
+        segments.append(model.Transform(matrix=m).quaternion())
+
+    # Make slices
+    slices = []
+
+    count = len(segments)
+    current = segments[0]
+
+    for i in range(0, count + 1):
+        if i > 0 and i < len(segments):
+            q = model.slerp(segments[i - 1], segments[i], 0.5)
+            current = segments[i]
+        else:
+            q = current
+
+        t = float(i) / count
+
+        scaleTransform = model.Transform()
+        scaleTransform.scale(scaling(t))
+        scaledShape = [scaleTransform.apply(x) for x in shape]
+
+        transform = model.Transform(quaternion=q)
+        transform.matrix *= model.rpyToMatrix(rotation(t))
+        transform.translate(path[i])
+        slices.append([transform.apply(x) for x in scaledShape])
+
+    return slices
+
 def rotate(curve, axis, edges=None, angles=None):
     points = []
     [points.extend(element.tesselate()) for element in curve]
