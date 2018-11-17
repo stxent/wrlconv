@@ -57,13 +57,6 @@ def createOrthographicMatrix(area, distance):
             [    0.0,     0.0,     -2.0 / (f - n), 0.0],
             [    0.0,     0.0, -(f + n) / (f - n), 1.0]])
 
-def metricToImperial(values):
-    # Convert millimeters to hundreds of mils
-    try:
-        return [v / 2.54 for v in values]
-    except TypeError:
-        return values / 2.54
-
 def uvWrapPlanar(mesh, borders=None):
     if borders is None:
         borders = [[mesh.geoVertices[0][0], mesh.geoVertices[0][1]], [mesh.geoVertices[0][0], mesh.geoVertices[0][1]]]
@@ -95,79 +88,6 @@ def angle(v1, v2):
     if v2[0] * v1[1] - v2[1] * v1[0] < 0.0:
         ac *= -1.0
     return ac
-
-def divideTriangleByPlane(triangle, p, n):
-    def squashPatch(patch):
-        output = []
-        for i in range(0, len(patch)):
-            unique = True
-            for j in range(0, len(output)):
-                if Mesh.comparePoints(patch[i], output[j]):
-                    unique = False
-            if unique:
-                output.append(patch[i])
-        return output
-
-    crosses = [
-        intersectLinePlane(p, n, triangle[1], triangle[2]),
-        intersectLinePlane(p, n, triangle[2], triangle[0]),
-        intersectLinePlane(p, n, triangle[0], triangle[1])
-    ]
-    raw = [i for i in range(0, len(crosses)) if crosses[i] is None]
-
-    if len(raw) == 3:
-        return [triangle]
-    elif len(raw) == 2:
-        crossed = [i for i in range(0, 3) if i not in raw]
-        tri0 = squashPatch([triangle[crossed[0]], triangle[raw[0]], crosses[crossed[0]]])
-        tri1 = squashPatch([triangle[raw[1]], triangle[crossed[0]], crosses[crossed[0]]])
-        return filter(lambda x: len(x) > 2, [tri0, tri1])
-    elif len(raw) == 1:
-        crossed = [raw[0] + 1 if raw[0] < 2 else 0, raw[0] - 1 if raw[0] > 0 else 2]
-        tri = squashPatch([triangle[raw[0]], crosses[crossed[1]], crosses[crossed[0]]])
-        quad = squashPatch([triangle[crossed[0]], triangle[crossed[1]], crosses[crossed[0]], crosses[crossed[1]]])
-        return filter(lambda x: len(x) > 2, [tri, quad])
-    else:
-        return []
-
-def divideByPlane(patch, p, n):
-    if len(patch) == 3:
-        return divideTriangleByPlane(patch, p, n)
-    else:
-        triangles = []
-        triangles.extend(map(lambda x: [patch[0], patch[x], patch[x + 1]], range(1, len(patch) - 1)))
-
-        output = []
-        [output.extend(divideTriangleByPlane(tri, p, n)) for tri in triangles]
-
-        if len(triangles) == len(output):
-            unique = False
-            for i in range(0, len(triangles)):
-                if len(triangles[i]) == len(output[i]):
-                    for j in range(0, len(triangles[i])):
-                        if not Mesh.comparePoints(triangles[i][j], output[i][j]):
-                            unique = True
-                            break
-                    if unique:
-                        break
-                else:
-                    unique = True
-                    break
-            if not unique:
-                return [patch]
-
-        return output
-
-def intersectLinePlane(planePoint, planeNormal, lineStart, lineEnd):
-    lineVector = normalize(lineEnd - lineStart)
-    if numpy.dot(planeNormal, lineVector) == 0.0:
-        return None
-    lineLength = numpy.linalg.norm(lineEnd - lineStart)
-    t = numpy.dot(planeNormal, planePoint - lineStart) / numpy.dot(planeNormal, lineVector)
-    if t <= 0.0 or t >= lineLength:
-        return None
-    else:
-        return lineVector * t + lineStart
 
 def normal(v1, v2):
     return numpy.cross(v1[0:3], v2[0:3])
