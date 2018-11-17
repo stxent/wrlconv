@@ -520,17 +520,17 @@ class VrmlMaterial(VrmlEntry):
 
     def finalize(self):
         self.color.ident = self.demangled()
-        if 'shininess' in self.values.keys():
+        if 'shininess' in self.values:
             self.color.shininess = self.values['shininess']
-        if 'transparency' in self.values.keys():
+        if 'transparency' in self.values:
             self.color.transparency = self.values['transparency']
-        if 'diffuseColor' in self.values.keys():
+        if 'diffuseColor' in self.values:
             self.color.diffuse = self.values['diffuseColor']
-        if 'emissiveColor' in self.values.keys():
+        if 'emissiveColor' in self.values:
             self.color.emissive = self.values['emissiveColor']
-        if 'specularColor' in self.values.keys():
+        if 'specularColor' in self.values:
             self.color.specular = self.values['specularColor']
-        if 'ambientIntensity' in self.values.keys():
+        if 'ambientIntensity' in self.values:
             self.color.ambient = self.color.diffuse * self.values['ambientIntensity']
 
         debug('{:s}Material properties:'.format(' ' * self.level))

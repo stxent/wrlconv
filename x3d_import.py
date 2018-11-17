@@ -36,7 +36,7 @@ class X3dEntry:
         pass
 
     def parseAttributes(self, attributes):
-        if 'DEF' in attributes.keys():
+        if 'DEF' in attributes:
             self.name = attributes['DEF']
             debug('{:s}Entry name {:s}'.format(' ' * self.level, self.name))
         self.parse(attributes)
@@ -139,7 +139,8 @@ class X3dTransform(X3dEntry):
     def parse(self, attributes):
         def getValues(string):
             return [float(x) for x in string.split(' ')]
-        if 'rotation' in attributes.keys():
+
+        if 'rotation' in attributes:
             values = getValues(attributes['rotation'])
             vector, angle = model.normalize(values[0:3]), values[3]
             vector = model.normalize(vector)
@@ -175,9 +176,9 @@ class X3dGeometry(X3dEntry):
         self.solid = True
 
     def parse(self, attributes):
-        if 'solid' in attributes.keys():
+        if 'solid' in attributes:
             self.solid = True if attributes['solid'] == 'true' else False
-        if 'smooth' in attributes.keys():
+        if 'smooth' in attributes:
             self.smooth = True if attributes['smooth'] == 'true' else False
 
         def parsePolygons(string):
@@ -191,10 +192,10 @@ class X3dGeometry(X3dEntry):
                 polygons.append([int(vertex) for vertex in poly.split(' ') if len(vertex) > 0])
             return polygons
 
-        if 'coordIndex' in attributes.keys():
+        if 'coordIndex' in attributes:
             self.geoPolygons = parsePolygons(attributes['coordIndex'])
             debug('{:s}Found {:d} polygons'.format(' ' * self.level, len(self.geoPolygons)))
-        if 'texCoordIndex' in attributes.keys():
+        if 'texCoordIndex' in attributes:
             self.texPolygons = parsePolygons(attributes['texCoordIndex'])
             debug('{:s}Found {:d} texture polygons'.format(' ' * self.level, len(self.texPolygons)))
 
@@ -206,7 +207,7 @@ class X3dCoords(X3dEntry):
         self.vertices = None
 
     def parse(self, attributes):
-        if 'point' in attributes.keys():
+        if 'point' in attributes:
             points = [float(point) for point in attributes['point'].split(' ') if len(point) > 0]
             vertices = []
             [vertices.append(numpy.array(points[i * self.size:(i + 1) * self.size]))
@@ -262,17 +263,17 @@ class X3dMaterial(X3dEntry):
             return numpy.array([float(x) for x in string.split(' ')])
 
         self.color.ident = self.demangled()
-        if 'shininess' in attributes.keys():
+        if 'shininess' in attributes:
             self.color.shininess = float(attributes['shininess'])
-        if 'transparency' in attributes.keys():
+        if 'transparency' in attributes:
             self.color.transparency = float(attributes['transparency'])
-        if 'diffuseColor' in attributes.keys():
+        if 'diffuseColor' in attributes:
             self.color.diffuse = getValues(attributes['diffuseColor'])
-        if 'emissiveColor' in attributes.keys():
+        if 'emissiveColor' in attributes:
             self.color.emissive = getValues(attributes['emissiveColor'])
-        if 'specularColor' in attributes.keys():
+        if 'specularColor' in attributes:
             self.color.specular = getValues(attributes['specularColor'])
-        if 'ambientIntensity' in attributes.keys():
+        if 'ambientIntensity' in attributes:
             self.color.ambient = self.color.diffuse * float(attributes['ambientIntensity'])
 
         debug('{:s}Material properties:'.format(' ' * self.level))
@@ -297,7 +298,7 @@ class X3dTexture(X3dEntry):
         X3dTexture.IDENT += 1
 
     def parse(self, attributes):
-        if 'url' in attributes.keys():
+        if 'url' in attributes:
             self.texture.path = [x.replace('\"', '') for x in attributes['url'].split(' ')]
 
 
@@ -309,9 +310,9 @@ class X3dMultiTexture(X3dEntry):
 
     def parse(self, attributes):
         modes, sources = [], []
-        if 'source' in attributes.keys():
+        if 'source' in attributes:
             sources = [x.replace('\"', '') for x in attributes['source'].split(' ')]
-        if 'mode' in attributes.keys():
+        if 'mode' in attributes:
             modes = [x.replace('\"', '') for x in attributes['mode'].split(' ')]
         texCount = max(len(modes), len(sources))
         modes.extend([''] * (texCount - len(modes)))
@@ -378,7 +379,7 @@ class X3dParser:
         elif self.scene is not None:
             entry = None
             reused = False
-            if 'USE' in attributes.keys():
+            if 'USE' in attributes:
                 entryName = attributes['USE']
                 defined = [entry for entry in self.entries if entry.name == entryName]
                 if len(defined) > 0:

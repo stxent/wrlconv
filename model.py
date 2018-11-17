@@ -11,7 +11,7 @@ import numpy
 
 def normalize(v):
     length = numpy.linalg.norm(v)
-    return v if length == 0.0 else v / length
+    return v / length if length != 0.0 else v
 
 def createModelViewMatrix(eye, center, up):
     eye = numpy.array(eye)[:,0][0:3]
@@ -194,6 +194,7 @@ def rotationMatrix(v, angle):
     a32 = v[2] * v[1] * (1.0 - cs) + v[0] * sn
     a33 = cs + v[2] * v[2] * (1.0 - cs)
 
+    # Column-major order
     return numpy.matrix([
             [a11, a12, a13, 0.0],
             [a21, a22, a23, 0.0],
@@ -207,10 +208,10 @@ class Material:
         TOLERANCE = 0.001
 
         def __init__(self, name=None):
-            self.diffuse = numpy.array([1.0, 1.0, 1.0])
-            self.ambient = numpy.array([0.0, 0.0, 0.0])
-            self.specular = numpy.array([0.0, 0.0, 0.0])
-            self.emissive = numpy.array([0.0, 0.0, 0.0])
+            self.diffuse = numpy.ones(3)
+            self.ambient = numpy.zeros(3)
+            self.specular = numpy.zeros(3)
+            self.emissive = numpy.zeros(3)
             self.shininess = 0.0
             self.transparency = 0.0
             if name is None:
@@ -249,9 +250,10 @@ class Material:
                 self.ident = name
 
         def __eq__(self, other):
-            if not isinstance(other, Material.Texture):
+            if isinstance(other, Material.Texture):
+                return self.path == other.path
+            else:
                 return False
-            return self.path == other.path
 
         def __ne__(self, other):
             return not self == other
@@ -265,10 +267,10 @@ class Material:
 
     def __eq__(self, other):
         if isinstance(other, Material):
-            return self.color == other.color\
-                    and self.diffuse == other.diffuse\
-                    and self.normal == other.normal\
-                    and self.specular == other.specular
+            return (self.color == other.color
+                    and self.diffuse == other.diffuse
+                    and self.normal == other.normal
+                    and self.specular == other.specular)
         else:
             return False
 
@@ -405,9 +407,7 @@ class Mesh(Object):
         elif len(patch) < 5:
             return [patch]
         else:
-            triangles = []
-            triangles.extend(map(lambda x: [patch[0], patch[x], patch[x + 1]], range(1, len(patch) - 1)))
-            return triangles
+            return [[patch[0], patch[i], patch[i + 1]] for i in range(1, len(patch) - 1)]
 
 
 class AttributedMesh(Mesh):
@@ -430,7 +430,7 @@ class AttributedMesh(Mesh):
 
     def associateVertices(self):
         self.attributes = [0 for i in range(0, len(self.geoVertices))]
-        for key in self.regions.keys():
+        for key in self.regions:
             for i in range(0, len(self.geoVertices)):
                 if AttributedMesh.intersection(self.regions[key], self.geoVertices[i]):
                     self.attributes[i] = key

@@ -39,9 +39,9 @@ parser.add_argument('--overlay', dest='overlay', help='enable overlay', default=
 parser.add_argument(dest='files', nargs='*')
 options = parser.parse_args()
 
-globalRotation = [0., 0., 1., 0.]
-globalScale = [1., 1., 1.]
-globalTranslation = [0., 0., 0.]
+globalRotation = numpy.array([0.0, 0.0, 1.0, 0.0])
+globalScale = numpy.ones(3)
+globalTranslation = numpy.zeros(3)
 
 try:
     globalRotation = numpy.array([float(x) for x in options.rotation.split(',')[0:4]])
@@ -51,7 +51,7 @@ except ValueError:
     print('Wrong argument')
     exit()
 
-globalRotation[3] *= math.pi / 180.
+globalRotation[3] *= math.pi / 180.0
 
 exportList = []
 

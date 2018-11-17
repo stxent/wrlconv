@@ -41,7 +41,7 @@ def debug(text):
 
 def generateMeshNormals(meshes):
     blueMaterial = model.Material()
-    blueMaterial.color.diffuse = numpy.array([0., 0., 1.])
+    blueMaterial.color.diffuse = numpy.array([0.0, 0.0, 1.0])
     normalLength = 0.2
 
     urchin = model.LineArray(name='Normals')
@@ -61,7 +61,7 @@ def generateMeshNormals(meshes):
                     vertices[points[2]] - vertices[points[0]]))
 
         if smooth:
-            normals = [numpy.array([0., 0., 0.]) for i in range(0, len(vertices))]
+            normals = [numpy.zeros(3) for i in range(0, len(vertices))]
             for poly in geoPolygons:
                 normal = getNormal(poly)
                 for vertex in poly:
@@ -78,7 +78,7 @@ def generateMeshNormals(meshes):
 
             for i in range(0, len(geoPolygons)):
                 gp = geoPolygons[i]
-                position = numpy.array([0., 0., 0.])
+                position = numpy.zeros(3)
                 for vertex in gp:
                     position += vertices[vertex]
                 position /= float(len(gp))
@@ -356,13 +356,14 @@ class RenderMesh(RenderObject):
                         vertices[points[2]] - vertices[points[0]]))
 
             def getTangent(points, texels):
-                return model.normalize(model.tangent(vertices[points[1]] - vertices[points[0]],
+                return model.normalize(model.tangent(
+                        vertices[points[1]] - vertices[points[0]],
                         vertices[points[2]] - vertices[points[0]],
                         texVertices[texels[1]] - texVertices[texels[0]],
                         texVertices[texels[2]] - texVertices[texels[0]]))
 
             if smooth:
-                normals = [numpy.array([0., 0., 0.]) for i in range(0, len(geoVertices))]
+                normals = [numpy.zeros(3) for i in range(0, len(geoVertices))]
                 for poly in geoPolygons:
                     normal = getNormal(poly)
                     for vertex in poly:
@@ -370,7 +371,7 @@ class RenderMesh(RenderObject):
                 normals = [model.normalize(vector) for vector in normals]
 
                 if textured:
-                    tangents = [numpy.array([0., 0., 0.]) for i in range(0, len(geoVertices))]
+                    tangents = [numpy.zeros(3) for i in range(0, len(geoVertices))]
                     for gp, tp in zip(geoPolygons, texPolygons):
                         tangent = getTangent(gp, tp)
                         for vertex in gp:
@@ -552,7 +553,7 @@ class Scene:
         aspect = float(viewport[0]) / float(viewport[1])
         if self.ortho:
             distance = numpy.linalg.norm(self.camera.camera - self.camera.pov)
-            width = 1. / math.tan(self.camera.fov / 2.) * distance
+            width = 1.0 / math.tan(self.camera.fov / 2.0) * distance
             area = (width, width / aspect)
             self.projectionMatrix = model.createOrthographicMatrix(area, self.depth)
         else:
@@ -918,7 +919,7 @@ class Render(Scene):
 
         self.cameraMove = False
         self.cameraRotate = False
-        self.cameraCursor = [0., 0.]
+        self.cameraCursor = [0.0, 0.0]
 
         self.data = []
 
@@ -940,10 +941,10 @@ class Render(Scene):
         glutMainLoop()
 
     def parseOptions(self, options):
-        self.antialiasing = 0 if 'antialiasing' not in options.keys() else options['antialiasing']
-        self.overlay = False if 'overlay' not in options.keys() else options['overlay']
-        self.wireframe = False if 'wireframe' not in options.keys() else options['wireframe']
-        if 'size' in options.keys():
+        self.antialiasing = 0 if 'antialiasing' not in options else options['antialiasing']
+        self.overlay = False if 'overlay' not in options else options['overlay']
+        self.wireframe = False if 'wireframe' not in options else options['wireframe']
+        if 'size' in options:
             self.viewport = options['size']
         self.useFramebuffers = self.antialiasing > 0 or self.overlay
 
@@ -959,7 +960,7 @@ class Render(Scene):
         glEnable(GL_TEXTURE_2D)
 
         self.shaderStorage = Render.ShaderStorage(self.antialiasing, self.overlay)
-        self.mergePlane = RenderMesh(self.shaderStorage.shaders, [geometry.Plane((2., 2.), (1, 1))])
+        self.mergePlane = RenderMesh(self.shaderStorage.shaders, [geometry.Plane((2.0, 2.0), (1, 1))])
 
         if self.useFramebuffers:
             self.framebuffers = []
@@ -1042,11 +1043,11 @@ class Render(Scene):
                 self.mergePlane.draw()
 
                 glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[2].buffer)
-                self.enableShader(self.shaderStorage.blur, [self, numpy.array([0., 1.]), self.framebuffers[1].color])
+                self.enableShader(self.shaderStorage.blur, [self, numpy.array([0.0, 1.0]), self.framebuffers[1].color])
                 self.mergePlane.draw()
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0)
-                self.enableShader(self.shaderStorage.blurMasked, [self, numpy.array([1., 0.]),
+                self.enableShader(self.shaderStorage.blurMasked, [self, numpy.array([1.0, 0.0]),
                         self.framebuffers[2].color, self.framebuffers[1].color, self.overlayMask.buffer])
                 self.mergePlane.draw()
             else:
@@ -1086,8 +1087,8 @@ class Render(Scene):
 
     def mouseMove(self, x, y):
         if self.cameraRotate:
-            hrot = (self.cameraCursor[0] - x) / 100.
-            vrot = (y - self.cameraCursor[1]) / 100.
+            hrot = (self.cameraCursor[0] - x) / 100.0
+            vrot = (y - self.cameraCursor[1]) / 100.0
             self.camera.rotate(hrot, vrot)
             self.cameraCursor = [x, y]
         elif self.cameraMove:

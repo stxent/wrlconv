@@ -15,26 +15,23 @@ except ImportError:
 
 
 class Line:
-    def __init__(self, start, end, segments):
-        if segments < 1:
+    def __init__(self, start, end, resolution):
+        if resolution < 1:
             raise Exception()
         self.a = numpy.array(list(start))
         self.b = numpy.array(list(end))
-        self.segments = segments
+        self.resolution = resolution
 
     def point(self, t):
         # Argument t is in range [0.0, 1.0]
-        if t < 0.0 or t > 1.0:
-            raise Exception()
-        else:
+        if t >= 0.0 and t <= 1.0:
             return self.a * (1.0 - t) + self.b * t
+        else:
+            raise Exception()
 
     def tesselate(self):
-        scale = 1.0 / float(self.segments)
-        points = []
-        for i in range(0, self.segments + 1):
-            points.append(self.point(float(i) * scale))
-        return points
+        scale = 1.0 / float(self.resolution)
+        return [self.point(float(i) * scale) for i in range(0, self.resolution + 1)]
 
 
 class Bezier(Line):
@@ -124,10 +121,10 @@ class BezierTriangle(model.Mesh):
         self.tesselate(resolution, inverse)
 
     def interpolate(self, u, v, w):
-        return self.a[0] * math.pow(u, 3.0) + self.c[0] * math.pow(v, 3.0) + self.b[0] * math.pow(w, 3.0)\
-                + self.a[2] * 3.0 * v * math.pow(u, 2.0) + self.a[1] * 3.0 * w * math.pow(u, 2.0)\
-                + self.c[1] * 3.0 * u * math.pow(v, 2.0) + self.c[2] * 3.0 * w * math.pow(v, 2.0)\
-                + self.b[1] * 3.0 * v * math.pow(w, 2.0) + self.b[2] * 3.0 * u * math.pow(w, 2.0)\
+        return self.a[0] * (u ** 3.0) + self.c[0] * (v ** 3.0) + self.b[0] * (w ** 3.0)\
+                + self.a[2] * 3.0 * v * (u ** 2.0) + self.a[1] * 3.0 * w * (u ** 2.0)\
+                + self.c[1] * 3.0 * u * (v ** 2.0) + self.c[2] * 3.0 * w * (v ** 2.0)\
+                + self.b[1] * 3.0 * v * (w ** 2.0) + self.b[2] * 3.0 * u * (w ** 2.0)\
                 + self.mean * 6.0 * u * v * w
 
     def tesselate(self, resolution, inverse):
@@ -185,7 +182,7 @@ def rotate(curve, axis, edges=None, angles=None):
     slices = []
 
     if edges is not None and angles is None:
-        angles = [(math.pi * 2. / float(edges)) * float(i) for i in range(0, edges)]
+        angles = [(math.pi * 2.0 / edges) * i for i in range(0, edges)]
     elif edges is not None or angles is None:
         raise Exception()
 
