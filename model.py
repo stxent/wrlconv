@@ -105,6 +105,108 @@ def rotationMatrix(v, angle):
             [a31, a32, a33, 0.0],
             [0.0, 0.0, 0.0, 1.0]])
 
+def rpyToMatrix(angles):
+    # Roll
+    cosr, sinr = math.cos(angles[0]), math.sin(angles[0])
+    # Pitch
+    cosp, sinp = math.cos(angles[1]), math.sin(angles[1])
+    # Yaw
+    cosy, siny = math.cos(angles[2]), math.sin(angles[2])
+
+    yawMatrix = numpy.matrix([
+            [ cosy, -siny,   0.0, 0.0],
+            [ siny,  cosy,   0.0, 0.0],
+            [  0.0,   0.0,   1.0, 0.0],
+            [  0.0,   0.0,   0.0, 1.0]])
+    pitchMatrix = numpy.matrix([
+            [ cosp,   0.0,  sinp, 0.0],
+            [  0.0,   1.0,   0.0, 0.0],
+            [-sinp,   0.0,  cosp, 0.0],
+            [  0.0,   0.0,   0.0, 1.0]])
+    rollMatrix = numpy.matrix([
+            [  1.0,   0.0,   0.0, 0.0],
+            [  0.0,  cosr, -sinr, 0.0],
+            [  0.0,  sinr,  cosr, 0.0],
+            [  0.0,   0.0,   0.0, 1.0]])
+    return yawMatrix * pitchMatrix * rollMatrix
+
+def quaternionToMatrix(quaternion):
+    w, x, y, z = quaternion[0], quaternion[1], quaternion[2], quaternion[3]
+
+    return numpy.matrix([
+            [
+                    1.0 - (2.0 * y * y) - (2.0 * z * z),
+                    (2.0 * x * y) - (2.0 * z * w),
+                    (2.0 * x * z) + (2.0 * y * w),
+                    0.0
+            ], [
+                    (2.0 * x * y) + (2.0 * z * w),
+                    1.0 - (2.0 * x * x) - (2.0 * z * z),
+                    (2.0 * y * z) - (2.0 * x * w),
+                    0.0
+            ], [
+                    (2.0 * x * z) - (2.0 * y * w),
+                    (2.0 * y * z) + (2.0 * x * w),
+                    1.0 - (2.0 * x * x) - (2.0 * y * y),
+                    0.0
+            ], [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+            ]])
+
+def matrixToQuaternion(matrix):
+    m = matrix.getA()
+    tr = m[0][0] + m[1][1] + m[2][2]
+
+    if tr > 0:
+        S = math.sqrt(tr + 1.0) * 2.0
+        qw = 0.25 * S
+        qx = (m[2][1] - m[1][2]) / S
+        qy = (m[0][2] - m[2][0]) / S
+        qz = (m[1][0] - m[0][1]) / S
+    elif m[0][0] > m[1][1] and m[0][0] > m[2][2]:
+        S = math.sqrt(1.0 + m[0][0] - m[1][1] - m[2][2]) * 2.0
+        qw = (m[2][1] - m[1][2]) / S
+        qx = 0.25 * S
+        qy = (m[0][1] + m[1][0]) / S
+        qz = (m[0][2] + m[2][0]) / S
+    elif m[1][1] > m[2][2]:
+        S = math.sqrt(1.0 + m[1][1] - m[0][0] - m[2][2]) * 2.0
+        qw = (m[0][2] - m[2][0]) / S
+        qx = (m[0][1] + m[1][0]) / S
+        qy = 0.25 * S
+        qz = (m[1][2] + m[2][1]) / S
+    else:
+        S = math.sqrt(1.0 + m[2][2] - m[0][0] - m[1][1]) * 2.0
+        qw = (m[1][0] - m[0][1]) / S
+        qx = (m[0][2] + m[2][0]) / S
+        qy = (m[1][2] + m[2][1]) / S
+        qz = 0.25 * S
+
+    return numpy.array([qw, qx, qy, qz])
+
+def slerp(q0, q1, t):
+    q0, q1 = normalize(q0), normalize(q1)
+    dot = numpy.sum(q0 * q1)
+
+    if abs(dot) == 1.0:
+        return q0
+    elif dot < 0.0:
+        q1 = -q1
+        dot = -dot
+
+    theta0 = math.acos(dot)
+    sinTheta0 = math.sin(theta0)
+    theta = theta0 * t
+    sinTheta = math.sin(theta)
+
+    s0 = math.cos(theta) - dot * sinTheta / sinTheta0
+    s1 = sinTheta / sinTheta0
+
+    return (s0 * q0) + (s1 * q1)
+
 
 class Material:
     class Color:
@@ -389,9 +491,11 @@ class LineArray(Object):
 
 
 class Transform:
-    def __init__(self, matrix=None):
+    def __init__(self, matrix=None, quaternion=None):
         if matrix is not None:
             self.matrix = matrix
+        elif quaternion is not None:
+            self.matrix = quaternionToMatrix(quaternion)
         else:
             self.matrix = numpy.identity(4)
 
@@ -418,6 +522,9 @@ class Transform:
     def apply(self, vertex):
         matrix = self.matrix * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.0]])
         return numpy.array(matrix)[:,0][0:3]
+
+    def quaternion(self):
+        return matrixToQuaternion(self.matrix)
 
     def __mul__(self, other):
         transform = Transform()
