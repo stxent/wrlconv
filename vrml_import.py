@@ -190,7 +190,7 @@ class VrmlEntry:
 
 class VrmlScene(VrmlEntry):
     def __init__(self, path):
-        VrmlEntry.__init__(self)
+        super().__init__()
         self.entries = []
         self.transform = model.Transform()
 
@@ -284,7 +284,7 @@ class VrmlScene(VrmlEntry):
 
 class VrmlTransform(VrmlEntry):
     def __init__(self, parent):
-        VrmlEntry.__init__(self, parent)
+        super().__init__(parent)
         self.transform = model.Transform()
 
     def read(self, stream, string):
@@ -313,7 +313,7 @@ class VrmlTransform(VrmlEntry):
 
 class vrmlInline(VrmlTransform):
     def __init__(self, parent):
-        VrmlTransform.__init__(self, parent)
+        super().__init__(parent)
         self.entries = []
 
     def read(self, stream, string):
@@ -334,14 +334,14 @@ class vrmlInline(VrmlTransform):
 
 class VrmlShape(VrmlEntry):
     def __init__(self, parent):
-        VrmlEntry.__init__(self, parent)
+        super().__init__(parent)
 
 
 class VrmlGeometry(VrmlEntry):
     POLYGON_PATTERN = re.compile(r'([ ,\\t\d]+)-1', re.I | re.S)
 
     def __init__(self, parent):
-        VrmlEntry.__init__(self, parent)
+        super().__init__(parent)
         self.geoPolygons = []
         self.texPolygons = []
         self.smooth = False
@@ -408,7 +408,7 @@ class VrmlGeometry(VrmlEntry):
 
 class VrmlCoords(VrmlEntry):
     def __init__(self, parent, size):
-        VrmlEntry.__init__(self, parent)
+        super().__init__(parent)
         self.size = size
         self.vertices = None
         self.pattern = re.compile(r'[ ,\\t]+'.join([r'([+e\d\-\.]+)'] * size), re.I | re.S)
@@ -459,17 +459,17 @@ class VrmlCoords(VrmlEntry):
 
 class VrmlGeoCoords(VrmlCoords):
     def __init__(self, parent):
-        VrmlCoords.__init__(self, parent, 3)
+        super().__init__(parent, 3)
 
 
 class VrmlTexCoords(VrmlCoords):
     def __init__(self, parent):
-        VrmlCoords.__init__(self, parent, 2)
+        super().__init__(parent, 2)
 
 
 class VrmlAppearance(VrmlEntry):
     def __init__(self, parent=None):
-        VrmlEntry.__init__(self, parent)
+        super().__init__(parent)
         self.diffuse = None
         self.normal = None
         self.specular = None
@@ -500,7 +500,7 @@ class VrmlMaterial(VrmlEntry):
             (3, 'diffuseColor'), (3, 'emissiveColor'), (3, 'specularColor')]
 
     def __init__(self, parent):
-        VrmlEntry.__init__(self, parent)
+        super().__init__(parent)
         self.color = model.Material.Color('DefaultVrmlMaterial_{:d}'.format(VrmlMaterial.IDENT))
         self.values = {}
         VrmlMaterial.IDENT += 1
@@ -554,7 +554,7 @@ class VrmlTexture(VrmlEntry):
     IDENT = 0
 
     def __init__(self, parent):
-        VrmlEntry.__init__(self, parent)
+        super().__init__(parent)
         self.texture = model.Material.Texture('', 'DefaultVrmlTexture_{:d}'.format(VrmlTexture.IDENT))
         VrmlTexture.IDENT += 1
 

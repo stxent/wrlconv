@@ -1,13 +1,12 @@
 #version 330 core
 
+uniform vec2 direction;
 uniform sampler2D colorTexture;
 
 #ifdef MASKED
 uniform sampler2D maskTexture;
 uniform sampler2D sourceTexture;
 #endif
-
-uniform vec2 direction;
 
 in vec2 texel;
 
@@ -36,10 +35,10 @@ void main(void)
   vec3 result;
 
 #ifdef MASKED
-  float alpha = texture2D(maskTexture, texel).r;
+  vec4 mask = texture2D(maskTexture, texel);
 
-  result.rgb = blur(colorTexture, texel, direction) * alpha * 0.5
-      + texture2D(sourceTexture, texel).rgb * (1.0 - alpha);
+  result.rgb = blur(colorTexture, texel, direction) * mask.rgb * mask.a
+      + texture2D(sourceTexture, texel).rgb * mask.rgb * (1.0 - mask.a);
 #else
   result.rgb = blur(colorTexture, texel, direction);
 #endif

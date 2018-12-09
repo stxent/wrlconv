@@ -329,7 +329,7 @@ class Mesh(Object):
 
 
     def __init__(self, parent=None, name=None):
-        Object.__init__(self, Object.PATCHES, parent, name)
+        super().__init__(Object.PATCHES, parent, name)
 
         if self.parent is None:
             self.geoVertices, self.geoPolygons = [], []
@@ -418,7 +418,7 @@ class Mesh(Object):
 
 class AttributedMesh(Mesh):
     def __init__(self, parent=None, name=None, regions=[]):
-        Mesh.__init__(self, parent, name)
+        super().__init__(parent, name)
 
         self.regions = {}
         for box, key in regions:
@@ -462,7 +462,7 @@ class LineArray(Object):
 
 
     def __init__(self, parent=None, name=None):
-        Object.__init__(self, Object.LINES, parent, name)
+        super().__init__(Object.LINES, parent, name)
 
         if self.parent is None:
             self.geoVertices, self.geoPolygons = [], []

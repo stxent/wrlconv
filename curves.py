@@ -36,7 +36,7 @@ class Line:
 
 class Bezier(Line):
     def __init__(self, start, startTension, end, endTension, resolution):
-        Line.__init__(self, start, end, resolution)
+        super().__init__(start, end, resolution)
         '''
         Bernstein polynomial of degree 3
         p0 is self.a
@@ -69,7 +69,7 @@ class BezierQuad(model.Mesh):
         c[0] c[1] c[2] c[3]
         d[0] d[1] d[2] d[3]
         '''
-        model.Mesh.__init__(self)
+        super().__init__()
 
         if resolution[0] < 1 or resolution[1] < 1:
             raise Exception()
@@ -120,7 +120,7 @@ class BezierTriangle(model.Mesh):
             b[2]    mean    c[1]
         b[0]    b[1]    c[2]    c[0]
         '''
-        model.Mesh.__init__(self)
+        super().__init__()
 
         if resolution < 1:
             raise Exception()

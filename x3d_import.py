@@ -44,7 +44,7 @@ class X3dEntry:
 
 class X3dScene(X3dEntry):
     def __init__(self):
-        X3dEntry.__init__(self)
+        super().__init__()
         self.transform = model.Transform()
 
     def extract(self):
@@ -133,7 +133,7 @@ class X3dScene(X3dEntry):
 
 class X3dTransform(X3dEntry):
     def __init__(self, parent):
-        X3dEntry.__init__(self, parent)
+        super().__init__(parent)
         self.transform = model.Transform()
 
     def parse(self, attributes):
@@ -170,14 +170,14 @@ class X3dTransform(X3dEntry):
 
 class X3dShape(X3dEntry):
     def __init__(self, parent):
-        X3dEntry.__init__(self, parent)
+        super().__init__(parent)
 
 
 class X3dGeometry(X3dEntry):
     POLYGON_PATTERN = re.compile(r'([ ,\\t\d]+)-1', re.I | re.S)
 
     def __init__(self, parent):
-        X3dEntry.__init__(self, parent)
+        super().__init__(parent)
         self.geoPolygons = []
         self.texPolygons = []
         self.smooth = False
@@ -210,7 +210,7 @@ class X3dGeometry(X3dEntry):
 
 class X3dCoords(X3dEntry):
     def __init__(self, parent, size):
-        X3dEntry.__init__(self, parent)
+        super().__init__(parent)
         self.size = size
         self.vertices = None
 
@@ -226,17 +226,17 @@ class X3dCoords(X3dEntry):
 
 class X3dGeoCoords(X3dCoords):
     def __init__(self, parent):
-        X3dCoords.__init__(self, parent, 3)
+        super().__init__(parent, 3)
 
 
 class X3dTexCoords(X3dCoords):
     def __init__(self, parent):
-        X3dCoords.__init__(self, parent, 2)
+        super().__init__(parent, 2)
 
 
 class X3dAppearance(X3dEntry):
     def __init__(self, parent):
-        X3dEntry.__init__(self, parent)
+        super().__init__(parent)
         # Limited support for image textures: TextureTransform nodes unsupported
 
     def squash(self):
@@ -262,7 +262,7 @@ class X3dMaterial(X3dEntry):
     IDENT = 0
 
     def __init__(self, parent):
-        X3dEntry.__init__(self, parent)
+        super().__init__(parent)
         self.color = model.Material.Color('DefaultX3dMaterial_{:d}'.format(X3dMaterial.IDENT))
         X3dMaterial.IDENT += 1
 
@@ -301,7 +301,7 @@ class X3dTexture(X3dEntry):
     IDENT = 0
 
     def __init__(self, parent):
-        X3dEntry.__init__(self, parent)
+        super().__init__(parent)
         self.texture = model.Material.Texture('', 'DefaultX3dTexture_{:d}'.format(X3dTexture.IDENT))
         X3dTexture.IDENT += 1
 
@@ -312,7 +312,7 @@ class X3dTexture(X3dEntry):
 
 class X3dMultiTexture(X3dEntry):
     def __init__(self, parent):
-        X3dEntry.__init__(self, parent)
+        super().__init__(parent)
         # Limited support for this type of node
         self.mapping = {'diffuse': None, 'normal': None, 'specular': None}
 

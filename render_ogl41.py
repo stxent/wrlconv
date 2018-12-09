@@ -105,7 +105,10 @@ def buildObjectGroups(shaders, inputObjects):
     meshGroups = [[mesh for mesh in meshes if mesh.appearance().material == key] for key in meshKeys]
 
     for group in meshGroups:
-        renderObjects.append(RenderMesh(shaders, group))
+        appearance = group[0].appearance()
+        renderAppearance = RenderAppearance.makeFromMaterial(shaders, appearance.material,
+                appearance.smooth, appearance.wireframe, appearance.solid)
+        renderObjects.append(RenderMesh(group, renderAppearance))
         debug('Render group of {:d} mesh(es) created'.format(len(group)))
 
     # Render line arrays
@@ -118,7 +121,9 @@ def buildObjectGroups(shaders, inputObjects):
     arrayGroups = [[array for array in arrays if array.appearance().material == key] for key in arrayKeys]
 
     for group in arrayGroups:
-        renderObjects.append(RenderLineArray(shaders, group))
+        appearance = group[0].appearance()
+        renderAppearance = RenderAppearance.makeFromMaterial(shaders, appearance.material)
+        renderObjects.append(RenderLineArray(group, renderAppearance))
         debug('Render group of {:d} line array(s) created'.format(len(group)))
 
     # Sort by material transparency
@@ -146,7 +151,7 @@ class Texture:
 class RenderAppearance:
     class ImageTexture(Texture):
         def __init__(self, location, path):
-            Texture.__init__(self, GL_TEXTURE_2D, location)
+            super().__init__(GL_TEXTURE_2D, location)
 
             if imagesEnabled:
                 if not os.path.isfile(path[1]):
@@ -158,9 +163,9 @@ class RenderAppearance:
                     self.size, image = im.size, im.tobytes('raw', 'RGBX', 0, -1)
             else:
                 self.size = (8, 8)
-                pBlack, pPink = '\x00\x00\x00\xFF', '\xFF\x00\xFF\xFF'
+                pBlack, pPurple = bytearray([0x00, 0x00, 0x00, 0xFF]), bytearray([0xFF, 0x00, 0xFF, 0xFF])
                 width, height = self.size[0] / 2, self.size[1] / 2
-                image = ((pBlack + pPink) * width + (pPink + pBlack) * width) * height
+                image = ((pBlack + pPurple) * width + (pPurple + pBlack) * width) * height
                 self.filterMode = (GL_NEAREST, GL_NEAREST)
 
             self.buffer = glGenTextures(1)
@@ -172,52 +177,54 @@ class RenderAppearance:
                     path[0], self.size[0], self.size[1], self.buffer))
 
 
-    def __init__(self, shaders, appearance):
-        self.textures = []
-        self.shader = None
+    def __init__(self, shader=None, material=None, smooth=False, wireframe=False, solid=True):
+        if shader is None:
+            raise Exception()
 
-        self.smooth = False
-        self.solid = False
-        self.wireframe = False
+        self.textures = []
+
+        self.shader = shader
+        self.smooth = smooth
+        self.wireframe = wireframe
+        self.solid = False if wireframe else solid
         self.zbuffer = True
 
-        if appearance is None:
-            self.material = model.Material()
-            self.shader = shaders['Unlit']
-        else:
-            self.material = appearance.material
-            self.smooth = appearance.smooth
-            self.wireframe = appearance.wireframe
-            self.solid = False if appearance.wireframe else appearance.solid
+        if material is not None:
+            self.material = material
 
-            shaderName = ''
             if self.material.diffuse is not None:
-                shaderName += 'Diff'
+                self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
+                        'diffuseTexture'), self.material.diffuse.path))
             if self.material.normal is not None:
-                shaderName += 'Norm'
+                self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
+                        'normalTexture'), self.material.normal.path))
             if self.material.specular is not None:
-                shaderName += 'Spec'
+                self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
+                        'specularTexture'), self.material.specular.path))
+        else:
+            self.material = model.Material()
 
-            if shaderName == '':
-                shaderName = 'Colored'
+    def enable(self, projectionMatrix, modelViewMatrix, lights):
+        self.shader.enable(projectionMatrix, modelViewMatrix, lights, self.material.color, self.textures)
 
-            self.shader = shaders[shaderName]
+    @classmethod
+    def makeFromMaterial(cls, shaders, material, smooth=False, wireframe=False, solid=True):
+        name = ''
+        if material.diffuse is not None:
+            name += 'Diff'
+        if material.normal is not None:
+            name += 'Norm'
+        if material.specular is not None:
+            name += 'Spec'
 
-        if self.material.diffuse is not None:
-            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
-                    'diffuseTexture'), self.material.diffuse.path))
-        if self.material.normal is not None:
-            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
-                    'normalTexture'), self.material.normal.path))
-        if self.material.specular is not None:
-            self.textures.append(RenderAppearance.ImageTexture(glGetUniformLocation(self.shader.program,
-                    'specularTexture'), self.material.specular.path))
+        if name == '':
+            name = 'Colored'
 
-    def enable(self, scene):
-        if self.shader is not None:
-            scene.enableShader(self.shader, [scene, self.material.color])
-            for i in range(0, len(self.textures)):
-                self.shader.activateTexture(i, self.textures[i])
+        return cls(shader=shaders[name], material=material, smooth=smooth, wireframe=wireframe, solid=solid)
+
+    @classmethod
+    def makeFromShader(cls, shader, smooth=False, wireframe=False, solid=True):
+        return cls(shader=shader, smooth=smooth, wireframe=wireframe, solid=solid)
 
 
 class RenderObject:
@@ -234,16 +241,16 @@ class RenderObject:
         self.ident = str(RenderObject.IDENT)
         RenderObject.IDENT += 1
 
-    def draw(self, wireframe=False):
+    def draw(self, projectionMatrix, modelViewMatrix, lights, wireframe):
         pass
 
 
 class RenderLineArray(RenderObject):
-    def __init__(self, shaders, meshes):
-        RenderObject.__init__(self)
+    def __init__(self, meshes, appearance):
+        super().__init__()
 
         self.parts = []
-        self.appearance = RenderAppearance(shaders, None)
+        self.appearance = appearance
 
         started = time.time()
 
@@ -305,7 +312,9 @@ class RenderLineArray(RenderObject):
         debug('Point cloud created in {:f}, id {:s}, lines {:d}, vertices {:d}'.format(
                 time.time() - started, self.ident, int(lines / 2), length))
 
-    def draw(self, wireframe=False):
+    def draw(self, projectionMatrix, modelViewMatrix, lights, wireframe):
+        self.appearance.enable(projectionMatrix, modelViewMatrix, lights)
+
         glBindVertexArray(self.vao)
         for entry in self.parts:
             glDrawArrays(entry.mode, entry.index, entry.count)
@@ -313,11 +322,12 @@ class RenderLineArray(RenderObject):
 
 
 class RenderMesh(RenderObject):
-    def __init__(self, shaders, meshes):
-        RenderObject.__init__(self)
+    def __init__(self, meshes, appearance=None, transform=None):
+        super().__init__()
 
+        self.appearance = appearance
+        self.transform = transform
         self.parts = []
-        self.appearance = RenderAppearance(shaders, meshes[0].appearance())
 
         textured = meshes[0].isTextured()
         started = time.time()
@@ -342,9 +352,13 @@ class RenderMesh(RenderObject):
         if quads > 0:
             self.parts.append(RenderMesh.Faceset(GL_QUADS, triangles, quads))
 
+        try:
+            smooth = appearance.smooth
+        except:
+            smooth = False
+
         # Initial positions
         index = [0, triangles]
-        smooth = self.appearance.smooth
 
         for mesh in meshes:
             geoVertices, geoPolygons = mesh.geometry()
@@ -439,17 +453,38 @@ class RenderMesh(RenderObject):
         debug('Mesh created in {:f}, id {:s}, triangles {:d}, quads {:d}, vertices {:d}'.format(
                 time.time() - started, self.ident, int(triangles / 3), int(quads / 4), length))
 
-    def draw(self, wireframe=False):
-        if wireframe or self.appearance.wireframe:
+    def draw(self, projectionMatrix, modelViewMatrix, lights, wireframe):
+        if self.appearance is not None:
+            self.appearance.enable(projectionMatrix, modelViewMatrix, lights)
+            solid = self.appearance.solid
+            wireframe = wireframe or self.appearance.wireframe
+        else:
+            solid = True
+
+        if wireframe:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
             glDisable(GL_CULL_FACE)
         else:
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
-            if self.appearance.solid:
+            if solid:
                 glEnable(GL_CULL_FACE)
                 glCullFace(GL_BACK)
             else:
                 glDisable(GL_CULL_FACE)
+
+        glBindVertexArray(self.vao)
+        for entry in self.parts:
+            glDrawArrays(entry.mode, entry.index, entry.count)
+        glBindVertexArray(0)
+
+
+class ScreenMesh(RenderMesh):
+    def __init__(self, meshes):
+        super().__init__(meshes)
+
+    def draw(self):
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        glDisable(GL_CULL_FACE)
 
         glBindVertexArray(self.vao)
         for entry in self.parts:
@@ -539,11 +574,9 @@ class Scene:
         self.viewport = (640, 480)
         self.updateMatrix(self.viewport)
 
-        self.lights = []
-        self.lights.append(numpy.array([50.0, 50.0, 50.0, 1.0]))
-        self.lights.append(numpy.array([-50.0, -50.0, -50.0, 1.0]))
-
-        self.shader = None
+        self.lights = [
+                [ 50.0,  50.0,  50.0, 1.0],
+                [-50.0, -50.0, -50.0, 1.0]]
 
     def updateMatrix(self, viewport):
         aspect = float(viewport[0]) / float(viewport[1])
@@ -557,15 +590,9 @@ class Scene:
 
         self.modelViewMatrix = model.createModelViewMatrix(self.camera.camera[0:3], self.camera.pov[0:3],
                 self.camera.axis[0:3])
-        self.normalMatrix = numpy.transpose(numpy.linalg.inv(self.modelViewMatrix))
-
-    def enableShader(self, shader, arguments):
-        shader.enable(*arguments)
-        self.shader = shader.ident
 
     def resetShaders(self):
         glUseProgram(0)
-        self.shader = None
 
 
 class Shader:
@@ -588,9 +615,6 @@ class Shader:
             glTexParameterf(texture.mode, GL_TEXTURE_MIN_FILTER, texture.filterMode[1])
         glUniform1i(texture.location, channel)
 
-    def enable(self):
-        glUseProgram(self.program)
-
     def create(self, vertex, fragment, geometry=None, control=None, evaluation=None):
         try:
             shaders = []
@@ -612,30 +636,13 @@ class Shader:
             print('Unknown shader error')
             exit()
 
-
-class UnlitShader(Shader):
-    def __init__(self):
-        Shader.__init__(self)
-
-        if self.program is None:
-            loadShaderFile = lambda path: open(os.path.join(self.dir, path), 'rb').read().decode('utf-8')
-            self.create(loadShaderFile('unlit.vert'), loadShaderFile('unlit.frag'))
-
-        self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
-        self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
-        self.normalLoc = glGetUniformLocation(self.program, 'normalMatrix')
-
-    def enable(self, scene, color):
-        Shader.enable(self)
-
-        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(scene.projectionMatrix, numpy.float32))
-        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(scene.modelViewMatrix, numpy.float32))
-        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(scene.normalMatrix, numpy.float32))
+    def enable(self):
+        glUseProgram(self.program)
 
 
-class ModelShader(Shader):
+class BaseModelShader(Shader):
     def __init__(self, texture, normal, specular):
-        Shader.__init__(self)
+        super().__init__()
 
         if self.program is None:
             flags = ['#define LIGHT_COUNT 2']
@@ -653,6 +660,9 @@ class ModelShader(Shader):
 
             self.create(loadShaderFile('default.vert'), loadShaderFile('default.frag'))
 
+        self.lightAmbient = 0.1
+        self.lightDiffuse = numpy.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], numpy.float32)
+
         self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
         self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
         self.normalLoc = glGetUniformLocation(self.program, 'normalMatrix')
@@ -661,58 +671,86 @@ class ModelShader(Shader):
         self.lightDiffuseLoc = glGetUniformLocation(self.program, 'lightDiffuseColor')
         self.lightAmbientLoc = glGetUniformLocation(self.program, 'lightAmbientIntensity')
 
-    def enable(self, scene):
+    def enable(self, projectionMatrix, modelViewMatrix, lights):
         Shader.enable(self)
 
-        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(scene.projectionMatrix, numpy.float32))
-        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(scene.modelViewMatrix, numpy.float32))
-        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(scene.normalMatrix, numpy.float32))
+        # Set precalculated matrices
+        normalMatrix = numpy.transpose(numpy.linalg.inv(modelViewMatrix))
+        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(projectionMatrix, numpy.float32))
+        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(modelViewMatrix, numpy.float32))
+        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(normalMatrix, numpy.float32))
 
-        ambient = 0.1
-        diffuse = numpy.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], numpy.float32)
-
-        lights = [(light * scene.modelViewMatrix).getA()[0][0:3] for light in scene.lights]
-        glUniform3fv(self.lightLoc, len(lights), numpy.array(lights, numpy.float32))
-
-        glUniform3fv(self.lightDiffuseLoc, 2, diffuse)
-        glUniform1f(self.lightAmbientLoc, ambient)
+        # Set precalculated light positions, configure colors of diffuse and ambient lighting
+        lights = numpy.array([(light * modelViewMatrix).getA()[0][0:3] for light in lights], numpy.float32)
+        glUniform3fv(self.lightLoc, len(lights), lights)
+        glUniform3fv(self.lightDiffuseLoc, 2, self.lightDiffuse)
+        glUniform1f(self.lightAmbientLoc, self.lightAmbient)
 
 
-class DefaultShader(ModelShader):
+class ModelShader(BaseModelShader):
     def __init__(self, texture=False, normal=False, specular=False):
-        ModelShader.__init__(self, texture, normal, specular)
+        super().__init__(texture, normal, specular)
 
         self.diffuseColorLoc = glGetUniformLocation(self.program, 'materialDiffuseColor')
         self.specularColorLoc = glGetUniformLocation(self.program, 'materialSpecularColor')
         self.emissiveColorLoc = glGetUniformLocation(self.program, 'materialEmissiveColor')
         self.shininessLoc = glGetUniformLocation(self.program, 'materialShininess')
 
-    def enable(self, scene, color):
-        ModelShader.enable(self, scene)
+    def enable(self, projectionMatrix, modelViewMatrix, lights, colors, textures):
+        BaseModelShader.enable(self, projectionMatrix, modelViewMatrix, lights)
 
-        glUniform4fv(self.diffuseColorLoc, 1, list(color.diffuse) + [1. - color.transparency])
-        glUniform3fv(self.specularColorLoc, 1, color.specular)
-        glUniform3fv(self.emissiveColorLoc, 1, color.emissive)
-        glUniform1f(self.shininessLoc, color.shininess * 128.0)
+        glUniform4fv(self.diffuseColorLoc, 1, list(colors.diffuse) + [1.0 - colors.transparency])
+        glUniform3fv(self.specularColorLoc, 1, colors.specular)
+        glUniform3fv(self.emissiveColorLoc, 1, colors.emissive)
+        glUniform1f(self.shininessLoc, colors.shininess * 128.0)
+
+        for i in range(0, len(textures)):
+            self.activateTexture(i, textures[i])
 
 
-class BackgroundShader(Shader):
+class UnlitModelShader(Shader):
     def __init__(self):
-        Shader.__init__(self)
+        super().__init__()
 
         if self.program is None:
             loadShaderFile = lambda path: open(os.path.join(self.dir, path), 'rb').read().decode('utf-8')
-            self.create(loadShaderFile('background.vert'), loadShaderFile('background.frag'))
+            self.create(loadShaderFile('unlit.vert'), loadShaderFile('unlit.frag'))
+
+        self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
+        self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
+        self.normalLoc = glGetUniformLocation(self.program, 'normalMatrix')
+
+    def enable(self, projectionMatrix, modelViewMatrix, lights, colors, textures):
+        Shader.enable(self)
+
+        normalMatrix = numpy.transpose(numpy.linalg.inv(modelViewMatrix))
+        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(projectionMatrix, numpy.float32))
+        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(modelViewMatrix, numpy.float32))
+        glUniformMatrix4fv(self.normalLoc, 1, GL_FALSE, numpy.array(normalMatrix, numpy.float32))
+
+
+class SystemShader(Shader):
+    def __init__(self, prefix='', flags=[]):
+        super().__init__()
+
+        if self.program is None and prefix != '':
+            def loadShaderFile(path, flags):
+                source = open(os.path.join(self.dir, path), 'rb').read().decode('utf-8').split('\n')
+                source = [source[0]] + flags + source[1:]
+                return '\n'.join(source)
+
+            self.create(loadShaderFile(prefix + '.vert', flags), loadShaderFile(prefix + '.frag', flags))
 
         self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
         self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
 
-        camera = numpy.array([0.0, 0.0, 1.0])
-        axis = numpy.array([0.0, 1.0, 0.0])
-        pov = numpy.zeros(3)
-
-        self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
-        self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
+        self.projectionMatrix = model.createOrthographicMatrix(
+                area=(1.0, 1.0),
+                distance=(0.001, 1000.0))
+        self.modelViewMatrix = model.createModelViewMatrix(
+                eye=numpy.array([0.0, 0.0, 1.0]),
+                center=numpy.zeros(3),
+                up=numpy.array([0.0, 1.0, 0.0]))
 
     def enable(self):
         Shader.enable(self)
@@ -721,42 +759,21 @@ class BackgroundShader(Shader):
         glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
 
 
-class MergeShader(Shader):
+class BackgroundShader(SystemShader):
+    def __init__(self):
+        super().__init__('background')
+
+
+class MergeShader(SystemShader):
     def __init__(self, antialiasing):
-        Shader.__init__(self)
+        flags = ['#define AA_SAMPLES ' + str(antialiasing)] if antialiasing > 0 else []
+        super().__init__('merge', flags)
 
-        self.antialiasing = antialiasing
-
-        if self.program is None:
-            flags = []
-            if self.antialiasing > 0:
-                flags += ['#define AA_SAMPLES ' + str(antialiasing)]
-
-            def loadShaderFile(path):
-                source = open(os.path.join(self.dir, path), 'rb').read().decode('utf-8').split('\n')
-                source = [source[0]] + flags + source[1:]
-                return '\n'.join(source)
-
-            self.create(loadShaderFile('merge.vert'), loadShaderFile('merge.frag'))
-
-        self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
-        self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
-
-        camera = numpy.array([0.0, 0.0, 1.0])
-        axis = numpy.array([0.0, 1.0, 0.0])
-        pov = numpy.zeros(3)
-
-        self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
-        self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
-
-        mode = GL_TEXTURE_2D_MULTISAMPLE if self.antialiasing > 0 else GL_TEXTURE_2D
+        mode = GL_TEXTURE_2D_MULTISAMPLE if antialiasing > 0 else GL_TEXTURE_2D
         self.colorTexture = Texture(mode, glGetUniformLocation(self.program, 'colorTexture'))
 
     def enable(self, colorBuffer):
-        Shader.enable(self)
-
-        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
-        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
+        SystemShader.enable(self)
 
         self.colorTexture.buffer = colorBuffer
         self.activateTexture(0, self.colorTexture)
@@ -764,56 +781,36 @@ class MergeShader(Shader):
             glGenerateMipmap(GL_TEXTURE_2D)
 
 
-class BlurShader(Shader):
+class BlurShader(SystemShader):
+
     def __init__(self, masked):
-        Shader.__init__(self)
-
-        self.masked = masked
-
-        if self.program is None:
-            flags = []
-            if self.masked:
-                flags += ['#define MASKED']
-
-            def loadShaderFile(path):
-                source = open(os.path.join(self.dir, path), 'rb').read().decode('utf-8').split('\n')
-                source = [source[0]] + flags + source[1:]
-                return '\n'.join(source)
-
-            self.create(loadShaderFile('blur.vert'), loadShaderFile('blur.frag'))
-
-        self.projectionLoc = glGetUniformLocation(self.program, 'projectionMatrix')
-        self.modelViewLoc = glGetUniformLocation(self.program, 'modelViewMatrix')
-
-        camera = numpy.array([0.0, 0.0, 1.0])
-        axis = numpy.array([0.0, 1.0, 0.0])
-        pov = numpy.zeros(3)
-
-        self.projectionMatrix = model.createOrthographicMatrix((1.0, 1.0), (0.001, 1000.0))
-        self.modelViewMatrix = model.createModelViewMatrix(camera, pov, axis)
+        flags = ['#define MASKED'] if masked else []
+        super().__init__('blur', flags)
 
         self.colorTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program, 'colorTexture'))
         self.directionLoc = glGetUniformLocation(self.program, 'direction')
 
-        if self.masked:
+        if masked:
             self.maskTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program,
                     'maskTexture'), filtering=(GL_NEAREST, GL_NEAREST))
             self.sourceTexture = Texture(mode=GL_TEXTURE_2D, location=glGetUniformLocation(self.program,
                     'sourceTexture'))
+        else:
+            self.maskTexture = None
+            self.sourceTexture = None
 
-    def enable(self, scene, direction, colorBuffer, sourceBuffer=None, maskBuffer=None):
-        Shader.enable(self)
+    def enable(self, resolution, direction, colorBuffer, sourceBuffer=None, maskBuffer=None):
+        SystemShader.enable(self)
 
-        glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
-        glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
-        glUniform2fv(self.directionLoc, 1, direction / scene.viewport)
+        glUniform2fv(self.directionLoc, 1, direction / resolution)
 
         self.colorTexture.buffer = colorBuffer
         self.activateTexture(0, self.colorTexture)
 
-        if self.masked:
+        if self.maskTexture is not None:
             self.maskTexture.buffer = maskBuffer
             self.activateTexture(1, self.maskTexture)
+        if self.sourceTexture is not None:
             self.sourceTexture.buffer = sourceBuffer
             self.activateTexture(2, self.sourceTexture)
 
@@ -889,16 +886,16 @@ class Render(Scene):
 
             self.background = BackgroundShader()
 
-            self.shaders['Colored'] = DefaultShader()
-            self.shaders['Unlit'] = UnlitShader()
+            self.shaders['Colored'] = ModelShader()
+            self.shaders['Unlit'] = UnlitModelShader()
 
-            self.shaders['Diff'] = DefaultShader(texture=True, normal=False, specular=False)
-            self.shaders['Norm'] = DefaultShader(texture=False, normal=True, specular=False)
-            self.shaders['Spec'] = DefaultShader(texture=False, normal=False, specular=True)
-            self.shaders['DiffNorm'] = DefaultShader(texture=True, normal=True, specular=False)
-            self.shaders['DiffSpec'] = DefaultShader(texture=True, normal=False, specular=True)
-            self.shaders['NormSpec'] = DefaultShader(texture=False, normal=True, specular=True)
-            self.shaders['DiffNormSpec'] = DefaultShader(texture=True, normal=True, specular=True)
+            self.shaders['Diff'] = ModelShader(texture=True, normal=False, specular=False)
+            self.shaders['Norm'] = ModelShader(texture=False, normal=True, specular=False)
+            self.shaders['Spec'] = ModelShader(texture=False, normal=False, specular=True)
+            self.shaders['DiffNorm'] = ModelShader(texture=True, normal=True, specular=False)
+            self.shaders['DiffSpec'] = ModelShader(texture=True, normal=False, specular=True)
+            self.shaders['NormSpec'] = ModelShader(texture=False, normal=True, specular=True)
+            self.shaders['DiffNormSpec'] = ModelShader(texture=True, normal=True, specular=True)
 
             if antialiasing > 0 or overlay:
                 self.merge = MergeShader(antialiasing=antialiasing)
@@ -909,7 +906,7 @@ class Render(Scene):
 
 
     def __init__(self, objects=[], options={}):
-        Scene.__init__(self)
+        super().__init__()
 
         self.parseOptions(options)
 
@@ -956,7 +953,7 @@ class Render(Scene):
         glEnable(GL_TEXTURE_2D)
 
         self.shaderStorage = Render.ShaderStorage(self.antialiasing, self.overlay)
-        self.mergePlane = RenderMesh(self.shaderStorage.shaders, [geometry.Plane((2.0, 2.0), (1, 1))])
+        self.screenPlane = ScreenMesh([geometry.Plane((2.0, 2.0), (1, 1))])
 
         if self.useFramebuffers:
             self.framebuffers = []
@@ -979,6 +976,10 @@ class Render(Scene):
         self.data = buildObjectGroups(self.shaderStorage.shaders, objects)
 
     def initOverlay(self, initial=False):
+        # Buffer format is R5G5B5A1
+        MASKED, UNMASKED = bytearray([0x21, 0x84]), bytearray([0xFE, 0xFF])
+        PART = 0.25
+
         if not initial:
             self.overlayMask.free()
         self.overlayMask = None
@@ -987,13 +988,13 @@ class Render(Scene):
         glBindTexture(GL_TEXTURE_2D, maskBuffer)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
 
-        part = 32
-        image = '\xFF' * (self.viewport[0] * part) + '\x00' * (self.viewport[0] * (self.viewport[1] - part))
+        x, y = self.viewport
+        maskData = MASKED * (x * int(y * PART)) + UNMASKED * (x * int(y * (1.0 - PART)))
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, self.viewport[0], self.viewport[1], 0, GL_RED, GL_UNSIGNED_BYTE, image)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB5_A1, x, y, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, maskData)
         glBindTexture(GL_TEXTURE_2D, 0)
         self.overlayMask = Texture(mode=GL_TEXTURE_2D, location=0, identifier=maskBuffer)
-        debug('Overlay built, size {:d}x{:d}, texture {:d}'.format(self.viewport[0], self.viewport[1], maskBuffer))
+        debug('Overlay built, size {:d}x{:d}, texture {:d}'.format(x, y, maskBuffer))
 
     def drawScene(self):
         # First pass
@@ -1014,15 +1015,14 @@ class Render(Scene):
 
         # Draw background, do not use depth mask, depth test is disabled
         glDepthMask(GL_FALSE)
-        self.enableShader(self.shaderStorage.background, [])
-        self.mergePlane.draw()
+        self.shaderStorage.background.enable()
+        self.screenPlane.draw()
 
         # Draw other objects, use depth mask and enable depth test
         glDepthMask(GL_TRUE)
         glEnable(GL_DEPTH_TEST)
-        for current in self.data:
-            current.appearance.enable(self)
-            current.draw(self.wireframe)
+        for renderObject in self.data:
+            renderObject.draw(self.projectionMatrix, self.modelViewMatrix, self.lights, self.wireframe)
         glDisable(GL_DEPTH_TEST)
 
         # Second pass
@@ -1035,21 +1035,21 @@ class Render(Scene):
 
             if self.overlay:
                 glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[1].buffer)
-                self.enableShader(self.shaderStorage.merge, [self.framebuffers[0].color])
-                self.mergePlane.draw()
+                self.shaderStorage.merge.enable(self.framebuffers[0].color)
+                self.screenPlane.draw()
 
                 glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[2].buffer)
-                self.enableShader(self.shaderStorage.blur, [self, numpy.array([0.0, 1.0]), self.framebuffers[1].color])
-                self.mergePlane.draw()
+                self.shaderStorage.blur.enable(self.viewport, numpy.array([0.0, 1.0]), self.framebuffers[1].color)
+                self.screenPlane.draw()
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0)
-                self.enableShader(self.shaderStorage.blurMasked, [self, numpy.array([1.0, 0.0]),
-                        self.framebuffers[2].color, self.framebuffers[1].color, self.overlayMask.buffer])
-                self.mergePlane.draw()
+                self.shaderStorage.blurMasked.enable(self.viewport, numpy.array([1.0, 0.0]),
+                        self.framebuffers[2].color, self.framebuffers[1].color, self.overlayMask.buffer)
+                self.screenPlane.draw()
             else:
                 glBindFramebuffer(GL_FRAMEBUFFER, 0)
-                self.enableShader(self.shaderStorage.merge, [self.framebuffers[0].color])
-                self.mergePlane.draw()
+                self.shaderStorage.merge.enable(self.framebuffers[0].color)
+                self.screenPlane.draw()
 
         glutSwapBuffers()
 

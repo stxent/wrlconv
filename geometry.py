@@ -16,10 +16,10 @@ except ImportError:
 
 class Geosphere(model.Mesh):
     def __init__(self, radius, depth=1):
-        if radius <= 0. or depth < 1:
+        if radius <= 0.0 or depth < 1:
             raise Exception();
 
-        model.Mesh.__init__(self)
+        super().__init__()
 
         r = (1.0 + math.sqrt(5.0)) / 4.0
         vertices = []
@@ -68,7 +68,7 @@ class Plane(model.Mesh):
         if size[0] <= 0. or size[1] <= 0. or resolution[0] < 1 or resolution[1] < 1:
             raise Exception();
 
-        model.Mesh.__init__(self)
+        super().__init__()
 
         res = (resolution[0] + 1, resolution[1] + 1)
         offset = (-float(size[0]) / 2, -float(size[1]) / 2)

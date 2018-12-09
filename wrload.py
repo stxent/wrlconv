@@ -20,7 +20,7 @@ import x3d_export
 import x3d_import
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-v', dest='view', help='render model', default=False, action='store_true')
+parser.add_argument('-q', dest='quiet', help='render model', default=False, action='store_true')
 parser.add_argument('-o', dest='output', help='write model to specified file', default='')
 parser.add_argument('-t', dest='translation', help='move mesh to new coordinates x,y,z', default='0.,0.,0.')
 parser.add_argument('-r', dest='rotation', help='rotate mesh around vector x,y,z by angle in degrees',
@@ -91,7 +91,7 @@ if options.output != '':
     elif extension == 'x3d':
         x3d_export.store(exportList, options.output)
 
-if options.view:
+if not options.quiet:
     effects = {} if options.fast else {'overlay': options.overlay, 'antialiasing': 4}
     helperObjects = []
     if options.grid:
