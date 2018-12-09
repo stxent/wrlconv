@@ -22,12 +22,19 @@ class Line:
         self.b = numpy.array(list(end))
         self.resolution = resolution
 
+    def apply(self, transform):
+        self.a = transform.apply(self.a)
+        self.b = transform.apply(self.b)
+
     def point(self, t):
         # Argument t is in range [0.0, 1.0]
         if t >= 0.0 and t <= 1.0:
             return self.a * (1.0 - t) + self.b * t
         else:
             raise Exception()
+
+    def reverse(self):
+        self.b, self.a = self.a, self.b
 
     def tesselate(self):
         scale = 1.0 / float(self.resolution)
@@ -48,6 +55,11 @@ class Bezier(Line):
         self.ca = self.a + numpy.array(list(startTension))
         self.cb = self.b + numpy.array(list(endTension))
 
+    def apply(self, transform):
+        self.ca = transform.apply(self.ca)
+        self.cb = transform.apply(self.cb)
+        super().apply(transform)
+
     def point(self, t):
         # Argument t is in range [0.0, 1.0]
         if t >= 0.0 and t <= 1.0:
@@ -59,6 +71,10 @@ class Bezier(Line):
             return self.a * b03 + self.ca * b13 + self.cb * b23 + self.b * b33
         else:
             raise Exception()
+
+    def reverse(self):
+        self.cb, self.ca = self.ca, self.cb
+        super().reverse()
 
 
 class BezierQuad(model.Mesh):
