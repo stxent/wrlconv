@@ -19,9 +19,8 @@ except ImportError:
 
 try:
     from OpenGL.GL import *
-    from OpenGL.GLU import *
-    from OpenGL.GLUT import *
     from OpenGL.GL.shaders import *
+    import glfw
 except:
     print('Error importing OpenGL libraries')
     exit()
@@ -164,7 +163,7 @@ class RenderAppearance:
             else:
                 self.size = (8, 8)
                 pBlack, pPurple = bytearray([0x00, 0x00, 0x00, 0xFF]), bytearray([0xFF, 0x00, 0xFF, 0xFF])
-                width, height = self.size[0] / 2, self.size[1] / 2
+                width, height = int(self.size[0] / 2), int(self.size[1] / 2)
                 image = ((pBlack + pPurple) * width + (pPurple + pBlack) * width) * height
                 self.filterMode = (GL_NEAREST, GL_NEAREST)
 
@@ -246,11 +245,12 @@ class RenderObject:
 
 
 class RenderLineArray(RenderObject):
-    def __init__(self, meshes, appearance):
+    def __init__(self, meshes, appearance=None, transform=None):
         super().__init__()
 
         self.parts = []
         self.appearance = appearance
+        self.transform = transform
 
         started = time.time()
 
@@ -274,9 +274,12 @@ class RenderLineArray(RenderObject):
         index = [0]
 
         for mesh in meshes:
-            geoVertices, geoPolygons = mesh.geometry()
-            color = mesh.appearance().material.color.diffuse
+            try:
+                color = mesh.appearance().material.color.diffuse
+            except:
+                color = numpy.ones(3)
 
+            geoVertices, geoPolygons = mesh.geometry()
             vertices = geoVertices if mesh.transform is None else [mesh.transform.apply(v) for v in geoVertices]
 
             for gp in geoPolygons:
@@ -313,7 +316,8 @@ class RenderLineArray(RenderObject):
                 time.time() - started, self.ident, int(lines / 2), length))
 
     def draw(self, projectionMatrix, modelViewMatrix, lights, wireframe):
-        self.appearance.enable(projectionMatrix, modelViewMatrix, lights)
+        if self.appearance is not None:
+            self.appearance.enable(projectionMatrix, modelViewMatrix, lights)
 
         glBindVertexArray(self.vao)
         for entry in self.parts:
@@ -455,6 +459,10 @@ class RenderMesh(RenderObject):
 
     def draw(self, projectionMatrix, modelViewMatrix, lights, wireframe):
         if self.appearance is not None:
+            if self.transform is not None:
+                modelViewMatrix = self.transform * modelViewMatrix
+                lights = [x * numpy.linalg.inv(self.transform) for x in lights]
+
             self.appearance.enable(projectionMatrix, modelViewMatrix, lights)
             solid = self.appearance.solid
             wireframe = wireframe or self.appearance.wireframe
@@ -672,7 +680,7 @@ class BaseModelShader(Shader):
         self.lightAmbientLoc = glGetUniformLocation(self.program, 'lightAmbientIntensity')
 
     def enable(self, projectionMatrix, modelViewMatrix, lights):
-        Shader.enable(self)
+        super().enable()
 
         # Set precalculated matrices
         normalMatrix = numpy.transpose(numpy.linalg.inv(modelViewMatrix))
@@ -697,7 +705,7 @@ class ModelShader(BaseModelShader):
         self.shininessLoc = glGetUniformLocation(self.program, 'materialShininess')
 
     def enable(self, projectionMatrix, modelViewMatrix, lights, colors, textures):
-        BaseModelShader.enable(self, projectionMatrix, modelViewMatrix, lights)
+        super().enable(projectionMatrix, modelViewMatrix, lights)
 
         glUniform4fv(self.diffuseColorLoc, 1, list(colors.diffuse) + [1.0 - colors.transparency])
         glUniform3fv(self.specularColorLoc, 1, colors.specular)
@@ -721,7 +729,7 @@ class UnlitModelShader(Shader):
         self.normalLoc = glGetUniformLocation(self.program, 'normalMatrix')
 
     def enable(self, projectionMatrix, modelViewMatrix, lights, colors, textures):
-        Shader.enable(self)
+        super().enable()
 
         normalMatrix = numpy.transpose(numpy.linalg.inv(modelViewMatrix))
         glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(projectionMatrix, numpy.float32))
@@ -753,7 +761,7 @@ class SystemShader(Shader):
                 up=numpy.array([0.0, 1.0, 0.0]))
 
     def enable(self):
-        Shader.enable(self)
+        super().enable()
 
         glUniformMatrix4fv(self.projectionLoc, 1, GL_FALSE, numpy.array(self.projectionMatrix, numpy.float32))
         glUniformMatrix4fv(self.modelViewLoc, 1, GL_FALSE, numpy.array(self.modelViewMatrix, numpy.float32))
@@ -773,7 +781,7 @@ class MergeShader(SystemShader):
         self.colorTexture = Texture(mode, glGetUniformLocation(self.program, 'colorTexture'))
 
     def enable(self, colorBuffer):
-        SystemShader.enable(self)
+        super().enable()
 
         self.colorTexture.buffer = colorBuffer
         self.activateTexture(0, self.colorTexture)
@@ -800,7 +808,7 @@ class BlurShader(SystemShader):
             self.sourceTexture = None
 
     def enable(self, resolution, direction, colorBuffer, sourceBuffer=None, maskBuffer=None):
-        SystemShader.enable(self)
+        super().enable()
 
         glUniform2fv(self.directionLoc, 1, direction / resolution)
 
@@ -815,67 +823,67 @@ class BlurShader(SystemShader):
             self.activateTexture(2, self.sourceTexture)
 
 
+class Framebuffer:
+    def __init__(self, size, antialiasing, depth):
+        # Color buffer
+        self.color = glGenTextures(1)
+
+        if antialiasing > 0:
+            glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, self.color)
+            glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, antialiasing, GL_RGBA8, size[0], size[1], GL_TRUE)
+            glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0)
+        else:
+            glBindTexture(GL_TEXTURE_2D, self.color)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size[0], size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
+            glBindTexture(GL_TEXTURE_2D, 0)
+
+        if depth:
+            # Depth buffer
+            self.depth = glGenRenderbuffers(1)
+
+            if antialiasing > 0:
+                glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
+                glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing, GL_DEPTH_COMPONENT,
+                        size[0], size[1])
+                glBindRenderbuffer(GL_RENDERBUFFER, 0)
+            else:
+                glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
+                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size[0], size[1])
+                glBindRenderbuffer(GL_RENDERBUFFER, 0)
+        else:
+            self.depth = 0
+
+        # Create framebuffer
+        self.buffer = glGenFramebuffers(1)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.buffer)
+
+        if antialiasing > 0:
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, self.color, 0)
+        else:
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.color, 0)
+        if depth:
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.depth)
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+
+        debug('Framebuffer built, size {:d}x{:d}, color {:d}, depth {:d}'.format(
+                size[0], size[1], self.color, self.depth))
+
+    def free(self):
+        if self.color:
+            glDeleteTextures([self.color])
+            self.color = 0
+        if self.depth > 0:
+            glDeleteRenderbuffers(1, [self.depth])
+            self.depth = 0
+        if self.buffer > 0:
+            glDeleteFramebuffers(1, [self.buffer])
+            self.buffer = 0
+
+        debug('Framebuffer freed')
+
+
 class Render(Scene):
-    class Framebuffer:
-        def __init__(self, size, antialiasing, depth):
-            # Color buffer
-            self.color = glGenTextures(1)
-
-            if antialiasing > 0:
-                glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, self.color)
-                glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, antialiasing, GL_RGBA8, size[0], size[1], GL_TRUE)
-                glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0)
-            else:
-                glBindTexture(GL_TEXTURE_2D, self.color)
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size[0], size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, None)
-                glBindTexture(GL_TEXTURE_2D, 0)
-
-            if depth:
-                # Depth buffer
-                self.depth = glGenRenderbuffers(1)
-
-                if antialiasing > 0:
-                    glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
-                    glRenderbufferStorageMultisample(GL_RENDERBUFFER, antialiasing, GL_DEPTH_COMPONENT,
-                            size[0], size[1])
-                    glBindRenderbuffer(GL_RENDERBUFFER, 0)
-                else:
-                    glBindRenderbuffer(GL_RENDERBUFFER, self.depth)
-                    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size[0], size[1])
-                    glBindRenderbuffer(GL_RENDERBUFFER, 0)
-            else:
-                self.depth = 0
-
-            # Create framebuffer
-            self.buffer = glGenFramebuffers(1)
-            glBindFramebuffer(GL_FRAMEBUFFER, self.buffer)
-
-            if antialiasing > 0:
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, self.color, 0)
-            else:
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.color, 0)
-            if depth:
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.depth)
-
-            glBindFramebuffer(GL_FRAMEBUFFER, 0)
-
-            debug('Framebuffer built, size {:d}x{:d}, color {:d}, depth {:d}'.format(
-                    size[0], size[1], self.color, self.depth))
-
-        def free(self):
-            if self.color:
-                glDeleteTextures([self.color])
-                self.color = 0
-            if self.depth > 0:
-                glDeleteRenderbuffers(1, [self.depth])
-                self.depth = 0
-            if self.buffer > 0:
-                glDeleteFramebuffers(1, [self.buffer])
-                self.buffer = 0
-
-            debug('Framebuffer freed')
-
-
     class ShaderStorage:
         def __init__(self, antialiasing=0, overlay=False):
             self.shaders = {}
@@ -910,28 +918,45 @@ class Render(Scene):
 
         self.parseOptions(options)
 
+        self.cameraCursor = [0.0, 0.0]
         self.cameraMove = False
         self.cameraRotate = False
-        self.cameraCursor = [0.0, 0.0]
-
-        self.data = []
-
-        glutInit()
-        glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE)
-        glutInitWindowSize(self.viewport[0], self.viewport[1])
+        self.redisplay = True
         self.titleText = 'OpenGL 4.1 render'
-        self.window = glutCreateWindow(self.titleText)
-        glutReshapeFunc(self.resize)
-        glutDisplayFunc(self.drawScene)
-        glutKeyboardFunc(self.keyHandler)
-        glutMotionFunc(self.mouseMove)
-        glutMouseFunc(self.mouseButton)
+
+        glfw.init()
+
+        try:
+            self.window = glfw.create_window(*self.viewport, self.titleText, None, None)
+            glfw.make_context_current(self.window)
+        except:
+            print('Window initialization failed')
+            glfw.terminate()
+            exit()
 
         self.initGraphics()
-        self.initScene(objects)
         self.updateMatrix(self.viewport)
 
-        glutMainLoop()
+        glfw.set_key_callback(self.window, self.handleKeyEvent)
+        glfw.set_mouse_button_callback(self.window, self.handleMouseButtonEvent)
+        glfw.set_cursor_pos_callback(self.window, self.handleCursorMoveEvent)
+        glfw.set_scroll_callback(self.window, self.handleScrollEvent)
+        glfw.set_window_refresh_callback(self.window, self.handleResizeEvent)
+
+        self.objects = set()
+        self.appendRenderObjects(self.makeRenderObjects(objects))
+
+    def redraw(self):
+        self.redisplay = True
+        glfw.post_empty_event()
+
+    def run(self):
+        while not glfw.window_should_close(self.window):
+            if self.redisplay:
+                self.redisplay = False
+                self.drawScene()
+            glfw.wait_events()
+        glfw.terminate()
 
     def parseOptions(self, options):
         self.antialiasing = 0 if 'antialiasing' not in options else options['antialiasing']
@@ -941,15 +966,23 @@ class Render(Scene):
             self.viewport = options['size']
         self.useFramebuffers = self.antialiasing > 0 or self.overlay
 
+    def makeRenderObjects(self, objects):
+        return buildObjectGroups(self.shaderStorage.shaders, objects)
+
+    def appendRenderObjects(self, renderObjects):
+        for object in renderObjects:
+            self.objects.add(object)
+
+    def removeRenderObjects(self, renderObjects):
+        for object in renderObjects:
+            self.objects.discard(object)
+
     def initGraphics(self):
         glClearColor(0.0, 0.0, 0.0, 1.0)
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-
         glClearDepth(1.0)
         glDepthFunc(GL_LESS)
-        glDisable(GL_DEPTH_TEST)
-
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_TEXTURE_2D)
 
         self.shaderStorage = Render.ShaderStorage(self.antialiasing, self.overlay)
@@ -968,12 +1001,9 @@ class Render(Scene):
         for fb in self.framebuffers:
             fb.free()
         self.framebuffers = []
-        self.framebuffers.append(Render.Framebuffer(self.viewport, self.antialiasing, True))
-        self.framebuffers.append(Render.Framebuffer(self.viewport, 0, False))
-        self.framebuffers.append(Render.Framebuffer(self.viewport, 0, False))
-
-    def initScene(self, objects):
-        self.data = buildObjectGroups(self.shaderStorage.shaders, objects)
+        self.framebuffers.append(Framebuffer(self.viewport, self.antialiasing, True))
+        self.framebuffers.append(Framebuffer(self.viewport, 0, False))
+        self.framebuffers.append(Framebuffer(self.viewport, 0, False))
 
     def initOverlay(self, initial=False):
         # Buffer format is R5G5B5A1
@@ -1013,25 +1043,24 @@ class Render(Scene):
 
         self.resetShaders()
 
-        # Draw background, do not use depth mask, depth test is disabled
+        # Draw background, do not use depth mask
         glDepthMask(GL_FALSE)
+        glDisable(GL_DEPTH_TEST)
         self.shaderStorage.background.enable()
         self.screenPlane.draw()
 
         # Draw other objects, use depth mask and enable depth test
         glDepthMask(GL_TRUE)
         glEnable(GL_DEPTH_TEST)
-        for renderObject in self.data:
+        for renderObject in self.objects:
             renderObject.draw(self.projectionMatrix, self.modelViewMatrix, self.lights, self.wireframe)
-        glDisable(GL_DEPTH_TEST)
 
-        # Second pass
+        # Second pass, do not use depth mask, depth test is disabled
+        glDepthMask(GL_FALSE)
+        glDisable(GL_DEPTH_TEST)
         if self.useFramebuffers:
             if self.antialiasing > 0:
                 glDisable(GL_MULTISAMPLE)
-
-            # Do not use depth mask, depth test is disabled
-            glDepthMask(GL_FALSE)
 
             if self.overlay:
                 glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[1].buffer)
@@ -1051,79 +1080,59 @@ class Render(Scene):
                 self.shaderStorage.merge.enable(self.framebuffers[0].color)
                 self.screenPlane.draw()
 
-        glutSwapBuffers()
+        glfw.swap_buffers(self.window)
 
-    def resize(self, width, height):
-        self.viewport = (width if width > 0 else 1, height if height > 0 else 1)
-        self.updateMatrix(self.viewport)
+    def handleCursorMoveEvent(self, window, xpos, ypos):
+        updated = False
 
-        if self.useFramebuffers:
-            self.initFramebuffers()
-        if self.overlay:
-            self.initOverlay()
-
-        glViewport(0, 0, self.viewport[0], self.viewport[1])
-        glutPostRedisplay()
-
-    def mouseButton(self, bNumber, bAction, x, y):
-        if bNumber == GLUT_LEFT_BUTTON:
-            self.cameraRotate = bAction == GLUT_DOWN
-            if self.cameraRotate:
-                self.cameraCursor = [x, y]
-        elif bNumber == GLUT_MIDDLE_BUTTON:
-            self.cameraMove = bAction == GLUT_DOWN
-            if self.cameraMove:
-                self.cameraCursor = [x, y]
-        elif bNumber == 3 and bAction == GLUT_DOWN:
-            self.camera.zoomIn()
-        elif bNumber == 4 and bAction == GLUT_DOWN:
-            self.camera.zoomOut()
-        self.updateMatrix(self.viewport)
-        glutPostRedisplay()
-
-    def mouseMove(self, x, y):
         if self.cameraRotate:
-            hrot = (self.cameraCursor[0] - x) / 100.0
-            vrot = (y - self.cameraCursor[1]) / 100.0
+            hrot = (self.cameraCursor[0] - xpos) / 100.0
+            vrot = (ypos - self.cameraCursor[1]) / 100.0
             self.camera.rotate(hrot, vrot)
-            self.cameraCursor = [x, y]
-        elif self.cameraMove:
-            self.camera.move(x - self.cameraCursor[0], self.cameraCursor[1] - y)
-            self.cameraCursor = [x, y]
-        self.updateMatrix(self.viewport)
-        glutPostRedisplay()
+            self.cameraCursor = [xpos, ypos]
+            updated = True
 
-    def keyHandler(self, key, x, y):
+        if self.cameraMove:
+            self.camera.move(xpos - self.cameraCursor[0], self.cameraCursor[1] - ypos)
+            self.cameraCursor = [xpos, ypos]
+            updated = True
+
+        if updated:
+            self.updateMatrix(self.viewport)
+            self.redisplay = True
+
+    def handleKeyEvent(self, window, key, scancode, action, mods):
         redisplay = True
         updated = True
 
-        if key in (b'\x1B', b'q', b'Q'):
-            exit()
-        elif key in (b'1'):
+        if key in (glfw.KEY_Q, glfw.KEY_ESCAPE) and action == glfw.PRESS:
+            glfw.set_window_should_close(window, GL_TRUE)
+            updated = False
+        elif key == glfw.KEY_KP_1 and action == glfw.PRESS:
             self.camera.front()
-        elif key in (b'2'):
+        elif key == glfw.KEY_KP_2 and action != glfw.RELEASE:
             self.camera.rotate(0.0, -self.camera.rotationRate)
-        elif key in (b'3'):
+        elif key == glfw.KEY_KP_3 and action == glfw.PRESS:
             self.camera.side()
-        elif key in (b'4'):
+        elif key == glfw.KEY_KP_4 and action != glfw.RELEASE:
             self.camera.rotate(-self.camera.rotationRate, 0.0)
-        elif key in (b'5'):
+        elif key == glfw.KEY_KP_5 and action == glfw.PRESS:
             self.ortho = not self.ortho
-        elif key in (b'6'):
+        elif key == glfw.KEY_KP_6 and action != glfw.RELEASE:
             self.camera.rotate(self.camera.rotationRate, 0.0)
-        elif key in (b'7'):
+        elif key == glfw.KEY_KP_7 and action == glfw.PRESS:
             self.camera.top()
-        elif key in (b'8'):
+        elif key == glfw.KEY_KP_8 and action != glfw.RELEASE:
             self.camera.rotate(0.0, self.camera.rotationRate)
-        elif key in (b'9'):
+        elif key == glfw.KEY_KP_9 and action == glfw.PRESS:
             self.camera.rotate(math.pi, 0.0)
-        elif key in (b'.'):
+        elif key == glfw.KEY_KP_DECIMAL and action == glfw.PRESS:
             self.camera.reset()
-        elif key in (b'-'):
+        elif key == glfw.KEY_KP_SUBTRACT and action == glfw.PRESS:
             self.camera.zoomOut()
-        elif key in (b'+'):
+        elif key == glfw.KEY_KP_ADD and action == glfw.PRESS:
             self.camera.zoomIn()
-        elif key in (b'z', b'Z'):
+        elif key == glfw.KEY_Z and action == glfw.PRESS:
             self.wireframe = not self.wireframe
             updated = False
         else:
@@ -1133,4 +1142,53 @@ class Render(Scene):
         if updated:
             self.updateMatrix(self.viewport)
         if redisplay:
-            glutPostRedisplay()
+            self.redisplay = True
+
+    def handleMouseButtonEvent(self, window, button, action, mods):
+        updated = False
+
+        if button == glfw.MOUSE_BUTTON_LEFT:
+            self.cameraRotate = action == glfw.PRESS
+            if self.cameraRotate:
+                pos = glfw.get_cursor_pos(window)
+                self.cameraCursor = [*pos]
+                updated = True
+        elif button == glfw.MOUSE_BUTTON_MIDDLE:
+            self.cameraMove = action == glfw.PRESS
+            if self.cameraMove:
+                pos = glfw.get_cursor_pos(window)
+                self.cameraCursor = [*pos]
+                updated = True
+        if updated:
+            self.updateMatrix(self.viewport)
+            self.redisplay = True
+
+    def handleResizeEvent(self, window):
+        w, h = glfw.get_framebuffer_size(window)
+        viewport = (int(max(1, w)), int(max(1, h)))
+
+        if viewport != self.viewport:
+            self.viewport = viewport
+            self.updateMatrix(self.viewport)
+
+            if self.useFramebuffers:
+                self.initFramebuffers()
+            if self.overlay:
+                self.initOverlay()
+
+            glViewport(0, 0, *self.viewport)
+            self.redisplay = True
+
+    def handleScrollEvent(self, window, xoffset, yoffset):
+        updated = False
+
+        if yoffset > 0.0:
+            self.camera.zoomIn()
+            updated = True
+        elif yoffset < 0.0:
+            self.camera.zoomOut()
+            updated = True
+
+        if updated:
+            self.updateMatrix(self.viewport)
+            self.redisplay = True

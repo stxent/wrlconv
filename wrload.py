@@ -100,3 +100,4 @@ if not options.quiet:
     if options.axes:
         helperObjects += helpers.createAxes()
     render = render_ogl41.Render(helperObjects + exportList, effects)
+    render.run()
