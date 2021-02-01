@@ -5,7 +5,6 @@
 # Copyright (C) 2013 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
-import numpy
 import time
 
 try:
@@ -13,86 +12,91 @@ try:
 except ImportError:
     from . import model
 
-debugEnabled = False
+DEBUG_ENABLED = False
 
 def debug(text):
-    if debugEnabled:
+    if DEBUG_ENABLED:
         print(text)
 
 def indent(level):
     return '\t' * level
 
 def store(data, path):
-    exportedMaterials = []
+    exported_materials = []
 
-    def encodeAppearance(material, level):
-        def calcIntensity(ambient, diffuse):
+    def encode_appearance(material, level):
+        def calc_intensity(ambient, diffuse):
             return sum([ambient[i] / diffuse[i] for i in range(0, 3) if diffuse[i] != 0.0]) / 3.0
 
-        ambIntensity = min(calcIntensity(material.color.ambient, material.color.diffuse), 1.0)
+        ambient_intensity = min(calc_intensity(material.color.ambient, material.color.diffuse), 1.0)
         output = indent(level) + 'appearance Appearance {\n'
 
-        if material in exportedMaterials:
-            exported = exportedMaterials[exportedMaterials.index(material)]
+        if material in exported_materials:
+            exported = exported_materials[exported_materials.index(material)]
             output += indent(level + 1) + 'material USE MA_{:s}\n'.format(exported.color.ident)
-            debug('Export: reused material {:s} instead of {:s}'.format(exported.color.ident, material.color.ident))
+            debug('Export: reused material {:s} instead of {:s}'.format(
+                exported.color.ident, material.color.ident))
         else:
-            output += indent(level + 1) + 'material DEF MA_{:s} Material {{\n'.format(material.color.ident)
-            output += indent(level + 2) + 'diffuseColor {:g} {:g} {:g}\n'.format(*material.color.diffuse)
-            output += indent(level + 2) + 'ambientIntensity {:g}\n'.format(ambIntensity)
-            output += indent(level + 2) + 'specularColor {:g} {:g} {:g}\n'.format(*material.color.specular)
-            output += indent(level + 2) + 'emissiveColor {:g} {:g} {:g}\n'.format(*material.color.emissive)
+            output += indent(level + 1) + 'material DEF MA_{:s} Material {{\n'.format(
+                material.color.ident)
+            output += indent(level + 2) + 'diffuseColor {:g} {:g} {:g}\n'.format(
+                *material.color.diffuse)
+            output += indent(level + 2) + 'ambientIntensity {:g}\n'.format(ambient_intensity)
+            output += indent(level + 2) + 'specularColor {:g} {:g} {:g}\n'.format(
+                *material.color.specular)
+            output += indent(level + 2) + 'emissiveColor {:g} {:g} {:g}\n'.format(
+                *material.color.emissive)
             output += indent(level + 2) + 'shininess {:g}\n'.format(material.color.shininess)
             output += indent(level + 2) + 'transparency {:g}\n'.format(material.color.transparency)
             output += indent(level + 1) + '}\n'
-            exportedMaterials.append(material)
+            exported_materials.append(material)
 
         output += indent(level) + '}\n'
         return output
 
-    def encodeGeometry(mesh, transform, level):
+    def encode_geometry(mesh, transform, level):
         output = ''
         output += indent(level) + 'geometry IndexedFaceSet {\n'
         output += indent(level + 1) + 'solid FALSE\n'
 
-        geoVertices, geoPolygons = mesh.geometry()
+        geo_vertices, geo_polygons = mesh.geometry()
 
         # Export vertices
         output += indent(level + 1) + 'coord DEF FS_{:s} Coordinate {{\n'.format(mesh.ident)
         output += indent(level + 2) + 'point [\n'
-        for vertex in geoVertices:
+        for vertex in geo_vertices:
             output += '\t' + ' '.join([str(round(x, 6)) for x in transform.apply(vertex)]) + '\n'
         output += indent(level + 2) + ']\n'
         output += indent(level + 1) + '}\n'
 
         # Export polygons
         output += indent(level + 1) + 'coordIndex [\n'
-        for poly in geoPolygons:
+        for poly in geo_polygons:
             output += '\t' + ' '.join([str(x) for x in poly]) + ' -1\n'
         output += indent(level + 1) + ']\n'
 
         output += indent(level) + '}\n'
         return output
 
-    def encodeShape(mesh, transform, level):
+    def encode_shape(mesh, transform, level):
         output = indent(level) + 'Shape {\n'
-        output += encodeAppearance(mesh.appearance().material, level + 1)
-        output += encodeGeometry(mesh, transform, level + 1)
+        output += encode_appearance(mesh.appearance().material, level + 1)
+        output += encode_geometry(mesh, transform, level + 1)
         output += indent(level) + '}\n'
         return output
 
-    def encodeGroup(mesh, topTransform, topName, level):
+    def encode_group(mesh, top_transform, top_name, level):
         output = ''
-        transform = topTransform if mesh.transform is None else mesh.transform
+        transform = top_transform if mesh.transform is None else mesh.transform
 
-        output += indent(level) + 'DEF ME_{:s}_{:s} Group {{\n'.format(topName, mesh.ident)
+        output += indent(level) + 'DEF ME_{:s}_{:s} Group {{\n'.format(top_name, mesh.ident)
         output += indent(level + 1) + 'children [\n'
-        output += encodeShape(mesh, transform, level + 2)
+        output += encode_shape(mesh, transform, level + 2)
         output += indent(level + 1) + ']\n'
         output += indent(level) + '}\n'
         return output
 
-    def encodeTransform(mesh, level=0):
+    def encode_transform(mesh, level=0):
         output = ''
         started = time.time()
 
@@ -107,7 +111,7 @@ def store(data, path):
             transform = mesh.transform
         else:
             transform = model.Transform()
-        output += encodeGroup(parent, transform, mesh.ident, level + 2)
+        output += encode_group(parent, transform, mesh.ident, level + 2)
 
         output += indent(level + 1) + ']\n'
         output += indent(level) + '}\n'
@@ -115,11 +119,11 @@ def store(data, path):
         debug('Mesh exported in {:f}, name {:s}'.format(time.time() - started, mesh.ident))
         return output
 
-    sortedData = [entry for entry in data if entry.appearance().material.color.transparency <= 0.001]
-    sortedData += [entry for entry in data if entry.appearance().material.color.transparency > 0.001]
+    entries = [entry for entry in data if entry.appearance().material.color.transparency <= 0.001]
+    entries += [entry for entry in data if entry.appearance().material.color.transparency > 0.001]
 
     out = open(path, 'wb')
     out.write('#VRML V2.0 utf8\n#Created by vrml_export_kicad.py\n'.encode('utf-8'))
-    for shape in sortedData:
-        out.write(encodeTransform(shape).encode('utf-8'))
+    for entry in entries:
+        out.write(encode_transform(entry).encode('utf-8'))
     out.close()

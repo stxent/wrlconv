@@ -5,19 +5,19 @@
 # Copyright (C) 2015 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
-import numpy
 import re
 from xml.parsers import expat
+import numpy
 
 try:
     import model
 except ImportError:
     from . import model
 
-debugEnabled = False
+DEBUG_ENABLED = False
 
 def debug(text):
-    if debugEnabled:
+    if DEBUG_ENABLED:
         print(text)
 
 
@@ -35,7 +35,7 @@ class X3dEntry:
     def parse(self, attributes):
         pass
 
-    def parseAttributes(self, attributes):
+    def parse_attributes(self, attributes):
         if 'DEF' in attributes:
             self.name = attributes['DEF']
             debug('{:s}Entry name {:s}'.format('  ' * self.level, self.name))
@@ -48,46 +48,50 @@ class X3dScene(X3dEntry):
         self.transform = model.Transform()
 
     def extract(self):
-        exportedMaterials, exportedMeshes = [], []
+        exported_materials, exported_meshes = [], []
 
-        def createMesh(geometry, appearance, name):
+        def create_mesh(geometry, appearance, name):
             # Create abstract mesh object
             mesh = model.Mesh(name=name)
-            mesh.geoPolygons = geometry.geoPolygons
-            mesh.texPolygons = geometry.texPolygons
+            mesh.geo_polygons = geometry.geo_polygons
+            mesh.tex_polygons = geometry.tex_polygons
             if appearance is not None:
-                newMaterial = appearance.squash()
-                materials = [mat for mat in exportedMaterials if mat == newMaterial]
-                if len(materials) > 0:
+                new_material = appearance.squash()
+                materials = [mat for mat in exported_materials if mat == new_material]
+                if materials:
                     debug('Squash: reused material {:s}'.format(materials[0].color.ident))
-                    mesh.visualAppearance.material = materials[0]
+                    mesh.appearance().material = materials[0]
                 else:
-                    mesh.visualAppearance.material = newMaterial
-                    exportedMaterials.append(newMaterial)
-            mesh.visualAppearance.smooth = geometry.smooth
-            mesh.visualAppearance.solid = geometry.solid
+                    mesh.appearance().material = new_material
+                    exported_materials.append(new_material)
+            mesh.appearance().smooth = geometry.smooth
+            mesh.appearance().solid = geometry.solid
             for subentry in geometry.ancestors:
                 if isinstance(subentry, X3dGeoCoords):
-                    mesh.geoVertices = subentry.vertices
+                    mesh.geo_vertices = subentry.vertices
                 elif isinstance(subentry, X3dTexCoords):
-                    mesh.texVertices = subentry.vertices
+                    mesh.tex_vertices = subentry.vertices
             return mesh
 
-        def reindexMesh(mesh):
+        def reindex_mesh(mesh):
             used = []
-            [used.append(i) for poly in mesh.geoPolygons for i in poly if i not in used]
+            for poly in mesh.geo_polygons:
+                used.extend([i for i in poly if i not in used])
             used.sort()
 
-            vertices = [mesh.geoVertices[i] for i in used]
+            vertices = [mesh.geo_vertices[i] for i in used]
             translated = dict(zip(used, range(0, len(vertices))))
-            polygons = [[translated[i] for i in poly] for poly in mesh.geoPolygons]
+            polygons = [[translated[i] for i in poly] for poly in mesh.geo_polygons]
 
             debug('Reindex: mesh {:s}, {:d} polygons, from {:d} to {:d} vertices'.format(
-                    mesh.ident, len(polygons), len(mesh.geoVertices), len(vertices)))
-            mesh.geoPolygons = polygons
-            mesh.geoVertices = vertices
+                mesh.ident, len(polygons), len(mesh.geo_vertices), len(vertices)))
+            mesh.geo_polygons = polygons
+            mesh.geo_vertices = vertices
 
-        def squash(entry, transform, name=[]):
+        def squash(entry, transform, name=None):
+            if name is None:
+                name = []
+
             if isinstance(entry, X3dTransform):
                 parts = []
                 for i in range(0, len(entry.ancestors)):
@@ -97,7 +101,7 @@ class X3dScene(X3dEntry):
                     subname[-1] += '_' + str(i) if len(entry.ancestors) > 1 else ''
                     parts.extend(squash(shape, transform * entry.transform, subname))
                 return parts
-            elif isinstance(entry, X3dShape):
+            if isinstance(entry, X3dShape):
                 appearance, geometry = None, None
                 for subentry in entry.ancestors:
                     if isinstance(subentry, X3dAppearance):
@@ -105,29 +109,32 @@ class X3dScene(X3dEntry):
                     if isinstance(subentry, X3dGeometry):
                         geometry = subentry
                 if geometry is not None:
-                    alreadyExported = None
-                    for mesh in exportedMeshes:
+                    already_exported = None
+                    for mesh in exported_meshes:
                         if mesh.ident == name[-1]:
-                            alreadyExported = mesh
+                            already_exported = mesh
                             break
-                    if alreadyExported is not None:
+                    if already_exported is not None:
                         debug('Squash: reused mesh {:s}'.format(name[-1]))
                         # Create concrete shape
-                        currentMesh = model.Mesh(parent=alreadyExported, name=name[0])
-                        currentMesh.transform = transform
-                        return [currentMesh]
-                    else:
-                        mesh = createMesh(geometry, appearance, name[-1])
-                        if entry.parent is not None and entry.parent.name != '' and len(entry.parent.ancestors) > 1:
-                            reindexMesh(mesh)
-                        exportedMeshes.append(mesh)
-                        # Create concrete shape
-                        currentMesh = model.Mesh(parent=mesh, name=name[0])
-                        currentMesh.transform = transform
-                        return [currentMesh]
+                        current_mesh = model.Mesh(parent=already_exported, name=name[0])
+                        current_mesh.transform = transform
+                        return [current_mesh]
+
+                    mesh = create_mesh(geometry, appearance, name[-1])
+                    parent = entry.parent
+                    if parent is not None and parent.name != '' and len(parent.ancestors) > 1:
+                        reindex_mesh(mesh)
+                    exported_meshes.append(mesh)
+                    # Create concrete shape
+                    current_mesh = model.Mesh(parent=mesh, name=name[0])
+                    current_mesh.transform = transform
+                    return [current_mesh]
             return []
+
         entries = []
-        [entries.extend(squash(x, self.transform)) for x in self.ancestors]
+        for entry in self.ancestors:
+            entries.extend(squash(entry, self.transform))
         return entries
 
 
@@ -137,26 +144,26 @@ class X3dTransform(X3dEntry):
         self.transform = model.Transform()
 
     def parse(self, attributes):
-        def getValues(string):
+        def get_values(string):
             return [float(x) for x in string.split(' ')]
 
         if 'rotation' in attributes:
-            values = getValues(attributes['rotation'])
+            values = get_values(attributes['rotation'])
             vector, angle = model.normalize(values[0:3]), values[3]
             vector = model.normalize(vector)
             self.transform.rotate(vector, angle)
             debug('{:s}Rotation:    {:.3f} about [{:.3f}, {:.3f}, {:.3f}]'.format(
-                    '  ' * (self.level + 1), values[3], *values[0:3]))
+                '  ' * (self.level + 1), values[3], *values[0:3]))
         if 'scale' in attributes:
-            values = getValues(attributes['scale'])
+            values = get_values(attributes['scale'])
             self.transform.scale(values)
             debug('{:s}Scale:       [{:.3f}, {:.3f}, {:.3f}]'.format(
-                    '  ' * (self.level + 1), *values))
+                '  ' * (self.level + 1), *values))
         if 'translation' in attributes:
-            values = getValues(attributes['translation'])
+            values = get_values(attributes['translation'])
             self.transform.translate(values)
             debug('{:s}Translation: [{:.3f}, {:.3f}, {:.3f}]'.format(
-                    '  ' * (self.level + 1), *values))
+                '  ' * (self.level + 1), *values))
 
     def demangled(self):
         # Demangle Blender names
@@ -178,34 +185,36 @@ class X3dGeometry(X3dEntry):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.geoPolygons = []
-        self.texPolygons = []
+        self.geo_polygons = []
+        self.tex_polygons = []
         self.smooth = False
         self.solid = True
 
     def parse(self, attributes):
         if 'solid' in attributes:
-            self.solid = True if attributes['solid'] == 'true' else False
+            self.solid = attributes['solid'] == 'true'
         if 'smooth' in attributes:
-            self.smooth = True if attributes['smooth'] == 'true' else False
+            self.smooth = attributes['smooth'] == 'true'
 
-        def parsePolygons(string):
+        def parse_polygons(string):
             chunks = []
             for entry in string.split('-1'):
                 poly = entry.strip()
-                if len(poly) > 0:
+                if poly:
                     chunks.append(poly)
             polygons = []
             for poly in chunks:
-                polygons.append([int(vertex) for vertex in poly.split(' ') if len(vertex) > 0])
+                polygons.append([int(vertex) for vertex in poly.split(' ') if vertex])
             return polygons
 
         if 'coordIndex' in attributes:
-            self.geoPolygons = parsePolygons(attributes['coordIndex'])
-            debug('{:s}Found {:d} polygons'.format('  ' * self.level, len(self.geoPolygons)))
+            self.geo_polygons = parse_polygons(attributes['coordIndex'])
+            debug('{:s}Found {:d} polygons'.format(
+                '  ' * self.level, len(self.geo_polygons)))
         if 'texCoordIndex' in attributes:
-            self.texPolygons = parsePolygons(attributes['texCoordIndex'])
-            debug('{:s}Found {:d} texture polygons'.format('  ' * self.level, len(self.texPolygons)))
+            self.tex_polygons = parse_polygons(attributes['texCoordIndex'])
+            debug('{:s}Found {:d} texture polygons'.format(
+                '  ' * self.level, len(self.tex_polygons)))
 
 
 class X3dCoords(X3dEntry):
@@ -216,12 +225,13 @@ class X3dCoords(X3dEntry):
 
     def parse(self, attributes):
         if 'point' in attributes:
-            points = [float(point) for point in attributes['point'].split(' ') if len(point) > 0]
+            points = [float(point) for point in attributes['point'].split(' ') if point]
             vertices = []
-            [vertices.append(numpy.array(points[i * self.size:(i + 1) * self.size]))
-                    for i in range(0, int(len(points) / self.size))]
+            for i in range(0, int(len(points) / self.size)):
+                vertices.append(numpy.array(points[i * self.size:(i + 1) * self.size]))
             self.vertices = vertices
-            debug('{:s}Found {:d} vertices, width {:d}'.format('  ' * self.level, len(self.vertices), self.size))
+            debug('{:s}Found {:d} vertices, width {:d}'.format(
+                '  ' * self.level, len(self.vertices), self.size))
 
 
 class X3dGeoCoords(X3dCoords):
@@ -247,7 +257,8 @@ class X3dAppearance(X3dEntry):
             elif isinstance(entry, X3dTexture):
                 material.diffuse = entry.texture
             elif isinstance(entry, X3dMultiTexture):
-                if max(filter(lambda x: x is not None, entry.mapping.values())) >= len(entry.ancestors):
+                if max(filter(lambda x: x is not None,
+                              entry.mapping.values())) >= len(entry.ancestors):
                     raise Exception() # Texture index is out of range
                 if entry.mapping['diffuse'] is not None:
                     material.diffuse = entry.ancestors[entry.mapping['diffuse']].texture
@@ -267,7 +278,7 @@ class X3dMaterial(X3dEntry):
         X3dMaterial.IDENT += 1
 
     def parse(self, attributes):
-        def getValues(string):
+        def get_values(string):
             return numpy.array([float(x) for x in string.split(' ')])
 
         self.color.ident = self.demangled()
@@ -276,21 +287,25 @@ class X3dMaterial(X3dEntry):
         if 'transparency' in attributes:
             self.color.transparency = float(attributes['transparency'])
         if 'diffuseColor' in attributes:
-            self.color.diffuse = getValues(attributes['diffuseColor'])
+            self.color.diffuse = get_values(attributes['diffuseColor'])
         if 'emissiveColor' in attributes:
-            self.color.emissive = getValues(attributes['emissiveColor'])
+            self.color.emissive = get_values(attributes['emissiveColor'])
         if 'specularColor' in attributes:
-            self.color.specular = getValues(attributes['specularColor'])
+            self.color.specular = get_values(attributes['specularColor'])
         if 'ambientIntensity' in attributes:
             self.color.ambient = self.color.diffuse * float(attributes['ambientIntensity'])
 
         debug('{:s}Material properties:'.format('  ' * self.level))
         debug('{:s}Shininess:      {:.3f}'.format('  ' * (self.level + 1), self.color.shininess))
         debug('{:s}Transparency:   {:.3f}'.format('  ' * (self.level + 1), self.color.transparency))
-        debug('{:s}Diffuse Color:  [{:.3f}, {:.3f}, {:.3f}]'.format('  ' * (self.level + 1), *self.color.diffuse))
-        debug('{:s}Emissive Color: [{:.3f}, {:.3f}, {:.3f}]'.format('  ' * (self.level + 1), *self.color.emissive))
-        debug('{:s}Specular Color: [{:.3f}, {:.3f}, {:.3f}]'.format('  ' * (self.level + 1), *self.color.specular))
-        debug('{:s}Ambient Color:  [{:.3f}, {:.3f}, {:.3f}]'.format('  ' * (self.level + 1), *self.color.ambient))
+        debug('{:s}Diffuse Color:  [{:.3f}, {:.3f}, {:.3f}]'.format(
+            '  ' * (self.level + 1), *self.color.diffuse))
+        debug('{:s}Emissive Color: [{:.3f}, {:.3f}, {:.3f}]'.format(
+            '  ' * (self.level + 1), *self.color.emissive))
+        debug('{:s}Specular Color: [{:.3f}, {:.3f}, {:.3f}]'.format(
+            '  ' * (self.level + 1), *self.color.specular))
+        debug('{:s}Ambient Color:  [{:.3f}, {:.3f}, {:.3f}]'.format(
+            '  ' * (self.level + 1), *self.color.ambient))
 
     def demangled(self):
         # Demangle Blender names
@@ -322,22 +337,22 @@ class X3dMultiTexture(X3dEntry):
             sources = [x.replace('\"', '') for x in attributes['source'].split(' ')]
         if 'mode' in attributes:
             modes = [x.replace('\"', '') for x in attributes['mode'].split(' ')]
-        texCount = max(len(modes), len(sources))
-        modes.extend([''] * (texCount - len(modes)))
-        modes.extend(['MODULATE'] * (texCount - len(sources)))
+        tex_count = max(len(modes), len(sources))
+        modes.extend([''] * (tex_count - len(modes)))
+        modes.extend(['MODULATE'] * (tex_count - len(sources)))
 
         chains = {'diffuse': [], 'specular': []}
-        currentChain = None
-        for i in range(0, texCount):
+        current_chain = None
+        for i in range(0, tex_count):
             if sources[i] == 'DIFFUSE':
-                currentChain = 'diffuse'
-                chains[currentChain] = [i] # Start new chain
+                current_chain = 'diffuse'
+                chains[current_chain] = [i] # Start new chain
             elif sources[i] == 'SPECULAR':
-                currentChain = 'specular'
-                chains[currentChain] = [i]
+                current_chain = 'specular'
+                chains[current_chain] = [i]
             else:
-                if currentChain is not None:
-                    chains[currentChain].append(i)
+                if current_chain is not None:
+                    chains[current_chain].append(i)
                 else:
                     raise Exception() # Unsupported sequence
 
@@ -375,27 +390,28 @@ class X3dParser:
 
     def start(self, tag, attributes):
         # level = self.current.level if self.current is not None else 0
-        # debug('{:s}Enter tag {:s}, current {:s}.format('  ' * level, tag, self.current.__class__.__name__))
+        # debug('{:s}Enter tag {:s}, current {:s}.format(
+        #     '  ' * level, tag, self.current.__class__.__name__))
 
         if tag == 'Scene':
-            if self.scene is not None:
-                debug('Error')
-                raise Exception()
-            else:
+            if self.scene is None:
                 self.scene = X3dScene()
                 self.current = self.scene
+            else:
+                debug('Error')
+                raise Exception()
         elif self.scene is not None:
             entry = None
             reused = False
             if 'USE' in attributes:
-                entryName = attributes['USE']
-                defined = [entry for entry in self.entries if entry.name == entryName]
-                if len(defined) > 0:
-                    debug('{:s}Reused entry {:s}'.format('  ' * self.current.level, entryName))
+                entry_name = attributes['USE']
+                defined = [entry for entry in self.entries if entry.name == entry_name]
+                if defined:
+                    debug('{:s}Reused entry {:s}'.format('  ' * self.current.level, entry_name))
                     entry = defined[0]
                     reused = True
                 if entry is None:
-                    debug('{:s}Entry {:s} not found'.format('  ' * self.current.level, entryName))
+                    debug('{:s}Entry {:s} not found'.format('  ' * self.current.level, entry_name))
             elif isinstance(self.current, (X3dScene, X3dTransform)):
                 if tag in ('Transform', 'Group', 'Collision', 'Switch'):
                     entry = X3dTransform(self.current)
@@ -423,7 +439,7 @@ class X3dParser:
                     entry = X3dTexCoords(self.current)
             if entry is not None:
                 if not reused:
-                    entry.parseAttributes(attributes)
+                    entry.parse_attributes(attributes)
                 self.current.ancestors.append(entry)
                 if not reused:
                     self.current = entry
@@ -434,9 +450,10 @@ class X3dParser:
             else:
                 self.ignore += 1
 
-    def end(self, tag):
+    def end(self, _):
         # level = self.current.level if self.current is not None else 0
-        # debug('{:s}Exit tag {:s}, current {:s}'.format('  ' * level, tag, self.current.__class__.__name__))
+        # debug('{:s}Exit tag {:s}, current {:s}'.format(
+        #     '  ' * level, tag, self.current.__class__.__name__))
 
         if self.ignore > 0:
             self.ignore -= 1

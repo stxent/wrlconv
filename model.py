@@ -9,66 +9,70 @@ import copy
 import math
 import numpy
 
-def angle(v1, v2):
-    v1n = normalize(v1[0:3])
-    v2n = normalize(v2[0:3])
-    return math.acos(numpy.clip(numpy.dot(v1n, v2n), -1.0, +1.0))
+def angle(vect1, vect2):
+    norm_vect1 = normalize(vect1[0:3])
+    norm_vect2 = normalize(vect2[0:3])
+    return math.acos(numpy.clip(numpy.dot(norm_vect1, norm_vect2), -1.0, +1.0))
 
-def normalize(v):
-    length = numpy.linalg.norm(v)
-    return v / length if length != 0.0 else v
+def normalize(vect):
+    length = numpy.linalg.norm(vect)
+    return vect / length if length != 0.0 else vect
 
-def tangent(v1, v2, st1, st2):
-    div = st1[1] * st2[0] - st1[0] * st2[1]
-
+def tangent(vertex1, vertex2, tangent1, tangent2):
+    div = tangent1[1] * tangent2[0] - tangent1[0] * tangent2[1]
     if div != 0.0:
-        mult = 1.0 / div
-        return (v1[0:3] * -st2[1] + v2[0:3] * st1[1]) * mult
-    else:
-        return numpy.array([0.0, 0.0, 1.0])
+        return (vertex1[0:3] * -tangent2[1] + vertex2[0:3] * tangent1[1]) / div
+    return numpy.array([0.0, 0.0, 1.0])
 
-def createModelViewMatrix(eye, center, up):
+def create_model_view_matrix(eye, center, z_axis):
     forward = normalize(center - eye)
-    side = numpy.cross(forward, normalize(up))
+    side = numpy.cross(forward, normalize(z_axis))
     side = numpy.array([0.0, 1.0, 0.0]) if numpy.linalg.norm(side) == 0.0 else normalize(side)
-    up = normalize(numpy.cross(side, forward))
+    z_axis = normalize(numpy.cross(side, forward))
 
     result = numpy.matrix([
-            [    1.0,     0.0,     0.0, 0.0],
-            [    0.0,     1.0,     0.0, 0.0],
-            [    0.0,     0.0,     1.0, 0.0],
-            [-eye[0], -eye[1], -eye[2], 1.0]])
+        [    1.0,     0.0,     0.0, 0.0],
+        [    0.0,     1.0,     0.0, 0.0],
+        [    0.0,     0.0,     1.0, 0.0],
+        [-eye[0], -eye[1], -eye[2], 1.0]])
     result *= numpy.matrix([
-            [side[0], up[0], -forward[0], 0.0],
-            [side[1], up[1], -forward[1], 0.0],
-            [side[2], up[2], -forward[2], 0.0],
-            [    0.0,   0.0,         0.0, 1.0]])
+        [side[0], z_axis[0], -forward[0], 0.0],
+        [side[1], z_axis[1], -forward[1], 0.0],
+        [side[2], z_axis[2], -forward[2], 0.0],
+        [    0.0,       0.0,         0.0, 1.0]])
     return result
 
-def createPerspectiveMatrix(aspect, angle, distance):
-    n, f = distance
-    fov = angle * math.pi / 720.0
-    h = 1.0 / math.tan(fov)
-    w = h / aspect
-    return numpy.matrix([
-            [  w, 0.0,                      0.0,  0.0],
-            [0.0,   h,                      0.0,  0.0],
-            [0.0, 0.0,       -(f + n) / (f - n), -1.0],
-            [0.0, 0.0, -(2.0 * f * n) / (f - n),  0.0]])
+def create_perspective_matrix(aspect, rotation, distance):
+    near, far = distance
+    fov = math.radians(rotation) / 4.0
+    height = 1.0 / math.tan(fov)
+    width = height / aspect
 
-def createOrthographicMatrix(area, distance):
-    n, f = distance
-    w, h = area
-    return numpy.matrix([
-            [1.0 / w,     0.0,                0.0, 0.0],
-            [    0.0, 1.0 / h,                0.0, 0.0],
-            [    0.0,     0.0,     -2.0 / (f - n), 0.0],
-            [    0.0,     0.0, -(f + n) / (f - n), 1.0]])
+    result = numpy.matrix([
+        [width, 0.0, 0.0, 0.0],
+        [0.0, height, 0.0, 0.0],
+        [0.0, 0.0, -(far + near) / (far - near), -1.0],
+        [0.0, 0.0, -(2.0 * far * near) / (far - near), 0.0]])
+    return result
 
-def uvWrapPlanar(mesh, borders=None):
+def create_orthographic_matrix(area, distance):
+    near, far = distance
+    width, height = area
+
+    result = numpy.matrix([
+        [1.0 / width, 0.0, 0.0, 0.0],
+        [0.0, 1.0 / height, 0.0, 0.0],
+        [0.0, 0.0, -2.0 / (far - near), 0.0],
+        [0.0, 0.0, -(far + near) / (far - near), 1.0]])
+    return result
+
+def uv_wrap_planar(mesh, borders=None):
     if borders is None:
-        borders = [[mesh.geoVertices[0][0], mesh.geoVertices[0][1]], [mesh.geoVertices[0][0], mesh.geoVertices[0][1]]]
-        for vert in mesh.geoVertices:
+        borders = [
+            [mesh.geo_vertices[0][0], mesh.geo_vertices[0][1]],
+            [mesh.geo_vertices[0][0], mesh.geo_vertices[0][1]]]
+
+        for vert in mesh.geo_vertices:
             if vert[0] < borders[0][0]:
                 borders[0][0] = vert[0]
             if vert[0] > borders[1][0]:
@@ -77,35 +81,39 @@ def uvWrapPlanar(mesh, borders=None):
                 borders[0][1] = vert[1]
             if vert[1] > borders[1][1]:
                 borders[1][1] = vert[1]
+
     size = (borders[1][0] - borders[0][0], borders[1][1] - borders[0][1])
-    for poly in mesh.geoPolygons:
+    for poly in mesh.geo_polygons:
         for index in poly:
-            u = (mesh.geoVertices[index][0] - borders[0][0]) / size[0]
-            v = (mesh.geoVertices[index][1] - borders[0][1]) / size[1]
-            mesh.texVertices.append(numpy.array([u, v]))
-        mesh.texPolygons.append(poly)
+            # pylint: disable=C0103
+            u = (mesh.geo_vertices[index][0] - borders[0][0]) / size[0]
+            v = (mesh.geo_vertices[index][1] - borders[0][1]) / size[1]
+            mesh.tex_vertices.append(numpy.array([u, v]))
+            # pylint: enable=C0103
+        mesh.tex_polygons.append(poly)
 
-def rotationMatrix(v, angle):
-    cs, sn = math.cos(angle), math.sin(angle)
+def make_rotation_matrix(vect, rotation):
+    cos, sin = math.cos(rotation), math.sin(rotation)
 
-    a11 = cs + v[0] * v[0] * (1.0 - cs)
-    a12 = v[0] * v[1] * (1.0 - cs) - v[2] * sn
-    a13 = v[0] * v[2] * (1.0 - cs) + v[1] * sn
-    a21 = v[1] * v[0] * (1.0 - cs) + v[2] * sn
-    a22 = cs + v[1] * v[1] * (1.0 - cs)
-    a23 = v[1] * v[2] * (1.0 - cs) - v[0] * sn
-    a31 = v[2] * v[0] * (1.0 - cs) - v[1] * sn
-    a32 = v[2] * v[1] * (1.0 - cs) + v[0] * sn
-    a33 = cs + v[2] * v[2] * (1.0 - cs)
+    a11 = cos + vect[0] * vect[0] * (1.0 - cos)
+    a12 = vect[0] * vect[1] * (1.0 - cos) - vect[2] * sin
+    a13 = vect[0] * vect[2] * (1.0 - cos) + vect[1] * sin
+    a21 = vect[1] * vect[0] * (1.0 - cos) + vect[2] * sin
+    a22 = cos + vect[1] * vect[1] * (1.0 - cos)
+    a23 = vect[1] * vect[2] * (1.0 - cos) - vect[0] * sin
+    a31 = vect[2] * vect[0] * (1.0 - cos) - vect[1] * sin
+    a32 = vect[2] * vect[1] * (1.0 - cos) + vect[0] * sin
+    a33 = cos + vect[2] * vect[2] * (1.0 - cos)
 
     # Column-major order
-    return numpy.matrix([
-            [a11, a12, a13, 0.0],
-            [a21, a22, a23, 0.0],
-            [a31, a32, a33, 0.0],
-            [0.0, 0.0, 0.0, 1.0]])
+    result = numpy.matrix([
+        [a11, a12, a13, 0.0],
+        [a21, a22, a23, 0.0],
+        [a31, a32, a33, 0.0],
+        [0.0, 0.0, 0.0, 1.0]])
+    return result
 
-def rpyToMatrix(angles):
+def rpy_to_matrix(angles):
     # Roll
     cosr, sinr = math.cos(angles[0]), math.sin(angles[0])
     # Pitch
@@ -113,97 +121,102 @@ def rpyToMatrix(angles):
     # Yaw
     cosy, siny = math.cos(angles[2]), math.sin(angles[2])
 
-    yawMatrix = numpy.matrix([
-            [ cosy, -siny,   0.0, 0.0],
-            [ siny,  cosy,   0.0, 0.0],
-            [  0.0,   0.0,   1.0, 0.0],
-            [  0.0,   0.0,   0.0, 1.0]])
-    pitchMatrix = numpy.matrix([
-            [ cosp,   0.0,  sinp, 0.0],
-            [  0.0,   1.0,   0.0, 0.0],
-            [-sinp,   0.0,  cosp, 0.0],
-            [  0.0,   0.0,   0.0, 1.0]])
-    rollMatrix = numpy.matrix([
-            [  1.0,   0.0,   0.0, 0.0],
-            [  0.0,  cosr, -sinr, 0.0],
-            [  0.0,  sinr,  cosr, 0.0],
-            [  0.0,   0.0,   0.0, 1.0]])
-    return yawMatrix * pitchMatrix * rollMatrix
+    yaw_matrix = numpy.matrix([
+        [ cosy, -siny,   0.0, 0.0],
+        [ siny,  cosy,   0.0, 0.0],
+        [  0.0,   0.0,   1.0, 0.0],
+        [  0.0,   0.0,   0.0, 1.0]])
+    pitch_matrix = numpy.matrix([
+        [ cosp,   0.0,  sinp, 0.0],
+        [  0.0,   1.0,   0.0, 0.0],
+        [-sinp,   0.0,  cosp, 0.0],
+        [  0.0,   0.0,   0.0, 1.0]])
+    roll_matrix = numpy.matrix([
+        [  1.0,   0.0,   0.0, 0.0],
+        [  0.0,  cosr, -sinr, 0.0],
+        [  0.0,  sinr,  cosr, 0.0],
+        [  0.0,   0.0,   0.0, 1.0]])
+    return yaw_matrix * pitch_matrix * roll_matrix
 
-def quaternionToMatrix(quaternion):
+def quaternion_to_matrix(quaternion):
+    # pylint: disable=C0103
     w, x, y, z = quaternion[0], quaternion[1], quaternion[2], quaternion[3]
+    matrix = numpy.matrix([
+        [
+            1.0 - (2.0 * y * y) - (2.0 * z * z),
+            (2.0 * x * y) - (2.0 * z * w),
+            (2.0 * x * z) + (2.0 * y * w),
+            0.0
+        ], [
+            (2.0 * x * y) + (2.0 * z * w),
+            1.0 - (2.0 * x * x) - (2.0 * z * z),
+            (2.0 * y * z) - (2.0 * x * w),
+            0.0
+        ], [
+            (2.0 * x * z) - (2.0 * y * w),
+            (2.0 * y * z) + (2.0 * x * w),
+            1.0 - (2.0 * x * x) - (2.0 * y * y),
+            0.0
+        ], [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+        ]])
+    # pylint: enable=C0103
+    return matrix
 
-    return numpy.matrix([
-            [
-                    1.0 - (2.0 * y * y) - (2.0 * z * z),
-                    (2.0 * x * y) - (2.0 * z * w),
-                    (2.0 * x * z) + (2.0 * y * w),
-                    0.0
-            ], [
-                    (2.0 * x * y) + (2.0 * z * w),
-                    1.0 - (2.0 * x * x) - (2.0 * z * z),
-                    (2.0 * y * z) - (2.0 * x * w),
-                    0.0
-            ], [
-                    (2.0 * x * z) - (2.0 * y * w),
-                    (2.0 * y * z) + (2.0 * x * w),
-                    1.0 - (2.0 * x * x) - (2.0 * y * y),
-                    0.0
-            ], [
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0
-            ]])
+def matrix_to_quaternion(matrix):
+    matrix = matrix.getA()
+    trace = matrix[0][0] + matrix[1][1] + matrix[2][2]
 
-def matrixToQuaternion(matrix):
-    m = matrix.getA()
-    tr = m[0][0] + m[1][1] + m[2][2]
-
-    if tr > 0:
-        S = math.sqrt(tr + 1.0) * 2.0
-        qw = 0.25 * S
-        qx = (m[2][1] - m[1][2]) / S
-        qy = (m[0][2] - m[2][0]) / S
-        qz = (m[1][0] - m[0][1]) / S
-    elif m[0][0] > m[1][1] and m[0][0] > m[2][2]:
-        S = math.sqrt(1.0 + m[0][0] - m[1][1] - m[2][2]) * 2.0
-        qw = (m[2][1] - m[1][2]) / S
-        qx = 0.25 * S
-        qy = (m[0][1] + m[1][0]) / S
-        qz = (m[0][2] + m[2][0]) / S
-    elif m[1][1] > m[2][2]:
-        S = math.sqrt(1.0 + m[1][1] - m[0][0] - m[2][2]) * 2.0
-        qw = (m[0][2] - m[2][0]) / S
-        qx = (m[0][1] + m[1][0]) / S
-        qy = 0.25 * S
-        qz = (m[1][2] + m[2][1]) / S
+    # pylint: disable=C0103
+    if trace > 0:
+        s = math.sqrt(trace + 1.0) * 2.0
+        w = 0.25 * s
+        x = (matrix[2][1] - matrix[1][2]) / s
+        y = (matrix[0][2] - matrix[2][0]) / s
+        z = (matrix[1][0] - matrix[0][1]) / s
+    elif matrix[0][0] > matrix[1][1] and matrix[0][0] > matrix[2][2]:
+        s = math.sqrt(1.0 + matrix[0][0] - matrix[1][1] - matrix[2][2]) * 2.0
+        w = (matrix[2][1] - matrix[1][2]) / s
+        x = 0.25 * s
+        y = (matrix[0][1] + matrix[1][0]) / s
+        z = (matrix[0][2] + matrix[2][0]) / s
+    elif matrix[1][1] > matrix[2][2]:
+        s = math.sqrt(1.0 + matrix[1][1] - matrix[0][0] - matrix[2][2]) * 2.0
+        w = (matrix[0][2] - matrix[2][0]) / s
+        x = (matrix[0][1] + matrix[1][0]) / s
+        y = 0.25 * s
+        z = (matrix[1][2] + matrix[2][1]) / s
     else:
-        S = math.sqrt(1.0 + m[2][2] - m[0][0] - m[1][1]) * 2.0
-        qw = (m[1][0] - m[0][1]) / S
-        qx = (m[0][2] + m[2][0]) / S
-        qy = (m[1][2] + m[2][1]) / S
-        qz = 0.25 * S
+        s = math.sqrt(1.0 + matrix[2][2] - matrix[0][0] - matrix[1][1]) * 2.0
+        w = (matrix[1][0] - matrix[0][1]) / s
+        x = (matrix[0][2] + matrix[2][0]) / s
+        y = (matrix[1][2] + matrix[2][1]) / s
+        z = 0.25 * s
 
-    return numpy.array([qw, qx, qy, qz])
+    return numpy.array([w, x, y, z])
 
-def slerp(q0, q1, t):
+def slerp(q0, q1, t): # pylint: disable=C0103
     q0, q1 = normalize(q0), normalize(q1)
     dot = numpy.sum(q0 * q1)
 
     if abs(dot) == 1.0:
         return q0
-    elif dot < 0.0:
+    if dot < 0.0:
         q1 = -q1
         dot = -dot
 
     theta0 = math.acos(dot)
-    sinTheta0 = math.sin(theta0)
+    sin_theta0 = math.sin(theta0)
     theta = theta0 * t
-    sinTheta = math.sin(theta)
+    sin_theta = math.sin(theta)
 
-    s0 = math.cos(theta) - dot * sinTheta / sinTheta0
-    s1 = sinTheta / sinTheta0
+    # pylint: disable=C0103
+    s0 = math.cos(theta) - dot * sin_theta / sin_theta0
+    s1 = sin_theta / sin_theta0
+    # pylint: enable=C0103
 
     return (s0 * q0) + (s1 * q1)
 
@@ -226,18 +239,21 @@ class Material:
                 self.ident = name
 
         def __eq__(self, other):
-            def eqv(a, b):
-                return math.isclose(a[0], b[0]) and math.isclose(a[1], b[1]) and math.isclose(a[2], b[2])
+            def eqv(vect1, vect2):
+                return (
+                    math.isclose(vect1[0], vect2[0])
+                    and math.isclose(vect1[1], vect2[1])
+                    and math.isclose(vect1[2], vect2[2]))
 
             if isinstance(other, Material.Color):
-                return (math.isclose(self.transparency, other.transparency)
-                        and math.isclose(self.shininess, other.shininess)
-                        and eqv(self.diffuse, other.diffuse)
-                        and eqv(self.ambient, other.ambient)
-                        and eqv(self.specular, other.specular)
-                        and eqv(self.emissive, other.emissive))
-            else:
-                return False
+                return (
+                    math.isclose(self.transparency, other.transparency)
+                    and math.isclose(self.shininess, other.shininess)
+                    and eqv(self.diffuse, other.diffuse)
+                    and eqv(self.ambient, other.ambient)
+                    and eqv(self.specular, other.specular)
+                    and eqv(self.emissive, other.emissive))
+            return False
 
         def __ne__(self, other):
             return not self == other
@@ -257,8 +273,7 @@ class Material:
         def __eq__(self, other):
             if isinstance(other, Material.Texture):
                 return self.path == other.path
-            else:
-                return False
+            return False
 
         def __ne__(self, other):
             return not self == other
@@ -272,12 +287,12 @@ class Material:
 
     def __eq__(self, other):
         if isinstance(other, Material):
-            return (self.color == other.color
-                    and self.diffuse == other.diffuse
-                    and self.normal == other.normal
-                    and self.specular == other.specular)
-        else:
-            return False
+            return (
+                self.color == other.color
+                and self.diffuse == other.diffuse
+                and self.normal == other.normal
+                and self.specular == other.specular)
+        return False
 
     def __ne__(self, other):
         return not self == other
@@ -303,10 +318,10 @@ class Object:
             self.transform = Transform()
         self.transform.translate(arg)
 
-    def rotate(self, vector, angle):
+    def rotate(self, vector, rotation):
         if self.transform is None:
             self.transform = Transform()
-        self.transform.rotate(vector, angle)
+        self.transform.rotate(vector, rotation)
 
     def scale(self, arg):
         if self.transform is None:
@@ -332,127 +347,136 @@ class Mesh(Object):
         super().__init__(Object.PATCHES, parent, name)
 
         if self.parent is None:
-            self.geoVertices, self.geoPolygons = [], []
-            self.texVertices, self.texPolygons = [], []
-            self.visualAppearance = Mesh.Appearance()
+            self.geo_vertices, self.geo_polygons = [], []
+            self.tex_vertices, self.tex_polygons = [], []
+            self.visual_appearance = Mesh.Appearance()
 
     def appearance(self):
-        return self.visualAppearance if self.parent is None else self.parent.appearance()
+        return self.parent.appearance() if self.parent is not None else self.visual_appearance
 
     def geometry(self):
-        return (self.geoVertices, self.geoPolygons) if self.parent is None else self.parent.geometry()
+        if self.parent is not None:
+            return self.parent.geometry()
+        return (self.geo_vertices, self.geo_polygons)
 
     def texture(self):
-        return (self.texVertices, self.texPolygons) if self.parent is None else self.parent.texture()
+        if self.parent is not None:
+            return self.parent.texture()
+        return (self.tex_vertices, self.tex_polygons)
 
-    def isTextured(self):
+    def is_textured(self):
         if self.parent is None:
-            return len(self.texPolygons) > 0 and len(self.geoPolygons) == len(self.texPolygons)
-        else:
-            return self.parent.isTextured()
+            return bool(self.tex_polygons) and len(self.geo_polygons) == len(self.tex_polygons)
+        return self.parent.is_textured()
 
     def append(self, other):
-        geoSize = len(self.geoVertices)
-        geoVertices, geoPolygons = other.geometry()
+        geo_count = len(self.geo_vertices)
+        geo_vertices, geo_polygons = other.geometry()
 
-        for entry in geoPolygons:
-            self.geoPolygons.append([geoSize + vertex for vertex in entry])
+        for entry in geo_polygons:
+            self.geo_polygons.append([geo_count + vertex for vertex in entry])
         if other.transform is None:
-            self.geoVertices += geoVertices
+            self.geo_vertices += geo_vertices
         else:
-            self.geoVertices += [other.transform.apply(v) for v in geoVertices]
+            self.geo_vertices += [other.transform.apply(v) for v in geo_vertices]
 
-        texSize = len(self.texVertices)
-        texVertices, texPolygons = other.texture()
+        tex_count = len(self.tex_vertices)
+        tex_vertices, tex_polygons = other.texture()
 
-        for entry in texPolygons:
-            self.texPolygons.append([texSize + vertex for vertex in entry])
-        self.texVertices += texVertices
+        for entry in tex_polygons:
+            self.tex_polygons.append([tex_count + vertex for vertex in entry])
+        self.tex_vertices += tex_vertices
 
     def apply(self, transform=None):
         if transform is None:
             transform = self.transform
             self.transform = None
         if transform is not None:
-            self.geoVertices = [transform.apply(v) for v in self.geoVertices]
+            self.geo_vertices = [transform.apply(v) for v in self.geo_vertices]
 
     def optimize(self):
         if self.parent is not None:
             return
 
         #TODO Reduce complexity
-        retVert = []
-        retPoly = copy.deepcopy(self.geoPolygons)
-        vIndex = list(range(0, len(self.geoVertices)))
-        while len(vIndex):
-            vert = self.geoVertices[vIndex[0]]
+        ret_vert = []
+        ret_poly = copy.deepcopy(self.geo_polygons)
+        vert_index = list(range(0, len(self.geo_vertices)))
+        while vert_index:
+            vert = self.geo_vertices[vert_index[0]]
             same = []
-            for i in range(0, len(self.geoVertices)):
-                if Mesh.isclose(self.geoVertices[i], vert):
+            for i in range(0, len(self.geo_vertices)):
+                if Mesh.isclose(self.geo_vertices[i], vert):
                     same.append(i)
-            last = len(retVert)
-            for poly in retPoly:
-                for i in range(0, len(poly)):
-                    if poly[i] in same:
+            last = len(ret_vert)
+            for poly in ret_poly:
+                for i, value in enumerate(poly):
+                    if value in same:
                         poly[i] = last
             for ind in same:
-                vIndex.remove(ind)
-            retVert.append(vert)
-        self.geoVertices = retVert
-        self.geoPolygons = retPoly
+                vert_index.remove(ind)
+            ret_vert.append(vert)
+        self.geo_vertices = ret_vert
+        self.geo_polygons = ret_poly
 
     @staticmethod
-    def isclose(a, b):
+    def isclose(vect1, vect2):
         # Default relative tolerance 1e-9 is used
-        return math.isclose(a[0], b[0]) and math.isclose(a[1], b[1]) and math.isclose(a[2], b[2])
+        return (
+            math.isclose(vect1[0], vect2[0])
+            and math.isclose(vect1[1], vect2[1])
+            and math.isclose(vect1[2], vect2[2]))
 
     @staticmethod
-    def tesselate(patch):
+    def triangulate(patch):
         if len(patch) < 3:
-            raise Exception()
-        elif len(patch) < 5:
+            raise ValueError('not enough vertices')
+
+        if len(patch) < 5:
             return [patch]
-        else:
-            return [[patch[0], patch[i], patch[i + 1]] for i in range(1, len(patch) - 1)]
+        return [[patch[0], patch[i], patch[i + 1]] for i in range(1, len(patch) - 1)]
 
 
 class AttributedMesh(Mesh):
-    def __init__(self, parent=None, name=None, regions=[]):
+    def __init__(self, parent=None, name=None, regions=None):
         super().__init__(parent, name)
 
         self.regions = {}
-        for box, key in regions:
-            t = (max(box[0][0], box[1][0]), max(box[0][1], box[1][1]), max(box[0][2], box[1][2]))
-            b = (min(box[0][0], box[1][0]), min(box[0][1], box[1][1]), min(box[0][2], box[1][2]))
-            key = int(key)
-            self.regions[key] = (t, b)
+        if regions is not None:
+            for box, key in regions:
+                top = numpy.maximum(box[0], box[1])
+                bottom = numpy.minimum(box[0], box[1])
+                self.regions[int(key)] = (top, bottom)
         self.attributes = []
 
     @staticmethod
     def intersection(region, point):
         # Check whether the point is within the region
-        t, b = region[0], region[1]
-        return b[0] <= point[0] <= t[0] and b[1] <= point[1] <= t[1] and b[2] <= point[2] <= t[2]
+        top, bottom = region[0], region[1]
+        return (
+            bottom[0] <= point[0] <= top[0]
+            and bottom[1] <= point[1] <= top[1]
+            and bottom[2] <= point[2] <= top[2])
 
-    def associateVertices(self):
-        self.attributes = [0 for i in range(0, len(self.geoVertices))]
+    def associate_vertices(self):
+        self.attributes = [0 for i in range(0, len(self.geo_vertices))]
         for key in self.regions:
-            for i in range(0, len(self.geoVertices)):
-                if AttributedMesh.intersection(self.regions[key], self.geoVertices[i]):
+            for i in range(0, len(self.geo_vertices)):
+                if AttributedMesh.intersection(self.regions[key], self.geo_vertices[i]):
                     self.attributes[i] = key
 
-    def applyTransforms(self, transforms):
-        if len(self.geoVertices) > len(self.attributes):
+    def apply_transform(self, transforms):
+        if len(self.geo_vertices) > len(self.attributes):
             raise Exception()
-        for i in range(0, len(self.geoVertices)):
+        for i in range(0, len(self.geo_vertices)):
             if self.attributes[i] >= len(transforms):
                 raise Exception()
-            self.geoVertices[i] = transforms[self.attributes[i]].apply(self.geoVertices[i])
+            self.geo_vertices[i] = transforms[self.attributes[i]].apply(self.geo_vertices[i])
 
     def append(self, other):
         #TODO Optimize
         Mesh.append(self, other)
-        self.associateVertices()
+        self.associate_vertices()
 
 
 class LineArray(Object):
@@ -465,29 +489,31 @@ class LineArray(Object):
         super().__init__(Object.LINES, parent, name)
 
         if self.parent is None:
-            self.geoVertices, self.geoPolygons = [], []
-            self.visualAppearance = LineArray.Appearance()
+            self.geo_vertices, self.geo_polygons = [], []
+            self.visual_appearance = LineArray.Appearance()
 
     def appearance(self):
-        return self.visualAppearance if self.parent is None else self.parent.appearance()
+        return self.parent.appearance() if self.parent is not None else self.visual_appearance
 
     def geometry(self):
-        return (self.geoVertices, self.geoPolygons) if self.parent is None else self.parent.geometry()
+        if self.parent is not None:
+            return self.parent.geometry()
+        return (self.geo_vertices, self.geo_polygons)
 
     def append(self, other):
-        geoSize = len(self.geoVertices)
-        geoVertices, geoPolygons = other.geometry()
+        geo_count = len(self.geo_vertices)
+        geo_vertices, geo_polygons = other.geometry()
 
-        for entry in geoPolygons:
-            self.geoPolygons.append([geoSize + vertex for vertex in entry])
+        for entry in geo_polygons:
+            self.geo_polygons.append([geo_count + vertex for vertex in entry])
 
         if other.transform is None:
-            self.geoVertices += geoVertices
+            self.geo_vertices += geo_vertices
         else:
-            self.geoVertices += [other.transform.apply(v) for v in geoVertices]
+            self.geo_vertices += [other.transform.apply(v) for v in geo_vertices]
 
     def optimize(self):
-        pass # TODO
+        pass # TODO Optimize
 
 
 class Transform:
@@ -495,28 +521,28 @@ class Transform:
         if matrix is not None:
             self.matrix = matrix
         elif quaternion is not None:
-            self.matrix = quaternionToMatrix(quaternion)
+            self.matrix = quaternion_to_matrix(quaternion)
         else:
             self.matrix = numpy.identity(4)
 
     def translate(self, pos):
         matrix = numpy.matrix([
-                [0.0, 0.0, 0.0, pos[0]],
-                [0.0, 0.0, 0.0, pos[1]],
-                [0.0, 0.0, 0.0, pos[2]],
-                [0.0, 0.0, 0.0,    0.0]])
+            [0.0, 0.0, 0.0, pos[0]],
+            [0.0, 0.0, 0.0, pos[1]],
+            [0.0, 0.0, 0.0, pos[2]],
+            [0.0, 0.0, 0.0,    0.0]])
         self.matrix = self.matrix + matrix
 
-    def rotate(self, vector, angle):
-        matrix = rotationMatrix(vector, angle)
+    def rotate(self, vector, rotation):
+        matrix = make_rotation_matrix(vector, rotation)
         self.matrix = self.matrix * matrix
 
     def scale(self, scale):
         matrix = numpy.matrix([
-                [scale[0],      0.0,      0.0, 0.0],
-                [     0.0, scale[1],      0.0, 0.0],
-                [     0.0,      0.0, scale[2], 0.0],
-                [     0.0,      0.0,      0.0, 1.0]])
+            [scale[0],      0.0,      0.0, 0.0],
+            [     0.0, scale[1],      0.0, 0.0],
+            [     0.0,      0.0, scale[2], 0.0],
+            [     0.0,      0.0,      0.0, 1.0]])
         self.matrix = self.matrix * matrix
 
     def apply(self, vertex):
@@ -524,7 +550,7 @@ class Transform:
         return numpy.array(matrix)[:,0][0:3]
 
     def quaternion(self):
-        return matrixToQuaternion(self.matrix)
+        return matrix_to_quaternion(self.matrix)
 
     def __mul__(self, other):
         transform = Transform()

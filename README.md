@@ -9,7 +9,7 @@ Quickstart
 
 View model in internal viewer, show grid:
 ```sh
-wrload.py --grid -v FILE
+wrload.py --grid FILE
 ```
 
 Load model from INPUT.x3d and save it to OUTPUT.wrl with format change from X3D to VRML, similar to Wings3D:

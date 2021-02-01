@@ -5,8 +5,9 @@
 # Copyright (C) 2016 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
-import numpy
+import itertools
 import math
+import numpy
 
 try:
     import model
@@ -15,26 +16,25 @@ except ImportError:
 
 
 class Line:
-    def __init__(self, start, end, resolution):
+    def __init__(self, beg, end, resolution):
         if resolution < 1:
             raise Exception()
-        self.a = numpy.array(list(start))
-        self.b = numpy.array(list(end))
+        self.beg = numpy.array(list(beg))
+        self.end = numpy.array(list(end))
         self.resolution = resolution
 
     def apply(self, transform):
-        self.a = transform.apply(self.a)
-        self.b = transform.apply(self.b)
+        self.beg = transform.apply(self.beg)
+        self.end = transform.apply(self.end)
 
-    def point(self, t):
-        # Argument t is in range [0.0, 1.0]
-        if t >= 0.0 and t <= 1.0:
-            return self.a * (1.0 - t) + self.b * t
-        else:
-            raise Exception()
+    def point(self, position):
+        # Argument position is in range [0.0, 1.0]
+        if 0.0 <= position <= 1.0:
+            return self.beg * (1.0 - position) + self.end * position
+        raise Exception()
 
     def reverse(self):
-        self.b, self.a = self.a, self.b
+        self.end, self.beg = self.beg, self.end
 
     def tesselate(self):
         scale = 1.0 / float(self.resolution)
@@ -42,43 +42,43 @@ class Line:
 
 
 class Bezier(Line):
-    def __init__(self, start, startTension, end, endTension, resolution):
-        super().__init__(start, end, resolution)
-        '''
-        Bernstein polynomial of degree 3
-        p0 is self.a
-        p1 is sum of self.a and startTension
-        p2 is sum of self.b and endTension
-        p3 is self.b
-        '''
+    def __init__(self, beg, beg_tension, end, end_tension, resolution):
+        ''' Create Bezier curve.
 
-        self.ca = self.a + numpy.array(list(startTension))
-        self.cb = self.b + numpy.array(list(endTension))
+        Bernstein polynomial of degree 3 is used:
+            p0 is self.beg
+            p1 is sum of self.beg and beg_tension
+            p2 is sum of self.end and end_tension
+            p3 is self.end
+        '''
+        super().__init__(beg, end, resolution)
+
+        self.cbeg = self.beg + numpy.array(list(beg_tension))
+        self.cend = self.end + numpy.array(list(end_tension))
 
     def apply(self, transform):
-        self.ca = transform.apply(self.ca)
-        self.cb = transform.apply(self.cb)
+        self.cbeg = transform.apply(self.cbeg)
+        self.cend = transform.apply(self.cend)
         super().apply(transform)
 
-    def point(self, t):
-        # Argument t is in range [0.0, 1.0]
-        if t >= 0.0 and t <= 1.0:
+    def point(self, position):
+        # Argument position is in range [0.0, 1.0]
+        if 0.0 <= position <= 1.0:
             # Bernstein basis polynomials
-            b03 = (1.0 - t) ** 3.0
-            b13 = 3.0 * t * ((1.0 - t) ** 2.0)
-            b23 = 3.0 * (t ** 2.0) * (1.0 - t)
-            b33 = t ** 3.0
-            return self.a * b03 + self.ca * b13 + self.cb * b23 + self.b * b33
-        else:
-            raise Exception()
+            b03 = (1.0 - position) ** 3.0
+            b13 = 3.0 * position * ((1.0 - position) ** 2.0)
+            b23 = 3.0 * (position ** 2.0) * (1.0 - position)
+            b33 = position ** 3.0
+            return self.beg * b03 + self.cbeg * b13 + self.cend * b23 + self.end * b33
+        raise Exception()
 
     def reverse(self):
-        self.cb, self.ca = self.ca, self.cb
+        self.cend, self.cbeg = self.cbeg, self.cend
         super().reverse()
 
 
 class BezierQuad(model.Mesh):
-    def __init__(self, a, b, c, d, resolution, inverse=False):
+    def __init__(self, a, b, c, d, resolution, inverse=False): # pylint: disable=invalid-name
         '''
         a[0] a[1] a[2] a[3]
         b[0] b[1] b[2] b[3]
@@ -90,46 +90,53 @@ class BezierQuad(model.Mesh):
         if resolution[0] < 1 or resolution[1] < 1:
             raise Exception()
 
+        # pylint: disable=invalid-name
         self.a = a
         self.b = b
         self.c = c
         self.d = d
+        # pylint: enable=invalid-name
 
         self.tesselate(numpy.array(resolution) + 1, inverse)
 
-    def interpolate(self, u, v):
-        def makeCurve(row):
+    def interpolate(self, u, v): # pylint: disable=invalid-name
+        def make_curve(row):
             return Bezier(row[0], row[1] - row[0], row[3], row[2] - row[3], 3)
 
-        a = makeCurve(self.a)
-        b = makeCurve(self.b)
-        c = makeCurve(self.c)
-        d = makeCurve(self.d)
+        # pylint: disable=invalid-name
+        a = make_curve(self.a)
+        b = make_curve(self.b)
+        c = make_curve(self.c)
+        d = make_curve(self.d)
+        q = make_curve((a.point(v), b.point(v), c.point(v), d.point(v)))
+        # pylint: enable=invalid-name
 
-        q = makeCurve((a.point(v), b.point(v), c.point(v), d.point(v)))
         return q.point(u)
 
     def tesselate(self, resolution, inverse):
         step = ([1.0 / (resolution[0] - 1), 1.0 / (resolution[1] - 1)])
         total = resolution[0] * resolution[1]
-        for y in range(0, resolution[1]):
-            for x in range(0, resolution[0]):
-                self.geoVertices.append(self.interpolate(x * step[0], y * step[1]))
+        for j in range(0, resolution[1]):
+            for i in range(0, resolution[0]):
+                self.geo_vertices.append(self.interpolate(i * step[0], j * step[1]))
 
-        for y in range(0, resolution[1] - 1):
-            for x in range(0, resolution[0] - 1):
-                p1 = y * resolution[0] + x
+        for j in range(0, resolution[1] - 1):
+            for i in range(0, resolution[0] - 1):
+                # pylint: disable=invalid-name
+                p1 = j * resolution[0] + i
                 p2 = (p1 + 1) % total
-                p3 = ((y + 1) * resolution[0] + x) % total
+                p3 = ((j + 1) * resolution[0] + i) % total
                 p4 = (p3 + 1) % total
+                # pylint: enable=invalid-name
+
                 if inverse:
-                    self.geoPolygons.append([p1, p3, p4, p2])
+                    self.geo_polygons.append([p1, p3, p4, p2])
                 else:
-                    self.geoPolygons.append([p1, p2, p4, p3])
+                    self.geo_polygons.append([p1, p2, p4, p3])
 
 
 class BezierTriangle(model.Mesh):
-    def __init__(self, a, b, c, mean, resolution, inverse=False):
+    def __init__(self, a, b, c, mean, resolution, inverse=False): # pylint: disable=invalid-name
         '''
                     a[0]
                 a[1]    a[2]
@@ -141,59 +148,94 @@ class BezierTriangle(model.Mesh):
         if resolution < 1:
             raise Exception()
 
+        # pylint: disable=invalid-name
         self.a = a
         self.b = b
         self.c = c
+        # pylint: enable=invalid-name
+
         self.mean = mean
 
         self.tesselate(resolution, inverse)
 
-    def interpolate(self, u, v, w):
-        return self.a[0] * (u ** 3.0) + self.c[0] * (v ** 3.0) + self.b[0] * (w ** 3.0)\
-                + self.a[2] * 3.0 * v * (u ** 2.0) + self.a[1] * 3.0 * w * (u ** 2.0)\
-                + self.c[1] * 3.0 * u * (v ** 2.0) + self.c[2] * 3.0 * w * (v ** 2.0)\
-                + self.b[1] * 3.0 * v * (w ** 2.0) + self.b[2] * 3.0 * u * (w ** 2.0)\
-                + self.mean * 6.0 * u * v * w
+    def interpolate(self, u, v, w): # pylint: disable=invalid-name
+        return (
+            self.a[0] * (u ** 3.0) + self.c[0] * (v ** 3.0) + self.b[0] * (w ** 3.0)
+            + self.a[2] * 3.0 * v * (u ** 2.0) + self.a[1] * 3.0 * w * (u ** 2.0)
+            + self.c[1] * 3.0 * u * (v ** 2.0) + self.c[2] * 3.0 * w * (v ** 2.0)
+            + self.b[1] * 3.0 * v * (w ** 2.0) + self.b[2] * 3.0 * u * (w ** 2.0)
+            + self.mean * 6.0 * u * v * w)
 
     def tesselate(self, resolution, inverse):
-        pu = numpy.array([1.0, 0.0, 0.0])
-        pv = numpy.array([0.0, 1.0, 0.0])
-        pw = numpy.array([0.0, 0.0, 1.0])
+        row_offset = lambda row: sum(range(0, row + 1))
+        point_u = numpy.array([1.0, 0.0, 0.0])
+        point_v = numpy.array([0.0, 1.0, 0.0])
+        point_w = numpy.array([0.0, 0.0, 1.0])
 
-        self.geoVertices.append(self.interpolate(*list(pu)))
-
-        def rowOffset(row):
-            return sum(range(0, row + 1))
+        self.geo_vertices.append(self.interpolate(*list(point_u)))
 
         for i in range(1, resolution + 1):
-            v = (pu * (resolution - i) + pv * i) / resolution
-            w = (pu * (resolution - i) + pw * i) / resolution
+            v = (point_u * (resolution - i) + point_v * i) / resolution # pylint: disable=invalid-name
+            w = (point_u * (resolution - i) + point_w * i) / resolution # pylint: disable=invalid-name
 
             for j in range(0, i + 1):
-                u = (v * (i - j) + w * j) / i
-                self.geoVertices.append(self.interpolate(*list(u)))
+                u = (v * (i - j) + w * j) / i # pylint: disable=invalid-name
+                self.geo_vertices.append(self.interpolate(*list(u)))
 
             if inverse:
                 for j in range(0, i):
-                    self.geoPolygons.append([rowOffset(i) + j + 1, rowOffset(i) + j, rowOffset(i - 1) + j])
+                    self.geo_polygons.append(
+                        [row_offset(i) + j + 1, row_offset(i) + j, row_offset(i - 1) + j])
                 for j in range(0, i - 1):
-                    self.geoPolygons.append([rowOffset(i - 1) + j, rowOffset(i - 1) + j + 1, rowOffset(i) + j + 1])
+                    self.geo_polygons.append(
+                        [row_offset(i - 1) + j, row_offset(i - 1) + j + 1, row_offset(i) + j + 1])
             else:
                 for j in range(0, i):
-                    self.geoPolygons.append([rowOffset(i - 1) + j, rowOffset(i) + j, rowOffset(i) + j + 1])
+                    self.geo_polygons.append(
+                        [row_offset(i - 1) + j, row_offset(i) + j, row_offset(i) + j + 1])
                 for j in range(0, i - 1):
-                    self.geoPolygons.append([rowOffset(i) + j + 1, rowOffset(i - 1) + j + 1, rowOffset(i - 1) + j])
+                    self.geo_polygons.append(
+                        [row_offset(i) + j + 1, row_offset(i - 1) + j + 1, row_offset(i - 1) + j])
 
 
 def optimize(points):
     if len(points) >= 1:
         result = [points[0]]
-        [result.append(p) for p in points[1:] if not model.Mesh.isclose(p, result[-1])]
+        for point in points[1:]:
+            if not model.Mesh.isclose(point, result[-1]):
+                result.append(point)
         return result
-    else:
-        return []
+    return []
+
+def make_loft_slices(path, shape, segments, rotation, scaling):
+    slices = []
+
+    count = len(segments)
+    current = segments[0]
+
+    for i in range(0, count + 1):
+        if 0 < i < len(segments):
+            quaternion = model.slerp(segments[i - 1], segments[i], 0.5)
+            current = segments[i]
+        else:
+            quaternion = current
+
+        t = float(i) / count # pylint: disable=invalid-name
+
+        scale_transform = model.Transform()
+        scale_transform.scale(scaling(t))
+        scaled_shape = [scale_transform.apply(point) for point in shape]
+
+        transform = model.Transform(quaternion=quaternion)
+        transform.matrix *= model.rpy_to_matrix(rotation(t))
+        transform.translate(path[i])
+        slices.append([transform.apply(point) for point in scaled_shape])
+
+    return slices
 
 def loft(path, shape, rotation=None, scaling=None):
+    default_z_vect = numpy.array([0.0, 0.0, 1.0])
+
     if len(path) < 2:
         raise Exception()
     if rotation is None:
@@ -201,71 +243,46 @@ def loft(path, shape, rotation=None, scaling=None):
     if scaling is None:
         scaling = lambda t: numpy.ones(3)
 
-    up = numpy.array([0.0, 0.0, 1.0])
-
-    # First pass to estimate v0
-    nonZeroProduct = None
+    # First pass to estimate x_vect
+    non_zero_product = None
     products = []
 
     for i in range(0, len(path) - 1):
-        v2 = model.normalize(path[i + 1][0:3] - path[i][0:3])
-        v0 = model.normalize(numpy.cross(up, v2))
-        if numpy.linalg.norm(v0) == 0.0:
-            v0 = None
-        elif nonZeroProduct is None:
-            nonZeroProduct = v0
-        products.append((v0, v2))
+        z_vect = model.normalize(path[i + 1][0:3] - path[i][0:3])
+        x_vect = model.normalize(numpy.cross(default_z_vect, z_vect))
+        if numpy.linalg.norm(x_vect) == 0.0:
+            x_vect = None
+        elif non_zero_product is None:
+            non_zero_product = x_vect
+        products.append((x_vect, z_vect))
 
     # Second pass
     segments = []
 
     for product in products:
         if product[0] is not None:
-            nonZeroProduct = product[0]
-            v0 = product[0]
-        elif nonZeroProduct is not None:
-            v0 = nonZeroProduct
+            non_zero_product = product[0]
+            x_vect = product[0]
+        elif non_zero_product is not None:
+            x_vect = non_zero_product
         else:
-            v0 = numpy.array([1.0, 0.0, 0.0])
-        v2 = product[1]
-        v1 = model.normalize(numpy.cross(v2, v0))
+            x_vect = numpy.array([1.0, 0.0, 0.0])
+        z_vect = product[1]
+        y_vect = model.normalize(numpy.cross(z_vect, x_vect))
 
-        m = numpy.matrix([
-                [v0[0], v1[0], v2[0], 0.0],
-                [v0[1], v1[1], v2[1], 0.0],
-                [v0[2], v1[2], v2[2], 0.0],
-                [  0.0,   0.0,   0.0, 1.0]])
-        segments.append(model.Transform(matrix=m).quaternion())
+        matrix = numpy.matrix([
+            [x_vect[0], y_vect[0], z_vect[0], 0.0],
+            [x_vect[1], y_vect[1], z_vect[1], 0.0],
+            [x_vect[2], y_vect[2], z_vect[2], 0.0],
+            [      0.0,       0.0,       0.0, 1.0]])
+        segments.append(model.Transform(matrix=matrix).quaternion())
 
-    # Make slices
-    slices = []
-
-    count = len(segments)
-    current = segments[0]
-
-    for i in range(0, count + 1):
-        if i > 0 and i < len(segments):
-            q = model.slerp(segments[i - 1], segments[i], 0.5)
-            current = segments[i]
-        else:
-            q = current
-
-        t = float(i) / count
-
-        scaleTransform = model.Transform()
-        scaleTransform.scale(scaling(t))
-        scaledShape = [scaleTransform.apply(x) for x in shape]
-
-        transform = model.Transform(quaternion=q)
-        transform.matrix *= model.rpyToMatrix(rotation(t))
-        transform.translate(path[i])
-        slices.append([transform.apply(x) for x in scaledShape])
-
-    return slices
+    return make_loft_slices(path, shape, segments, rotation, scaling)
 
 def rotate(curve, axis, edges=None, angles=None):
     points = []
-    [points.extend(element.tesselate()) for element in curve]
+    for segment in curve:
+        points.extend(segment.tesselate())
     points = optimize(points)
     slices = []
 
@@ -275,60 +292,61 @@ def rotate(curve, axis, edges=None, angles=None):
         raise Exception()
 
     for angle in angles:
-        mat = model.rotationMatrix(axis, angle).transpose()
+        mat = model.make_rotation_matrix(axis, angle)
+        mat.transpose()
         slices.append([(numpy.array([*p, 1.0]) * mat).getA()[0][0:3] for p in points])
 
     return slices
 
-def createTriCapMesh(slices, beginning):
+def create_tri_cap_mesh(slices, beginning): # FIXME
     if beginning:
         vertices = [slices[i][0] for i in range(0, len(slices))]
     else:
         vertices = [slices[i][len(slices[i]) - 1] for i in range(0, len(slices))]
 
     indices = range(0, len(slices))
-    geoVertices = vertices + [sum(vertices) / len(slices)]
-    geoPolygons = []
+    geo_vertices = vertices + [sum(vertices) / len(slices)]
+    geo_polygons = []
 
     if beginning:
-        [geoPolygons.append([len(vertices), indices[i], indices[i - 1]]) for i in range(0, len(indices))]
+        for i, _ in enumerate(indices):
+            geo_polygons.append([len(vertices), indices[i], indices[i - 1]])
     else:
-        [geoPolygons.append([indices[i - 1], indices[i], len(vertices)]) for i in range(0, len(indices))]
+        for i, _ in enumerate(indices):
+            geo_polygons.append([indices[i - 1], indices[i], len(vertices)])
 
     # Generate object
     mesh = model.Mesh()
-    mesh.geoVertices = geoVertices
-    mesh.geoPolygons = geoPolygons
+    mesh.geo_vertices = geo_vertices
+    mesh.geo_polygons = geo_polygons
 
     return mesh
 
-def createRotationMesh(slices, wrap=True, inverse=False):
-    geoVertices = []
-    [geoVertices.extend(s) for s in slices]
-    geoPolygons = []
+def create_rotation_mesh(slices, wrap=True, inverse=False):
+    geo_vertices = list(itertools.chain.from_iterable(slices))
+    geo_polygons = []
 
     edges = len(slices) if wrap else len(slices) - 1
     size = len(slices[0])
     for i in range(0, edges):
         for vertex in range(0, size - 1):
-            a, b = i, i + 1 if i < len(slices) - 1 else 0
+            beg, end = i, i + 1 if i < len(slices) - 1 else 0
             if inverse:
-                a, b = b, a
+                beg, end = end, beg
 
-            indices = []
+            beg_index, end_index = beg * size + vertex, end * size + vertex
+            indices = [beg_index]
+            if not model.Mesh.isclose(geo_vertices[beg_index], geo_vertices[end_index]):
+                indices += [end_index]
+            if not model.Mesh.isclose(geo_vertices[beg_index + 1], geo_vertices[end_index + 1]):
+                indices += [end_index + 1]
+            indices += [beg_index + 1]
 
-            indices += [a * size + vertex]
-            if not model.Mesh.isclose(geoVertices[a * size + vertex], geoVertices[b * size + vertex]):
-                indices += [b * size + vertex]
-            if not model.Mesh.isclose(geoVertices[a * size + vertex + 1], geoVertices[b * size + vertex + 1]):
-                indices += [b * size + vertex + 1]
-            indices += [a * size + vertex + 1]
-
-            geoPolygons.append(indices)
+            geo_polygons.append(indices)
 
     # Generate object
     mesh = model.Mesh()
-    mesh.geoVertices = geoVertices
-    mesh.geoPolygons = geoPolygons
+    mesh.geo_vertices = geo_vertices
+    mesh.geo_polygons = geo_polygons
 
     return mesh

@@ -15,49 +15,52 @@ except ImportError:
     from . import geometry
     from . import model
 
-def createAxes(length=4.):
+def create_axes(length=4.0):
     # Materials
-    redMaterial = model.Material()
-    redMaterial.color.diffuse = numpy.array([1., 0., 0.])
-    greenMaterial = model.Material()
-    greenMaterial.color.diffuse = numpy.array([0., 1., 0.])
-    blueMaterial = model.Material()
-    blueMaterial.color.diffuse = numpy.array([0., 0., 1.])
+    red_material = model.Material()
+    red_material.color.diffuse = numpy.array([1.0, 0.0, 0.0])
+    green_material = model.Material()
+    green_material.color.diffuse = numpy.array([0.0, 1.0, 0.0])
+    blue_material = model.Material()
+    blue_material.color.diffuse = numpy.array([0.0, 0.0, 1.0])
 
     # Objects
-    xAxis = model.LineArray(name='xAxisHelper')
-    xAxis.visualAppearance.material = redMaterial
-    xAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([length, 0., 0.])])
-    xAxis.geoPolygons.append([0, 1])
-    yAxis = model.LineArray(name='yAxisHelper')
-    yAxis.visualAppearance.material = greenMaterial
-    yAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([0., length, 0.])])
-    yAxis.geoPolygons.append([0, 1])
-    zAxis = model.LineArray(name='zAxisHelper')
-    zAxis.visualAppearance.material = blueMaterial
-    zAxis.geoVertices.extend([numpy.array([0., 0., 0.]), numpy.array([0., 0., length / 2.])])
-    zAxis.geoPolygons.append([0, 1])
+    x_axis = model.LineArray(name='XAxisHelper')
+    x_axis.appearance().material = red_material
+    x_axis.geo_vertices.extend([numpy.zeros(3), numpy.array([length, 0.0, 0.0])])
+    x_axis.geo_polygons.append([0, 1])
+    y_axis = model.LineArray(name='YAxisHelper')
+    y_axis.appearance().material = green_material
+    y_axis.geo_vertices.extend([numpy.zeros(3), numpy.array([0.0, length, 0.0])])
+    y_axis.geo_polygons.append([0, 1])
+    z_axis = model.LineArray(name='ZAxisHelper')
+    z_axis.appearance().material = blue_material
+    z_axis.geo_vertices.extend([numpy.zeros(3), numpy.array([0.0, 0.0, length / 2.0])])
+    z_axis.geo_polygons.append([0, 1])
 
-    return [xAxis, yAxis, zAxis]
+    return [x_axis, y_axis, z_axis]
 
-def createGrid():
+def create_grid():
     # Materials
-    darkGrayMaterial = model.Material()
-    darkGrayMaterial.color.diffuse = numpy.array([0.3] * 3)
-    lightGrayMaterial = model.Material()
-    lightGrayMaterial.color.diffuse = numpy.array([0.5] * 3)
+    dark_material = model.Material()
+    dark_material.color.diffuse = numpy.array([0.3] * 3)
+    light_material = model.Material()
+    light_material.color.diffuse = numpy.array([0.5] * 3)
 
     # Objects
-    zGrid = geometry.Plane((10, 10), (10, 10))
-    zGrid.visualAppearance.material = darkGrayMaterial
-    zGrid.visualAppearance.wireframe = True
-    xGrid = geometry.Plane((2, 10), (2, 10))
-    xGrid.visualAppearance.material = lightGrayMaterial
-    xGrid.visualAppearance.wireframe = True
-    xGrid.rotate([0., 1., 0.], math.pi / 2.)
-    yGrid = geometry.Plane((10, 2), (10, 2))
-    yGrid.visualAppearance.material = lightGrayMaterial
-    yGrid.visualAppearance.wireframe = True
-    yGrid.rotate([1., 0., 0.], math.pi / 2.)
+    z_grid = geometry.Plane((10, 10), (10, 10))
+    z_grid.appearance().material = dark_material
+    z_grid.appearance().wireframe = True
+    z_grid.rename('ZGridHelper')
+    x_grid = geometry.Plane((2, 10), (2, 10))
+    x_grid.appearance().material = light_material
+    x_grid.appearance().wireframe = True
+    x_grid.rotate([0.0, 1.0, 0.0], math.pi / 2.0)
+    x_grid.rename('XGridHelper')
+    y_grid = geometry.Plane((10, 2), (10, 2))
+    y_grid.appearance().material = light_material
+    y_grid.appearance().wireframe = True
+    y_grid.rotate([1.0, 0.0, 0.0], math.pi / 2.0)
+    y_grid.rename('YGridHelper')
 
-    return [xGrid, yGrid, zGrid]
+    return [x_grid, y_grid, z_grid]

@@ -17,12 +17,13 @@ except ImportError:
 class Geosphere(model.Mesh):
     def __init__(self, radius, depth=1):
         if radius <= 0.0 or depth < 1:
-            raise Exception();
+            raise Exception()
 
         super().__init__()
 
-        r = (1.0 + math.sqrt(5.0)) / 4.0
+        r = (1.0 + math.sqrt(5.0)) / 4.0 # pylint: disable=invalid-name
         vertices = []
+
         vertices.append(numpy.array([-0.5,    r,  0.0]))
         vertices.append(numpy.array([ 0.5,    r,  0.0]))
         vertices.append(numpy.array([-0.5,   -r,  0.0]))
@@ -35,38 +36,39 @@ class Geosphere(model.Mesh):
         vertices.append(numpy.array([   r,  0.0,  0.5]))
         vertices.append(numpy.array([  -r,  0.0, -0.5]))
         vertices.append(numpy.array([  -r,  0.0,  0.5]))
-        vertices = [model.normalize(v) * radius for v in vertices]
 
+        vertices = [model.normalize(v) * radius for v in vertices]
         polygons = []
+
         polygons.extend([[ 0, 11,  5], [ 0,  5,  1], [ 0,  1,  7], [ 0,  7, 10], [ 0, 10, 11]])
         polygons.extend([[ 1,  5,  9], [ 5, 11,  4], [11, 10,  2], [10,  7,  6], [ 7,  1,  8]])
         polygons.extend([[ 3,  9,  4], [ 3,  4,  2], [ 3,  2,  6], [ 3,  6,  8], [ 3,  8,  9]])
         polygons.extend([[ 4,  9,  5], [ 2,  4, 11], [ 6,  2, 10], [ 8,  6,  7], [ 9,  8,  1]])
 
-        def getMiddlePoint(v1, v2):
-            return model.normalize(v1 + (v2 - v1) / 2.0) * radius
+        def get_middle_point(vect1, vect2):
+            return model.normalize(vect1 + (vect2 - vect1) / 2.0) * radius
 
-        for i in range(0, depth):
-            pNext = []
+        for _ in range(0, depth):
+            next_point = []
             for face in polygons:
                 index = len(vertices)
-                vertices.append(getMiddlePoint(vertices[face[0]], vertices[face[1]]))
-                vertices.append(getMiddlePoint(vertices[face[1]], vertices[face[2]]))
-                vertices.append(getMiddlePoint(vertices[face[2]], vertices[face[0]]))
-                pNext.append([face[0], index + 0, index + 2])
-                pNext.append([face[1], index + 1, index + 0])
-                pNext.append([face[2], index + 2, index + 1])
-                pNext.append([index + 0, index + 1, index + 2])
-            polygons = pNext
+                vertices.append(get_middle_point(vertices[face[0]], vertices[face[1]]))
+                vertices.append(get_middle_point(vertices[face[1]], vertices[face[2]]))
+                vertices.append(get_middle_point(vertices[face[2]], vertices[face[0]]))
+                next_point.append([face[0], index + 0, index + 2])
+                next_point.append([face[1], index + 1, index + 0])
+                next_point.append([face[2], index + 2, index + 1])
+                next_point.append([index + 0, index + 1, index + 2])
+            polygons = next_point
 
-        self.geoVertices = vertices
-        self.geoPolygons = polygons
+        self.geo_vertices = vertices
+        self.geo_polygons = polygons
 
 
 class Plane(model.Mesh):
     def __init__(self, size, resolution):
-        if size[0] <= 0. or size[1] <= 0. or resolution[0] < 1 or resolution[1] < 1:
-            raise Exception();
+        if size[0] <= 0.0 or size[1] <= 0.0 or resolution[0] < 1 or resolution[1] < 1:
+            raise Exception()
 
         super().__init__()
 
@@ -74,13 +76,14 @@ class Plane(model.Mesh):
         offset = (-float(size[0]) / 2, -float(size[1]) / 2)
         mult = float(size[0]) / (res[0] - 1), float(size[1]) / (res[1] - 1)
         total = res[0] * res[1]
-        for y in range(0, res[1]):
-            for x in range(0, res[0]):
-                self.geoVertices.append(numpy.array([offset[0] + x * mult[0], offset[1] + y * mult[1], 0]))
-        for y in range(0, res[1] - 1):
-            for x in range(0, res[0] - 1):
-                p1 = y * res[0] + x
-                p2 = (p1 + 1) % total
-                p3 = ((y + 1) * res[0] + x) % total
-                p4 = (p3 + 1) % total
-                self.geoPolygons.append([p1, p2, p4, p3])
+        for j in range(0, res[1]):
+            for i in range(0, res[0]):
+                self.geo_vertices.append(
+                    numpy.array([offset[0] + i * mult[0], offset[1] + j * mult[1], 0]))
+        for j in range(0, res[1] - 1):
+            for i in range(0, res[0] - 1):
+                point1 = j * res[0] + i
+                point2 = (point1 + 1) % total
+                point3 = ((j + 1) * res[0] + i) % total
+                point4 = (point3 + 1) % total
+                self.geo_polygons.append([point1, point2, point4, point3])
