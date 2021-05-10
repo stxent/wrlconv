@@ -298,8 +298,8 @@ def rotate(curve, axis, edges=None, angles=None):
 
     return slices
 
-def create_tri_cap_mesh(slices, beginning): # FIXME
-    if beginning:
+def create_tri_cap_mesh(slices, inverse): # FIXME
+    if inverse:
         vertices = [slices[i][0] for i in range(0, len(slices))]
     else:
         vertices = [slices[i][len(slices[i]) - 1] for i in range(0, len(slices))]
@@ -308,7 +308,7 @@ def create_tri_cap_mesh(slices, beginning): # FIXME
     geo_vertices = vertices + [sum(vertices) / len(slices)]
     geo_polygons = []
 
-    if beginning:
+    if not inverse:
         for i, _ in enumerate(indices):
             geo_polygons.append([len(vertices), indices[i], indices[i - 1]])
     else:
@@ -350,3 +350,13 @@ def create_rotation_mesh(slices, wrap=True, inverse=False):
     mesh.geo_polygons = geo_polygons
 
     return mesh
+
+def intersect_line_plane(plane_point, plane_normal, line_start, line_end):
+    line = model.normalize(line_end - line_start)
+    if numpy.dot(plane_normal, line) == 0.:
+        return None
+    line_length = numpy.linalg.norm(line_end - line_start)
+    position = numpy.dot(plane_normal, plane_point - line_start) / numpy.dot(plane_normal, line)
+    if position <= 0.0 or position >= line_length:
+        return None
+    return line * position + line_start
