@@ -190,13 +190,12 @@ class VrmlScene(VrmlEntry):
         self.entries = []
         self.transform = model.Transform()
 
-        input_file = open(path, 'rb')
-        old_dir = os.getcwd()
-        if os.path.dirname(path):
-            os.chdir(os.path.dirname(path))
-        self.read_stream(input_file)
-        os.chdir(old_dir)
-        input_file.close()
+        with open(path, 'rb') as input_file:
+            old_dir = os.getcwd()
+            if os.path.dirname(path):
+                os.chdir(os.path.dirname(path))
+            self.read_stream(input_file)
+            os.chdir(old_dir)
 
     def extract(self):
         exported_materials, exported_meshes = [], []
@@ -245,8 +244,7 @@ class VrmlScene(VrmlEntry):
 
             if isinstance(entry, VrmlTransform):
                 parts = []
-                for i in range(0, len(entry.objects)):
-                    shape = entry.objects[i]
+                for i, shape in enumerate(entry.objects):
                     demangled = entry.demangled() if entry.demangled() != '' else entry.name
                     subname = name + [demangled] if demangled != '' else name
                     subname[-1] += '_' + str(i) if len(entry.objects) > 1 else ''
@@ -324,11 +322,10 @@ class VrmlInline(VrmlTransform):
             old_dir = os.getcwd()
             if os.path.isfile(url_search.group(1)):
                 debug('{:s}Loading file: {:s}'.format(' ' * self.level, url_search.group(1)))
-                input_file = open(url_search.group(1), 'r')
-                if os.path.dirname(url_search.group(1)):
-                    os.chdir(os.path.dirname(url_search.group(1)))
-                self.read_stream(input_file)
-                input_file.close()
+                with open(url_search.group(1), 'rb') as input_file:
+                    if os.path.dirname(url_search.group(1)):
+                        os.chdir(os.path.dirname(url_search.group(1)))
+                    self.read_stream(input_file)
             else:
                 print('Inline file not found: {:s}'.format(url_search.group(1)))
             os.chdir(old_dir)

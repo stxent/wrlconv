@@ -159,22 +159,22 @@ def store(data, path):
             rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
             scale = numpy.array([1.0, 1.0, 1.0])
         else:
-            translation = mesh.transform.matrix.getA()[:,3][0:3]
-            translation_matrix = numpy.matrix([
+            translation = mesh.transform.matrix[:,3][0:3]
+            translation_matrix = numpy.array([
                 [1.0, 0.0, 0.0, -translation[0]],
                 [0.0, 1.0, 0.0, -translation[1]],
                 [0.0, 0.0, 1.0, -translation[2]],
                 [0.0, 0.0, 0.0,             1.0]])
-            translated = translation_matrix * mesh.transform.matrix
+            translated = numpy.matmul(translation_matrix, mesh.transform.matrix)
 
             scale = numpy.array([numpy.linalg.norm(
-                translated.getA()[:,column][0:3]) for column in [0, 1, 2]])
-            scale_matrix = numpy.matrix([
+                translated[:,column][0:3]) for column in [0, 1, 2]])
+            scale_matrix = numpy.array([
                 [1.0 / scale[0],            0.0,            0.0, 0.0],
                 [           0.0, 1.0 / scale[1],            0.0, 0.0],
                 [           0.0,            0.0, 1.0 / scale[2], 0.0],
                 [           0.0,            0.0,            0.0, 1.0]])
-            scaled = translated * scale_matrix
+            scaled = numpy.matmul(translated, scale_matrix)
 
             # Conversion from rotation matrix form to axis-angle form
             angle = math.acos(((scaled.trace() - 1.0) - 1.0) / 2.0)
@@ -182,7 +182,7 @@ def store(data, path):
             if angle == 0.0:
                 rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
             else:
-                skew = (scaled - scaled.transpose()).getA()
+                skew = scaled - scaled.transpose()
                 vector = numpy.array([skew[2][1], skew[0][2], skew[1][0]])
                 vector = (1.0 / (2.0 * math.sin(angle))) * vector
                 vector = model.normalize(vector)
@@ -227,8 +227,7 @@ def store(data, path):
         debug('Mesh exported in {:f}, name {:s}'.format(time.time() - started, mesh.ident))
         return output
 
-    out = open(path, 'wb')
-    out.write('#VRML V2.0 utf8\n#Created by vrml_export.py\n'.encode('utf-8'))
-    for shape in data:
-        out.write(encode_transform(shape).encode('utf-8'))
-    out.close()
+    with open(path, 'wb') as out:
+        out.write('#VRML V2.0 utf8\n#Created by vrml_export.py\n'.encode('utf-8'))
+        for shape in data:
+            out.write(encode_transform(shape).encode('utf-8'))

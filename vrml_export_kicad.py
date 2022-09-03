@@ -122,8 +122,7 @@ def store(data, path):
     entries = [entry for entry in data if entry.appearance().material.color.transparency <= 0.001]
     entries += [entry for entry in data if entry.appearance().material.color.transparency > 0.001]
 
-    out = open(path, 'wb')
-    out.write('#VRML V2.0 utf8\n#Created by vrml_export_kicad.py\n'.encode('utf-8'))
-    for entry in entries:
-        out.write(encode_transform(entry).encode('utf-8'))
-    out.close()
+    with open(path, 'wb') as out:
+        out.write('#VRML V2.0 utf8\n#Created by vrml_export_kicad.py\n'.encode('utf-8'))
+        for entry in entries:
+            out.write(encode_transform(entry).encode('utf-8'))

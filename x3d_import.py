@@ -470,9 +470,8 @@ class X3dParser:
 
 def load(path):
     parser = X3dParser()
-    xml = open(path, 'rb')
-    content = xml.read()
-    xml.close()
+    with open(path, 'rb') as xml:
+        content = xml.read()
     parser.feed(content)
     parser.close()
     return parser.extract()

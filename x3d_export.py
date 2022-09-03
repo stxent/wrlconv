@@ -156,22 +156,22 @@ def write_transform(root, mesh, exported_groups, exported_materials):
         rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
         scale = numpy.array([1.0, 1.0, 1.0])
     else:
-        translation = mesh.transform.matrix.getA()[:,3][0:3]
-        translation_matrix = numpy.matrix([
+        translation = mesh.transform.matrix[:,3][0:3]
+        translation_matrix = numpy.array([
             [1.0, 0.0, 0.0, -translation[0]],
             [0.0, 1.0, 0.0, -translation[1]],
             [0.0, 0.0, 1.0, -translation[2]],
             [0.0, 0.0, 0.0,             1.0]])
-        translated = translation_matrix * mesh.transform.matrix
+        translated = numpy.matmul(translation_matrix, mesh.transform.matrix)
 
         scale = numpy.array([numpy.linalg.norm(
-            translated.getA()[:,column][0:3]) for column in [0, 1, 2]])
-        scale_matrix = numpy.matrix([
+            translated[:,column][0:3]) for column in [0, 1, 2]])
+        scale_matrix = numpy.array([
             [1.0 / scale[0],            0.0,            0.0, 0.0],
             [           0.0, 1.0 / scale[1],            0.0, 0.0],
             [           0.0,            0.0, 1.0 / scale[2], 0.0],
             [           0.0,            0.0,            0.0, 1.0]])
-        scaled = translated * scale_matrix
+        scaled = numpy.matmul(translated, scale_matrix)
 
         # Conversion from rotation matrix form to axis-angle form
         angle = math.acos(((scaled.trace() - 1.0) - 1.0) / 2.0)
@@ -179,7 +179,7 @@ def write_transform(root, mesh, exported_groups, exported_materials):
         if angle == 0.0:
             rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
         else:
-            skew = (scaled - scaled.transpose()).getA()
+            skew = scaled - scaled.transpose()
             vector = numpy.array([skew[2][1], skew[0][2], skew[1][0]])
             vector = (1.0 / (2.0 * math.sin(angle))) * vector
             vector = model.normalize(vector)
@@ -220,11 +220,11 @@ def write_transform(root, mesh, exported_groups, exported_materials):
 
     debug('Mesh exported in {:f}, name {:s}'.format(time.time() - started, mesh.ident))
 
-def store(data, path):
+def convert(data, name=None):
     exported_groups, exported_materials = [], []
+    filename = 'unnamed.x3d' if name is None else name
 
     doctype = '<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.0//EN" "http://www.web3d.org/specifications/x3d-3.0.dtd">'
-    filename = os.path.basename(path)
 
     root = etree.Element('X3D')
     root.attrib['version'] = '3.0'
@@ -248,6 +248,10 @@ def store(data, path):
     payload = payload.decode('utf-8')
     payload = payload.replace('"&quot;', '\'"').replace('&quot;"', '"\'').replace('&quot;', '"')
 
-    out = open(path, 'wb')
-    out.write(payload.encode('utf-8'))
-    out.close()
+    return payload
+
+def store(data, path):
+    payload = convert(data, os.path.basename(path))
+
+    with open(path, 'wb') as out:
+        out.write(payload.encode('utf-8'))

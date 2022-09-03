@@ -37,7 +37,7 @@ class Geosphere(model.Mesh):
         vertices.append(numpy.array([  -r,  0.0, -0.5]))
         vertices.append(numpy.array([  -r,  0.0,  0.5]))
 
-        vertices = [model.normalize(v) * radius for v in vertices]
+        vertices = [model.normalize(vertex) * radius for vertex in vertices]
         polygons = []
 
         polygons.extend([[ 0, 11,  5], [ 0,  5,  1], [ 0,  1,  7], [ 0,  7, 10], [ 0, 10, 11]])

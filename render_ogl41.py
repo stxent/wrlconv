@@ -23,9 +23,14 @@ try:
     from OpenGL.GL import *
     from OpenGL.GL.shaders import *
     # pylint: enable=W0614
+except ImportError:
+    print('Error importing OpenGL library')
+    sys.exit()
+
+try:
     import glfw
 except ImportError:
-    print('Error importing OpenGL libraries')
+    print('Error importing GLFW library')
     sys.exit()
 
 try:
@@ -444,11 +449,11 @@ class RenderMesh(RenderObject):
 
                     self.vertices[geo_beg:geo_end] = geo_vertices[geo_poly[vertex]][0:3]
                     self.normals[geo_beg:geo_end] = \
-                            normals[geo_poly[vertex]] if smooth else normals[i]
+                        normals[geo_poly[vertex]] if smooth else normals[i]
                     if textured:
                         self.texels[tex_beg:tex_end] = tex_vertices[tex_poly[vertex]]
                         self.tangents[geo_beg:geo_end] = \
-                                tangents[geo_poly[vertex]] if smooth else tangents[i]
+                            tangents[geo_poly[vertex]] if smooth else tangents[i]
                     offset += 1
 
         self.vao = glGenVertexArrays(1)
@@ -488,8 +493,8 @@ class RenderMesh(RenderObject):
     def draw(self, projection_matrix, model_view_matrix, lights, wireframe):
         if self.appearance is not None:
             if self.transform is not None:
-                model_view_matrix = self.transform * model_view_matrix
-                lights = [x * numpy.linalg.inv(self.transform) for x in lights]
+                model_view_matrix = numpy.matmul(self.transform, model_view_matrix)
+                lights = [numpy.matmul(light, numpy.linalg.inv(self.transform)) for light in lights]
 
             self.appearance.enable(projection_matrix, model_view_matrix, lights)
             solid = self.appearance.solid
@@ -566,20 +571,19 @@ class Scene:
             camera = self.camera - self.pov
             axis = self.axis
             if hrot != 0.0:
-                horiz_rotation_matrix = numpy.matrix([
+                horiz_rotation_matrix = numpy.array([
                     [ math.cos(hrot), math.sin(hrot), 0.0, 0.0],
                     [-math.sin(hrot), math.cos(hrot), 0.0, 0.0],
                     [            0.0,            0.0, 1.0, 0.0],
                     [            0.0,            0.0, 0.0, 1.0]])
-                camera = (camera * horiz_rotation_matrix).getA()[0]
-                axis = (axis * horiz_rotation_matrix).getA()[0]
+                camera = numpy.matmul(camera, horiz_rotation_matrix)
+                axis = numpy.matmul(axis, horiz_rotation_matrix)
             if vrot != 0.0:
                 normal = numpy.cross(camera[0:3], self.axis[0:3])
                 normal /= numpy.linalg.norm(normal)
-                vert_rotation_matrix = model.make_rotation_matrix(normal, vrot)
-                vert_rotation_matrix = vert_rotation_matrix.transpose() # pylint: disable=E1111
-                camera = (camera * vert_rotation_matrix).getA()[0]
-                axis = (axis * vert_rotation_matrix).getA()[0]
+                vert_rotation_matrix = model.make_rotation_matrix(normal, vrot).transpose()
+                camera = numpy.matmul(camera, vert_rotation_matrix)
+                axis = numpy.matmul(axis, vert_rotation_matrix)
             self.camera = camera + self.pov
             self.axis = axis
 
@@ -715,7 +719,7 @@ class BaseModelShader(Shader):
                            numpy.array(normal_matrix, numpy.float32))
 
         # Set precalculated light positions, configure colors of diffuse and ambient lighting
-        lights = numpy.array([(light * model_view_matrix).getA()[0][0:3] for light in lights],
+        lights = numpy.array([numpy.matmul(light, model_view_matrix)[0:3] for light in lights],
                              numpy.float32)
         glUniform3fv(self.light_loc, len(lights), lights)
         glUniform3fv(self.light_diffuse_loc, 2, self.light_diffuse)

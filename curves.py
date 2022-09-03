@@ -227,7 +227,7 @@ def make_loft_slices(path, shape, segments, rotation, scaling):
         scaled_shape = [scale_transform.apply(point) for point in shape]
 
         transform = model.Transform(quaternion=quaternion)
-        transform.matrix *= model.rpy_to_matrix(rotation(t))
+        transform.matrix = numpy.matmul(transform.matrix, model.rpy_to_matrix(rotation(t)))
         transform.translate(path[i])
         slices.append([transform.apply(point) for point in scaled_shape])
 
@@ -270,7 +270,7 @@ def loft(path, shape, rotation=None, scaling=None):
         z_vect = product[1]
         y_vect = model.normalize(numpy.cross(z_vect, x_vect))
 
-        matrix = numpy.matrix([
+        matrix = numpy.array([
             [x_vect[0], y_vect[0], z_vect[0], 0.0],
             [x_vect[1], y_vect[1], z_vect[1], 0.0],
             [x_vect[2], y_vect[2], z_vect[2], 0.0],
@@ -293,8 +293,7 @@ def rotate(curve, axis, edges=None, angles=None):
 
     for angle in angles:
         mat = model.make_rotation_matrix(axis, angle)
-        mat.transpose()
-        slices.append([(numpy.array([*p, 1.0]) * mat).getA()[0][0:3] for p in points])
+        slices.append([numpy.matmul(numpy.array([*p, 1.0]), mat)[0:3] for p in points])
 
     return slices
 
@@ -353,7 +352,7 @@ def create_rotation_mesh(slices, wrap=True, inverse=False):
 
 def intersect_line_plane(plane_point, plane_normal, line_start, line_end):
     line = model.normalize(line_end - line_start)
-    if numpy.dot(plane_normal, line) == 0.:
+    if numpy.dot(plane_normal, line) == 0.0:
         return None
     line_length = numpy.linalg.norm(line_end - line_start)
     position = numpy.dot(plane_normal, plane_point - line_start) / numpy.dot(plane_normal, line)

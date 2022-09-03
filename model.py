@@ -9,14 +9,14 @@ import copy
 import math
 import numpy
 
-def angle(vect1, vect2):
-    norm_vect1 = normalize(vect1[0:3])
-    norm_vect2 = normalize(vect2[0:3])
-    return math.acos(numpy.clip(numpy.dot(norm_vect1, norm_vect2), -1.0, +1.0))
+def angle(vector_a, vector_b):
+    norm_vector_a = normalize(vector_a[0:3])
+    norm_vector_b = normalize(vector_b[0:3])
+    return math.acos(numpy.clip(numpy.dot(norm_vector_a, norm_vector_b), -1.0, +1.0))
 
-def normalize(vect):
-    length = numpy.linalg.norm(vect)
-    return vect / length if length != 0.0 else vect
+def normalize(vector):
+    length = numpy.linalg.norm(vector)
+    return vector / length if length != 0.0 else vector
 
 def tangent(vertex1, vertex2, tangent1, tangent2):
     div = tangent1[1] * tangent2[0] - tangent1[0] * tangent2[1]
@@ -30,16 +30,16 @@ def create_model_view_matrix(eye, center, z_axis):
     side = numpy.array([0.0, 1.0, 0.0]) if numpy.linalg.norm(side) == 0.0 else normalize(side)
     z_axis = normalize(numpy.cross(side, forward))
 
-    result = numpy.matrix([
+    result = numpy.array([
         [    1.0,     0.0,     0.0, 0.0],
         [    0.0,     1.0,     0.0, 0.0],
         [    0.0,     0.0,     1.0, 0.0],
         [-eye[0], -eye[1], -eye[2], 1.0]])
-    result *= numpy.matrix([
+    result = numpy.matmul(result, numpy.array([
         [side[0], z_axis[0], -forward[0], 0.0],
         [side[1], z_axis[1], -forward[1], 0.0],
         [side[2], z_axis[2], -forward[2], 0.0],
-        [    0.0,       0.0,         0.0, 1.0]])
+        [    0.0,       0.0,         0.0, 1.0]]))
     return result
 
 def create_perspective_matrix(aspect, rotation, distance):
@@ -48,18 +48,18 @@ def create_perspective_matrix(aspect, rotation, distance):
     height = 1.0 / math.tan(fov)
     width = height / aspect
 
-    result = numpy.matrix([
-        [width, 0.0, 0.0, 0.0],
-        [0.0, height, 0.0, 0.0],
-        [0.0, 0.0, -(far + near) / (far - near), -1.0],
-        [0.0, 0.0, -(2.0 * far * near) / (far - near), 0.0]])
+    result = numpy.array([
+        [width,    0.0,                                0.0,  0.0],
+        [  0.0, height,                                0.0,  0.0],
+        [  0.0,    0.0,       -(far + near) / (far - near), -1.0],
+        [  0.0,    0.0, -(2.0 * far * near) / (far - near),  0.0]])
     return result
 
 def create_orthographic_matrix(area, distance):
     near, far = distance
     width, height = area
 
-    result = numpy.matrix([
+    result = numpy.array([
         [1.0 / width, 0.0, 0.0, 0.0],
         [0.0, 1.0 / height, 0.0, 0.0],
         [0.0, 0.0, -2.0 / (far - near), 0.0],
@@ -92,26 +92,31 @@ def uv_wrap_planar(mesh, borders=None):
             # pylint: enable=C0103
         mesh.tex_polygons.append(poly)
 
-def make_rotation_matrix(vect, rotation):
+def make_rotation_matrix(vector, rotation):
     cos, sin = math.cos(rotation), math.sin(rotation)
 
-    a11 = cos + vect[0] * vect[0] * (1.0 - cos)
-    a12 = vect[0] * vect[1] * (1.0 - cos) - vect[2] * sin
-    a13 = vect[0] * vect[2] * (1.0 - cos) + vect[1] * sin
-    a21 = vect[1] * vect[0] * (1.0 - cos) + vect[2] * sin
-    a22 = cos + vect[1] * vect[1] * (1.0 - cos)
-    a23 = vect[1] * vect[2] * (1.0 - cos) - vect[0] * sin
-    a31 = vect[2] * vect[0] * (1.0 - cos) - vect[1] * sin
-    a32 = vect[2] * vect[1] * (1.0 - cos) + vect[0] * sin
-    a33 = cos + vect[2] * vect[2] * (1.0 - cos)
+    a11 = cos + vector[0] * vector[0] * (1.0 - cos)
+    a12 = vector[0] * vector[1] * (1.0 - cos) - vector[2] * sin
+    a13 = vector[0] * vector[2] * (1.0 - cos) + vector[1] * sin
+    a21 = vector[1] * vector[0] * (1.0 - cos) + vector[2] * sin
+    a22 = cos + vector[1] * vector[1] * (1.0 - cos)
+    a23 = vector[1] * vector[2] * (1.0 - cos) - vector[0] * sin
+    a31 = vector[2] * vector[0] * (1.0 - cos) - vector[1] * sin
+    a32 = vector[2] * vector[1] * (1.0 - cos) + vector[0] * sin
+    a33 = cos + vector[2] * vector[2] * (1.0 - cos)
 
     # Column-major order
-    result = numpy.matrix([
+    matrix = numpy.array([
         [a11, a12, a13, 0.0],
         [a21, a22, a23, 0.0],
         [a31, a32, a33, 0.0],
         [0.0, 0.0, 0.0, 1.0]])
-    return result
+    return matrix
+
+def reset_allocator():
+    Object.IDENT = 0
+    Material.Color.IDENT = 0
+    Material.Texture.IDENT = 0
 
 def rpy_to_matrix(angles):
     # Roll
@@ -121,53 +126,60 @@ def rpy_to_matrix(angles):
     # Yaw
     cosy, siny = math.cos(angles[2]), math.sin(angles[2])
 
-    yaw_matrix = numpy.matrix([
+    # Column-major order
+    yaw_matrix = numpy.array([
         [ cosy, -siny,   0.0, 0.0],
         [ siny,  cosy,   0.0, 0.0],
         [  0.0,   0.0,   1.0, 0.0],
         [  0.0,   0.0,   0.0, 1.0]])
-    pitch_matrix = numpy.matrix([
+    pitch_matrix = numpy.array([
         [ cosp,   0.0,  sinp, 0.0],
         [  0.0,   1.0,   0.0, 0.0],
         [-sinp,   0.0,  cosp, 0.0],
         [  0.0,   0.0,   0.0, 1.0]])
-    roll_matrix = numpy.matrix([
+    roll_matrix = numpy.array([
         [  1.0,   0.0,   0.0, 0.0],
         [  0.0,  cosr, -sinr, 0.0],
         [  0.0,  sinr,  cosr, 0.0],
         [  0.0,   0.0,   0.0, 1.0]])
-    return yaw_matrix * pitch_matrix * roll_matrix
+
+    return numpy.matmul(yaw_matrix, numpy.matmul(pitch_matrix, roll_matrix))
 
 def quaternion_to_matrix(quaternion):
     # pylint: disable=C0103
-    w, x, y, z = quaternion[0], quaternion[1], quaternion[2], quaternion[3]
-    matrix = numpy.matrix([
-        [
-            1.0 - (2.0 * y * y) - (2.0 * z * z),
-            (2.0 * x * y) - (2.0 * z * w),
-            (2.0 * x * z) + (2.0 * y * w),
-            0.0
-        ], [
-            (2.0 * x * y) + (2.0 * z * w),
-            1.0 - (2.0 * x * x) - (2.0 * z * z),
-            (2.0 * y * z) - (2.0 * x * w),
-            0.0
-        ], [
-            (2.0 * x * z) - (2.0 * y * w),
-            (2.0 * y * z) + (2.0 * x * w),
-            1.0 - (2.0 * x * x) - (2.0 * y * y),
-            0.0
-        ], [
-            0.0,
-            0.0,
-            0.0,
-            1.0
-        ]])
+    xx = quaternion[1] * quaternion[1]
+    xy = quaternion[1] * quaternion[2]
+    xz = quaternion[1] * quaternion[3]
+    xw = quaternion[1] * quaternion[0]
+    yy = quaternion[2] * quaternion[2]
+    yz = quaternion[2] * quaternion[3]
+    yw = quaternion[2] * quaternion[0]
+    zz = quaternion[3] * quaternion[3]
+    zw = quaternion[3] * quaternion[0]
+
+    m00 = 1.0 - 2.0 * (yy + zz)
+    m01 =       2.0 * (xy - zw)
+    m02 =       2.0 * (xz + yw)
+
+    m10 =       2.0 * (xy + zw)
+    m11 = 1.0 - 2.0 * (xx + zz)
+    m12 =       2.0 * (yz - xw)
+
+    m20 =       2.0 * (xz - yw)
+    m21 =       2.0 * (yz + xw)
+    m22 = 1.0 - 2.0 * (xx + yy)
+
+    # Column-major order
+    matrix = numpy.array([
+        [m00, m01, m02, 0.0],
+        [m10, m11, m12, 0.0],
+        [m20, m21, m22, 0.0],
+        [0.0, 0.0, 0.0, 1.0]])
     # pylint: enable=C0103
+
     return matrix
 
 def matrix_to_quaternion(matrix):
-    matrix = matrix.getA()
     trace = matrix[0][0] + matrix[1][1] + matrix[2][2]
 
     # pylint: disable=C0103
@@ -195,8 +207,10 @@ def matrix_to_quaternion(matrix):
         x = (matrix[0][2] + matrix[2][0]) / s
         y = (matrix[1][2] + matrix[2][1]) / s
         z = 0.25 * s
+    quaternion = numpy.array([w, x, y, z])
+    # pylint: enable=C0103
 
-    return numpy.array([w, x, y, z])
+    return quaternion
 
 def slerp(q0, q1, t): # pylint: disable=C0103
     q0, q1 = normalize(q0), normalize(q1)
@@ -378,7 +392,7 @@ class Mesh(Object):
         if other.transform is None:
             self.geo_vertices += geo_vertices
         else:
-            self.geo_vertices += [other.transform.apply(v) for v in geo_vertices]
+            self.geo_vertices += [other.transform.apply(vertex) for vertex in geo_vertices]
 
         tex_count = len(self.tex_vertices)
         tex_vertices, tex_polygons = other.texture()
@@ -392,7 +406,7 @@ class Mesh(Object):
             transform = self.transform
             self.transform = None
         if transform is not None:
-            self.geo_vertices = [transform.apply(v) for v in self.geo_vertices]
+            self.geo_vertices = [transform.apply(vertex) for vertex in self.geo_vertices]
 
     def optimize(self):
         if self.parent is not None:
@@ -405,8 +419,8 @@ class Mesh(Object):
         while vert_index:
             vert = self.geo_vertices[vert_index[0]]
             same = []
-            for i in range(0, len(self.geo_vertices)):
-                if Mesh.isclose(self.geo_vertices[i], vert):
+            for i, value in enumerate(self.geo_vertices):
+                if Mesh.isclose(value, vert):
                     same.append(i)
             last = len(ret_vert)
             for poly in ret_poly:
@@ -420,12 +434,12 @@ class Mesh(Object):
         self.geo_polygons = ret_poly
 
     @staticmethod
-    def isclose(vect1, vect2):
+    def isclose(vector_a, vector_b):
         # Default relative tolerance 1e-9 is used
         return (
-            math.isclose(vect1[0], vect2[0])
-            and math.isclose(vect1[1], vect2[1])
-            and math.isclose(vect1[2], vect2[2]))
+            math.isclose(vector_a[0], vector_b[0])
+            and math.isclose(vector_a[1], vector_b[1])
+            and math.isclose(vector_a[2], vector_b[2]))
 
     @staticmethod
     def triangulate(patch):
@@ -459,19 +473,19 @@ class AttributedMesh(Mesh):
             and bottom[2] <= point[2] <= top[2])
 
     def associate_vertices(self):
-        self.attributes = [0 for i in range(0, len(self.geo_vertices))]
-        for key in self.regions:
-            for i in range(0, len(self.geo_vertices)):
-                if AttributedMesh.intersection(self.regions[key], self.geo_vertices[i]):
+        self.attributes = [0] * len(self.geo_vertices)
+        for key, region in self.regions.items():
+            for i, value in enumerate(self.geo_vertices):
+                if AttributedMesh.intersection(region, value):
                     self.attributes[i] = key
 
     def apply_transform(self, transforms):
         if len(self.geo_vertices) > len(self.attributes):
             raise Exception()
-        for i in range(0, len(self.geo_vertices)):
+        for i, value in enumerate(self.geo_vertices):
             if self.attributes[i] >= len(transforms):
                 raise Exception()
-            self.geo_vertices[i] = transforms[self.attributes[i]].apply(self.geo_vertices[i])
+            self.geo_vertices[i] = transforms[self.attributes[i]].apply(value)
 
     def append(self, other):
         #TODO Optimize
@@ -510,7 +524,7 @@ class LineArray(Object):
         if other.transform is None:
             self.geo_vertices += geo_vertices
         else:
-            self.geo_vertices += [other.transform.apply(v) for v in geo_vertices]
+            self.geo_vertices += [other.transform.apply(vertex) for vertex in geo_vertices]
 
     def optimize(self):
         pass # TODO Optimize
@@ -526,7 +540,8 @@ class Transform:
             self.matrix = numpy.identity(4)
 
     def translate(self, pos):
-        matrix = numpy.matrix([
+        # Column-major order
+        matrix = numpy.array([
             [0.0, 0.0, 0.0, pos[0]],
             [0.0, 0.0, 0.0, pos[1]],
             [0.0, 0.0, 0.0, pos[2]],
@@ -535,24 +550,23 @@ class Transform:
 
     def rotate(self, vector, rotation):
         matrix = make_rotation_matrix(vector, rotation)
-        self.matrix = self.matrix * matrix
+        self.matrix = numpy.matmul(self.matrix, matrix)
 
     def scale(self, scale):
-        matrix = numpy.matrix([
+        matrix = numpy.array([
             [scale[0],      0.0,      0.0, 0.0],
             [     0.0, scale[1],      0.0, 0.0],
             [     0.0,      0.0, scale[2], 0.0],
             [     0.0,      0.0,      0.0, 1.0]])
-        self.matrix = self.matrix * matrix
+        self.matrix = numpy.matmul(self.matrix, matrix)
 
     def apply(self, vertex):
-        matrix = self.matrix * numpy.matrix([[vertex[0]], [vertex[1]], [vertex[2]], [1.0]])
-        return numpy.array(matrix)[:,0][0:3]
+        return numpy.matmul(self.matrix, numpy.array([*vertex, 1.0]))[0:3]
 
     def quaternion(self):
         return matrix_to_quaternion(self.matrix)
 
     def __mul__(self, other):
         transform = Transform()
-        transform.matrix = self.matrix * other.matrix
+        transform.matrix = numpy.matmul(self.matrix, other.matrix)
         return transform
