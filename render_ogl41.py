@@ -46,6 +46,18 @@ def debug(text):
     if DEBUG_ENABLED:
         print(text)
 
+def get_opengl_version():
+    version = glGetString(GL_VERSION).decode()
+    version_str = version.split(' ')[0]
+    version_num = [int(part) for part in version_str.split('.')]
+
+    result = version_num[0]
+    if version_num[1] < 10:
+        result += version_num[1] * 10
+    else:
+        result += version_num[1]
+    return result
+
 def get_normal(vertices, indices):
     return model.normalize(numpy.cross(
         vertices[indices[1]] - vertices[indices[0]],
@@ -665,10 +677,10 @@ class Shader:
             if eval_shader is not None:
                 shaders.append(compileShader(eval_shader, GL_TESS_EVALUATION_SHADER))
             self.program = compileProgram(*shaders)
-            debug('Shader {:d} compiled'.format(self.ident))
+            debug(f'Shader {self.ident} compiled')
         except RuntimeError as run_error:
             print(run_error.args[0]) # Print error log
-            print('Shader {:d} compilation failed'.format(self.ident))
+            print(f'Shader {self.ident} compilation failed in {str(run_error.args[2])}')
             sys.exit()
 
     def enable_program(self):
@@ -954,10 +966,12 @@ class Render(Scene):
             self.shaders['NormSpec'] = ModelShader(texture=False, normal=True, specular=True)
             self.shaders['DiffNormSpec'] = ModelShader(texture=True, normal=True, specular=True)
 
-            if antialiasing > 0 or overlay:
+            legacy = get_opengl_version() < 310
+
+            if not legacy and (overlay or antialiasing > 0):
                 self.merge = MergeShader(antialiasing=antialiasing)
 
-            if overlay:
+            if not legacy and overlay:
                 self.blur = BlurShader(masked=False)
                 self.blur_masked = BlurShader(masked=True)
 
@@ -1047,11 +1061,17 @@ class Render(Scene):
         self.shader_storage = Render.ShaderStorage(self.antialiasing, self.overlay)
         self.screen_plane = ScreenMesh([geometry.Plane((2.0, 2.0), (1, 1))])
 
-        if self.use_framebuffers:
-            self.init_framebuffers()
+        legacy = get_opengl_version() < 310
 
-        if self.overlay:
+        if not legacy and self.use_framebuffers:
+            self.init_framebuffers()
+        else:
+            self.use_framebuffers = False
+
+        if not legacy and self.overlay:
             self.init_overlay()
+        else:
+            self.overlay = False
 
     def init_framebuffers(self):
         for framebuffer in self.framebuffers:

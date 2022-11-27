@@ -116,9 +116,9 @@ def main():
         effects = {} if options.fast else {'overlay': options.overlay, 'antialiasing': 4}
         helper_objects = []
         if options.grid:
-            helper_objects += helpers.create_grid()
+            helper_objects += helpers.make_grid()
         if options.axes:
-            helper_objects += helpers.create_axes()
+            helper_objects += helpers.make_axes()
         render = render_ogl41.Render(helper_objects + export_list, effects)
         render.run()
 

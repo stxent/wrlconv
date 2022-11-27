@@ -15,37 +15,52 @@ except ImportError:
     from . import geometry
     from . import model
 
-def create_axes(length=4.0):
-    # Materials
-    red_material = model.Material()
-    red_material.color.diffuse = numpy.array([1.0, 0.0, 0.0])
-    green_material = model.Material()
-    green_material.color.diffuse = numpy.array([0.0, 1.0, 0.0])
-    blue_material = model.Material()
-    blue_material.color.diffuse = numpy.array([0.0, 0.0, 1.0])
+def make_blue_material():
+    mat = model.Material()
+    mat.color.diffuse = numpy.array([0.0, 0.0, 1.0])
+    return mat
 
+def make_green_material():
+    mat = model.Material()
+    mat.color.diffuse = numpy.array([0.0, 1.0, 0.0])
+    return mat
+
+def make_red_material():
+    mat = model.Material()
+    mat.color.diffuse = numpy.array([1.0, 0.0, 0.0])
+    return mat
+
+def make_dark_gray_material():
+    mat = model.Material()
+    mat.color.diffuse = numpy.array([0.3, 0.3, 0.3])
+    return mat
+
+def make_light_gray_material():
+    mat = model.Material()
+    mat.color.diffuse = numpy.array([0.5, 0.5, 0.5])
+    return mat
+
+def make_axes(length=4.0):
     # Objects
     x_axis = model.LineArray(name='XAxisHelper')
-    x_axis.appearance().material = red_material
+    x_axis.appearance().material = make_red_material()
     x_axis.geo_vertices.extend([numpy.zeros(3), numpy.array([length, 0.0, 0.0])])
     x_axis.geo_polygons.append([0, 1])
     y_axis = model.LineArray(name='YAxisHelper')
-    y_axis.appearance().material = green_material
+    y_axis.appearance().material = make_green_material()
     y_axis.geo_vertices.extend([numpy.zeros(3), numpy.array([0.0, length, 0.0])])
     y_axis.geo_polygons.append([0, 1])
     z_axis = model.LineArray(name='ZAxisHelper')
-    z_axis.appearance().material = blue_material
+    z_axis.appearance().material = make_blue_material()
     z_axis.geo_vertices.extend([numpy.zeros(3), numpy.array([0.0, 0.0, length / 2.0])])
     z_axis.geo_polygons.append([0, 1])
 
     return [x_axis, y_axis, z_axis]
 
-def create_grid():
+def make_grid():
     # Materials
-    dark_material = model.Material()
-    dark_material.color.diffuse = numpy.array([0.3] * 3)
-    light_material = model.Material()
-    light_material.color.diffuse = numpy.array([0.5] * 3)
+    dark_material = make_dark_gray_material()
+    light_material = make_light_gray_material()
 
     # Objects
     z_grid = geometry.Plane((10, 10), (10, 10))

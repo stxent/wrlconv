@@ -34,12 +34,16 @@ def create_model_view_matrix(eye, center, z_axis):
         [    1.0,     0.0,     0.0, 0.0],
         [    0.0,     1.0,     0.0, 0.0],
         [    0.0,     0.0,     1.0, 0.0],
-        [-eye[0], -eye[1], -eye[2], 1.0]])
-    result = numpy.matmul(result, numpy.array([
-        [side[0], z_axis[0], -forward[0], 0.0],
-        [side[1], z_axis[1], -forward[1], 0.0],
-        [side[2], z_axis[2], -forward[2], 0.0],
-        [    0.0,       0.0,         0.0, 1.0]]))
+        [-eye[0], -eye[1], -eye[2], 1.0]
+    ])
+    result = numpy.matmul(result,
+        numpy.array([
+            [side[0], z_axis[0], -forward[0], 0.0],
+            [side[1], z_axis[1], -forward[1], 0.0],
+            [side[2], z_axis[2], -forward[2], 0.0],
+            [    0.0,       0.0,         0.0, 1.0]
+        ])
+    )
     return result
 
 def create_perspective_matrix(aspect, rotation, distance):
@@ -52,7 +56,8 @@ def create_perspective_matrix(aspect, rotation, distance):
         [width,    0.0,                                0.0,  0.0],
         [  0.0, height,                                0.0,  0.0],
         [  0.0,    0.0,       -(far + near) / (far - near), -1.0],
-        [  0.0,    0.0, -(2.0 * far * near) / (far - near),  0.0]])
+        [  0.0,    0.0, -(2.0 * far * near) / (far - near),  0.0]
+    ])
     return result
 
 def create_orthographic_matrix(area, distance):
@@ -63,14 +68,16 @@ def create_orthographic_matrix(area, distance):
         [1.0 / width, 0.0, 0.0, 0.0],
         [0.0, 1.0 / height, 0.0, 0.0],
         [0.0, 0.0, -2.0 / (far - near), 0.0],
-        [0.0, 0.0, -(far + near) / (far - near), 1.0]])
+        [0.0, 0.0, -(far + near) / (far - near), 1.0]
+    ])
     return result
 
 def uv_wrap_planar(mesh, borders=None):
     if borders is None:
         borders = [
             [mesh.geo_vertices[0][0], mesh.geo_vertices[0][1]],
-            [mesh.geo_vertices[0][0], mesh.geo_vertices[0][1]]]
+            [mesh.geo_vertices[0][0], mesh.geo_vertices[0][1]]
+        ]
 
         for vert in mesh.geo_vertices:
             if vert[0] < borders[0][0]:
@@ -110,7 +117,8 @@ def make_rotation_matrix(vector, rotation):
         [a11, a12, a13, 0.0],
         [a21, a22, a23, 0.0],
         [a31, a32, a33, 0.0],
-        [0.0, 0.0, 0.0, 1.0]])
+        [0.0, 0.0, 0.0, 1.0]
+    ])
     return matrix
 
 def reset_allocator():
@@ -131,17 +139,20 @@ def rpy_to_matrix(angles):
         [ cosy, -siny,   0.0, 0.0],
         [ siny,  cosy,   0.0, 0.0],
         [  0.0,   0.0,   1.0, 0.0],
-        [  0.0,   0.0,   0.0, 1.0]])
+        [  0.0,   0.0,   0.0, 1.0]
+    ])
     pitch_matrix = numpy.array([
         [ cosp,   0.0,  sinp, 0.0],
         [  0.0,   1.0,   0.0, 0.0],
         [-sinp,   0.0,  cosp, 0.0],
-        [  0.0,   0.0,   0.0, 1.0]])
+        [  0.0,   0.0,   0.0, 1.0]
+    ])
     roll_matrix = numpy.array([
         [  1.0,   0.0,   0.0, 0.0],
         [  0.0,  cosr, -sinr, 0.0],
         [  0.0,  sinr,  cosr, 0.0],
-        [  0.0,   0.0,   0.0, 1.0]])
+        [  0.0,   0.0,   0.0, 1.0]
+    ])
 
     return numpy.matmul(yaw_matrix, numpy.matmul(pitch_matrix, roll_matrix))
 
@@ -174,7 +185,8 @@ def quaternion_to_matrix(quaternion):
         [m00, m01, m02, 0.0],
         [m10, m11, m12, 0.0],
         [m20, m21, m22, 0.0],
-        [0.0, 0.0, 0.0, 1.0]])
+        [0.0, 0.0, 0.0, 1.0]
+    ])
     # pylint: enable=C0103
 
     return matrix
@@ -257,7 +269,8 @@ class Material:
                 return (
                     math.isclose(vect1[0], vect2[0])
                     and math.isclose(vect1[1], vect2[1])
-                    and math.isclose(vect1[2], vect2[2]))
+                    and math.isclose(vect1[2], vect2[2])
+                )
 
             if isinstance(other, Material.Color):
                 return (
@@ -266,7 +279,8 @@ class Material:
                     and eqv(self.diffuse, other.diffuse)
                     and eqv(self.ambient, other.ambient)
                     and eqv(self.specular, other.specular)
-                    and eqv(self.emissive, other.emissive))
+                    and eqv(self.emissive, other.emissive)
+                )
             return False
 
         def __ne__(self, other):
@@ -305,7 +319,8 @@ class Material:
                 self.color == other.color
                 and self.diffuse == other.diffuse
                 and self.normal == other.normal
-                and self.specular == other.specular)
+                and self.specular == other.specular
+            )
         return False
 
     def __ne__(self, other):
@@ -408,38 +423,164 @@ class Mesh(Object):
         if transform is not None:
             self.geo_vertices = [transform.apply(vertex) for vertex in self.geo_vertices]
 
-    def optimize(self):
+    def detach_faces(self, regions):
+        vertex_regions = []
+        for box_top, box_bottom in regions:
+            top = numpy.maximum(box_top, box_bottom)
+            bottom = numpy.minimum(box_top, box_bottom)
+            vertex_regions.append((top, bottom))
+
+        detached_polygons = numpy.zeros(len(self.geo_polygons), dtype=bool)
+        detached_vertices = numpy.zeros(len(self.geo_vertices), dtype=bool)
+        index_from_position = []
+        reindexed = numpy.zeros(len(self.geo_vertices), dtype=numpy.uint32)
+        counter = 0
+
+        # Create polygon array with detached polygons
+        dst_polygons = []
+        for i, polygon in enumerate(self.geo_polygons):
+            detach = False
+            for region in vertex_regions:
+                inside = [Mesh.intersection(region, self.geo_vertices[i]) for i in polygon]
+                if all(inside):
+                    detach = True
+                    break
+            if detach:
+                new_polygon = []
+                for vertex in polygon:
+                    if not detached_vertices[vertex]:
+                        index_from_position.append(vertex)
+                        reindexed[vertex] = counter
+                        detached_vertices[vertex] = True
+                        counter += 1
+                    new_polygon.append(reindexed[vertex])
+                dst_polygons.append(new_polygon)
+                detached_polygons[i] = True
+
+        # Create source polygon array without detached polygons
+        src_polygons = []
+        for i, polygon in enumerate(self.geo_polygons):
+            if not detached_polygons[i]:
+                src_polygons.append(copy.deepcopy(polygon))
+
+        discarded_indices = numpy.zeros(len(self.geo_vertices), dtype=numpy.uint32)
+        discarded_vertices = self.optimize_unused_vertices(src_polygons, len(self.geo_vertices))
+        src_vertices = []
+
+        # Create new vertex array without detached vertices
+        counter = 0
+        for i, discarded in enumerate(discarded_vertices):
+            if not discarded:
+                src_vertices.append(self.geo_vertices[i])
+                discarded_indices[i] = counter
+                counter += 1
+
+        # Reindex source polygons
+        for polygon in src_polygons:
+            for i, vertex in enumerate(polygon):
+                polygon[i] = discarded_indices[vertex]
+
+        # Create new vertex array with detached vertices
+        dst_vertices = []
+        for i in index_from_position:
+            dst_vertices.append(self.geo_vertices[i])
+
+        self.geo_vertices = src_vertices
+        self.geo_polygons = src_polygons
+
+        # TODO Textures
+        mesh = Mesh()
+        mesh.geo_vertices = dst_vertices
+        mesh.geo_polygons = dst_polygons
+
+        return mesh
+
+    def find_vertices(self, regions):
+        vertex_regions = []
+        for box_top, box_bottom in regions:
+            top = numpy.maximum(box_top, box_bottom)
+            bottom = numpy.minimum(box_top, box_bottom)
+            vertex_regions.append((top, bottom))
+
+        vertices = {}
+        for i, vertex in enumerate(self.geo_vertices):
+            for region in vertex_regions:
+                if Mesh.intersection(region, vertex):
+                    vertices[i] = vertex
+                    break
+
+        return vertices
+
+    def optimize(self, tolerance=1e-9):
         if self.parent is not None:
             return
 
-        #TODO Reduce complexity
-        ret_vert = []
-        ret_poly = copy.deepcopy(self.geo_polygons)
-        vert_index = list(range(0, len(self.geo_vertices)))
-        while vert_index:
-            vert = self.geo_vertices[vert_index[0]]
-            same = []
-            for i, value in enumerate(self.geo_vertices):
-                if Mesh.isclose(value, vert):
-                    same.append(i)
-            last = len(ret_vert)
-            for poly in ret_poly:
-                for i, value in enumerate(poly):
-                    if value in same:
-                        poly[i] = last
-            for ind in same:
-                vert_index.remove(ind)
-            ret_vert.append(vert)
-        self.geo_vertices = ret_vert
-        self.geo_polygons = ret_poly
+        discarded = self.optimize_unused_vertices(self.geo_polygons, len(self.geo_vertices))
+        reindexed = numpy.zeros(len(self.geo_vertices), dtype=numpy.uint32)
+        counter = 0
+
+        # Find duplicate vertices
+        for i in range(0, len(self.geo_vertices)):
+            if not discarded[i]:
+                origin = self.geo_vertices[i]
+                for j in range(i + 1, len(self.geo_vertices)):
+                    if not discarded[j] and Mesh.isclose(origin, self.geo_vertices[j], tolerance):
+                        reindexed[j] = counter
+                        discarded[j] = True
+                reindexed[i] = counter
+                counter += 1
+
+        # Create new array without duplicate vertices
+        opt_vertices = []
+        for i, vertex in enumerate(self.geo_vertices):
+            if not discarded[i]:
+                opt_vertices.append(vertex)
+
+        # Reindex polygons
+        opt_polygons = copy.deepcopy(self.geo_polygons)
+        for polygon in opt_polygons:
+            for i, vertex in enumerate(polygon):
+                polygon[i] = reindexed[vertex]
+        Mesh.optimize_broken_polygons(opt_polygons)
+
+        # TODO Textures
+        self.geo_vertices = opt_vertices
+        self.geo_polygons = opt_polygons
 
     @staticmethod
-    def isclose(vector_a, vector_b):
-        # Default relative tolerance 1e-9 is used
+    def intersection(region, point, tolerance=1e-9):
+        # Check whether the point is within the region
+        top = region[0] + tolerance
+        bottom = region[1] - tolerance
+
         return (
-            math.isclose(vector_a[0], vector_b[0])
-            and math.isclose(vector_a[1], vector_b[1])
-            and math.isclose(vector_a[2], vector_b[2]))
+            bottom[0] <= point[0] <= top[0]
+            and bottom[1] <= point[1] <= top[1]
+            and bottom[2] <= point[2] <= top[2]
+        )
+
+    @staticmethod
+    def isclose(vector_a, vector_b, tolerance=1e-9):
+        return (
+            abs(vector_a[0] - vector_b[0]) <= tolerance
+            and abs(vector_a[1] - vector_b[1]) <= tolerance
+            and abs(vector_a[2] - vector_b[2]) <= tolerance
+        )
+
+    @staticmethod
+    def optimize_broken_polygons(polygons):
+        for i in range(len(polygons) - 1, -1, -1):
+            poly = polygons[i]
+            if len(set(poly)) < 3:
+                del polygons[i]
+
+    @staticmethod
+    def optimize_unused_vertices(polygons, vertex_count):
+        discarded = numpy.ones(vertex_count, dtype=bool)
+        for polygon in polygons:
+            for vertex in polygon:
+                discarded[vertex] = False
+        return discarded
 
     @staticmethod
     def triangulate(patch):
@@ -455,40 +596,38 @@ class AttributedMesh(Mesh):
     def __init__(self, parent=None, name=None, regions=None):
         super().__init__(parent, name)
 
-        self.regions = {}
+        self.regions = []
         if regions is not None:
-            for box, key in regions:
-                top = numpy.maximum(box[0], box[1])
-                bottom = numpy.minimum(box[0], box[1])
-                self.regions[int(key)] = (top, bottom)
+            for box_top, box_bottom, key in regions:
+                if key == 0:
+                    # Key 0 is a default key for unattributed vertices
+                    raise Exception()
+                top = numpy.maximum(box_top, box_bottom)
+                bottom = numpy.minimum(box_top, box_bottom)
+                self.regions.append((key, (top, bottom)))
         self.attributes = []
-
-    @staticmethod
-    def intersection(region, point):
-        # Check whether the point is within the region
-        top, bottom = region[0], region[1]
-        return (
-            bottom[0] <= point[0] <= top[0]
-            and bottom[1] <= point[1] <= top[1]
-            and bottom[2] <= point[2] <= top[2])
 
     def associate_vertices(self):
         self.attributes = [0] * len(self.geo_vertices)
-        for key, region in self.regions.items():
+        for key, region in self.regions:
             for i, value in enumerate(self.geo_vertices):
-                if AttributedMesh.intersection(region, value):
+                if Mesh.intersection(region, value):
                     self.attributes[i] = key
 
     def apply_transform(self, transforms):
         if len(self.geo_vertices) > len(self.attributes):
             raise Exception()
+
+        default_transform = transforms[0] if 0 in transforms else Transform()
+
         for i, value in enumerate(self.geo_vertices):
-            if self.attributes[i] >= len(transforms):
-                raise Exception()
-            self.geo_vertices[i] = transforms[self.attributes[i]].apply(value)
+            if self.attributes[i] in transforms:
+                self.geo_vertices[i] = transforms[self.attributes[i]].apply(value)
+            else:
+                self.geo_vertices[i] = default_transform.apply(value)
 
     def append(self, other):
-        #TODO Optimize
+        # TODO Optimize
         Mesh.append(self, other)
         self.associate_vertices()
 
@@ -545,7 +684,8 @@ class Transform:
             [0.0, 0.0, 0.0, pos[0]],
             [0.0, 0.0, 0.0, pos[1]],
             [0.0, 0.0, 0.0, pos[2]],
-            [0.0, 0.0, 0.0,    0.0]])
+            [0.0, 0.0, 0.0,    0.0]
+        ])
         self.matrix = self.matrix + matrix
 
     def rotate(self, vector, rotation):
@@ -557,7 +697,8 @@ class Transform:
             [scale[0],      0.0,      0.0, 0.0],
             [     0.0, scale[1],      0.0, 0.0],
             [     0.0,      0.0, scale[2], 0.0],
-            [     0.0,      0.0,      0.0, 1.0]])
+            [     0.0,      0.0,      0.0, 1.0]
+        ])
         self.matrix = numpy.matmul(self.matrix, matrix)
 
     def apply(self, vertex):

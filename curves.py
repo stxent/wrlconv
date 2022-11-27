@@ -36,7 +36,7 @@ class Line:
     def reverse(self):
         self.end, self.beg = self.beg, self.end
 
-    def tesselate(self):
+    def tessellate(self):
         scale = 1.0 / float(self.resolution)
         return [self.point(float(i) * scale) for i in range(0, self.resolution + 1)]
 
@@ -97,7 +97,7 @@ class BezierQuad(model.Mesh):
         self.d = d
         # pylint: enable=invalid-name
 
-        self.tesselate(numpy.array(resolution) + 1, inverse)
+        self.tessellate(numpy.array(resolution) + 1, inverse)
 
     def interpolate(self, u, v): # pylint: disable=invalid-name
         def make_curve(row):
@@ -113,7 +113,7 @@ class BezierQuad(model.Mesh):
 
         return q.point(u)
 
-    def tesselate(self, resolution, inverse):
+    def tessellate(self, resolution, inverse):
         step = ([1.0 / (resolution[0] - 1), 1.0 / (resolution[1] - 1)])
         total = resolution[0] * resolution[1]
         for j in range(0, resolution[1]):
@@ -135,7 +135,7 @@ class BezierQuad(model.Mesh):
                     self.geo_polygons.append([p1, p2, p4, p3])
 
 
-class BezierTriangle(model.Mesh):
+class BezierTri(model.Mesh):
     def __init__(self, a, b, c, mean, resolution, inverse=False): # pylint: disable=invalid-name
         '''
                     a[0]
@@ -156,7 +156,7 @@ class BezierTriangle(model.Mesh):
 
         self.mean = mean
 
-        self.tesselate(resolution, inverse)
+        self.tessellate(resolution, inverse)
 
     def interpolate(self, u, v, w): # pylint: disable=invalid-name
         return (
@@ -166,7 +166,7 @@ class BezierTriangle(model.Mesh):
             + self.b[1] * 3.0 * v * (w ** 2.0) + self.b[2] * 3.0 * u * (w ** 2.0)
             + self.mean * 6.0 * u * v * w)
 
-    def tesselate(self, resolution, inverse):
+    def tessellate(self, resolution, inverse):
         row_offset = lambda row: sum(range(0, row + 1))
         point_u = numpy.array([1.0, 0.0, 0.0])
         point_v = numpy.array([0.0, 1.0, 0.0])
@@ -207,7 +207,7 @@ def optimize(points):
         return result
     return []
 
-def make_loft_slices(path, shape, segments, rotation, scaling):
+def make_loft_slices(path, segments, rotation, scaling, morphing):
     slices = []
 
     count = len(segments)
@@ -222,6 +222,8 @@ def make_loft_slices(path, shape, segments, rotation, scaling):
 
         t = float(i) / count # pylint: disable=invalid-name
 
+        shape = morphing(t)
+
         scale_transform = model.Transform()
         scale_transform.scale(scaling(t))
         scaled_shape = [scale_transform.apply(point) for point in shape]
@@ -233,15 +235,17 @@ def make_loft_slices(path, shape, segments, rotation, scaling):
 
     return slices
 
-def loft(path, shape, rotation=None, scaling=None):
+def loft(path, shape, rotation=None, scaling=None, morphing=None):
     default_z_vect = numpy.array([0.0, 0.0, 1.0])
 
     if len(path) < 2:
         raise Exception()
+    if morphing is None:
+        morphing = lambda _: shape
     if rotation is None:
-        rotation = lambda t: numpy.zeros(3)
+        rotation = lambda _: numpy.zeros(3)
     if scaling is None:
-        scaling = lambda t: numpy.ones(3)
+        scaling = lambda _: numpy.ones(3)
 
     # First pass to estimate x_vect
     non_zero_product = None
@@ -277,12 +281,12 @@ def loft(path, shape, rotation=None, scaling=None):
             [      0.0,       0.0,       0.0, 1.0]])
         segments.append(model.Transform(matrix=matrix).quaternion())
 
-    return make_loft_slices(path, shape, segments, rotation, scaling)
+    return make_loft_slices(path, segments, rotation, scaling, morphing)
 
 def rotate(curve, axis, edges=None, angles=None):
     points = []
     for segment in curve:
-        points.extend(segment.tesselate())
+        points.extend(segment.tessellate())
     points = optimize(points)
     slices = []
 
