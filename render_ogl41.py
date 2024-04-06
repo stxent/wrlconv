@@ -396,8 +396,9 @@ class RenderMesh(RenderObject):
             for poly in mesh.geometry()[1]:
                 count = len(poly)
                 if count < 3 or count > 4:
-                    raise Exception()
-                primitives[len(poly) - 3] += 1
+                    debug(f'Incorrect polygon size: {count}')
+                    continue
+                primitives[count - 3] += 1
 
         triangles, quads = primitives[0] * 3, primitives[1] * 4
         length = triangles + quads
@@ -450,6 +451,8 @@ class RenderMesh(RenderObject):
                     tex_poly = tex_polygons[i]
 
                 count = len(geo_poly)
+                if count < 3 or count > 4:
+                    continue
                 index_group = count - 3
 
                 offset = index[index_group]

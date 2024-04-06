@@ -247,38 +247,27 @@ def loft(path, shape, rotation=None, scaling=None, morphing=None):
     if scaling is None:
         scaling = lambda _: numpy.ones(3)
 
-    # First pass to estimate x_vect
-    non_zero_product = None
-    products = []
+    # Make initial rotation matrix
+    z_vect = model.normalize(path[1][0:3] - path[0][0:3])
+    x_vect = model.normalize(numpy.cross(default_z_vect, z_vect))
+    if numpy.linalg.norm(x_vect) != 0.0:
+        angle = math.acos(numpy.dot(default_z_vect, z_vect))
+        matrix = model.make_rotation_matrix(x_vect, angle)
+        previous_vect = z_vect
+    else:
+        matrix = numpy.identity(4)
+        previous_vect = default_z_vect
 
-    for i in range(0, len(path) - 1):
-        z_vect = model.normalize(path[i + 1][0:3] - path[i][0:3])
-        x_vect = model.normalize(numpy.cross(default_z_vect, z_vect))
-        if numpy.linalg.norm(x_vect) == 0.0:
-            x_vect = None
-        elif non_zero_product is None:
-            non_zero_product = x_vect
-        products.append((x_vect, z_vect))
-
-    # Second pass
     segments = []
+    segments.append(model.Transform(matrix=matrix).quaternion())
 
-    for product in products:
-        if product[0] is not None:
-            non_zero_product = product[0]
-            x_vect = product[0]
-        elif non_zero_product is not None:
-            x_vect = non_zero_product
-        else:
-            x_vect = numpy.array([1.0, 0.0, 0.0])
-        z_vect = product[1]
-        y_vect = model.normalize(numpy.cross(z_vect, x_vect))
-
-        matrix = numpy.array([
-            [x_vect[0], y_vect[0], z_vect[0], 0.0],
-            [x_vect[1], y_vect[1], z_vect[1], 0.0],
-            [x_vect[2], y_vect[2], z_vect[2], 0.0],
-            [      0.0,       0.0,       0.0, 1.0]])
+    for i in range(1, len(path) - 1):
+        z_vect = model.normalize(path[i + 1][0:3] - path[i][0:3])
+        x_vect = model.normalize(numpy.cross(previous_vect, z_vect))
+        if numpy.linalg.norm(x_vect) != 0.0:
+            angle = math.acos(numpy.dot(previous_vect, z_vect))
+            matrix = numpy.matmul(matrix, model.make_rotation_matrix(x_vect, angle))
+            previous_vect = z_vect
         segments.append(model.Transform(matrix=matrix).quaternion())
 
     return make_loft_slices(path, segments, rotation, scaling, morphing)

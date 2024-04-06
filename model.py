@@ -12,7 +12,8 @@ import numpy
 def angle(vector_a, vector_b):
     norm_vector_a = normalize(vector_a[0:3])
     norm_vector_b = normalize(vector_b[0:3])
-    return math.acos(numpy.clip(numpy.dot(norm_vector_a, norm_vector_b), -1.0, +1.0))
+    dot = numpy.dot(norm_vector_a, norm_vector_b)
+    return math.acos(numpy.clip(dot, -1.0, 1.0))
 
 def normalize(vector):
     length = numpy.linalg.norm(vector)
@@ -664,6 +665,15 @@ class LineArray(Object):
             self.geo_vertices += geo_vertices
         else:
             self.geo_vertices += [other.transform.apply(vertex) for vertex in geo_vertices]
+
+    def from_points(self, points):
+        if len(points) < 2:
+            return
+
+        for i, point in enumerate(points[:-1]):
+            self.geo_vertices.append(point)
+            self.geo_polygons.append([i, i + 1])
+        self.geo_vertices.append(points[-1])
 
     def optimize(self):
         pass # TODO Optimize
