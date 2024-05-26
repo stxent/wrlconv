@@ -227,7 +227,7 @@ def matrix_to_quaternion(matrix):
 
 def slerp(q0, q1, t): # pylint: disable=C0103
     q0, q1 = normalize(q0), normalize(q1)
-    dot = numpy.sum(q0 * q1)
+    dot = numpy.clip(numpy.sum(q0 * q1), -1.0, 1.0)
 
     if abs(dot) == 1.0:
         return q0
@@ -364,8 +364,8 @@ class Object:
 
 class Mesh(Object):
     class Appearance:
-        def __init__(self):
-            self.material = Material()
+        def __init__(self, material):
+            self.material = material if material is not None else Material()
             self.normals = False
 
             self.smooth = False
@@ -373,13 +373,13 @@ class Mesh(Object):
             self.wireframe = False
 
 
-    def __init__(self, parent=None, name=None):
+    def __init__(self, parent=None, name=None, material=None):
         super().__init__(Object.PATCHES, parent, name)
 
         if self.parent is None:
             self.geo_vertices, self.geo_polygons = [], []
             self.tex_vertices, self.tex_polygons = [], []
-            self.visual_appearance = Mesh.Appearance()
+            self.visual_appearance = Mesh.Appearance(material)
 
     def appearance(self):
         return self.parent.appearance() if self.parent is not None else self.visual_appearance
@@ -594,8 +594,8 @@ class Mesh(Object):
 
 
 class AttributedMesh(Mesh):
-    def __init__(self, parent=None, name=None, regions=None):
-        super().__init__(parent, name)
+    def __init__(self, parent=None, name=None, material=None, regions=None):
+        super().__init__(parent, name, material)
 
         self.regions = []
         if regions is not None:
@@ -635,16 +635,16 @@ class AttributedMesh(Mesh):
 
 class LineArray(Object):
     class Appearance:
-        def __init__(self):
-            self.material = Material()
+        def __init__(self, material):
+            self.material = material if material is not None else Material()
 
 
-    def __init__(self, parent=None, name=None):
+    def __init__(self, parent=None, name=None, material=None):
         super().__init__(Object.LINES, parent, name)
 
         if self.parent is None:
             self.geo_vertices, self.geo_polygons = [], []
-            self.visual_appearance = LineArray.Appearance()
+            self.visual_appearance = LineArray.Appearance(material)
 
     def appearance(self):
         return self.parent.appearance() if self.parent is not None else self.visual_appearance

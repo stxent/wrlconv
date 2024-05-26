@@ -152,9 +152,9 @@ def write_transform(root, mesh, exported_groups, exported_materials):
     started = time.time()
 
     if mesh.transform is None:
-        translation = numpy.array([0.0, 0.0, 0.0])
+        translation = numpy.zeros(3)
         rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
-        scale = numpy.array([1.0, 1.0, 1.0])
+        scale = numpy.ones(3)
     else:
         translation = mesh.transform.matrix[:,3][0:3]
         translation_matrix = numpy.array([

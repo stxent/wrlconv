@@ -207,7 +207,7 @@ def optimize(points):
         return result
     return []
 
-def make_loft_slices(path, segments, rotation, scaling, morphing):
+def make_loft_slices(path, segments, translation, rotation, scaling, morphing):
     slices = []
 
     count = len(segments)
@@ -220,22 +220,22 @@ def make_loft_slices(path, segments, rotation, scaling, morphing):
         else:
             quaternion = current
 
-        t = float(i) / count # pylint: disable=invalid-name
+        shape = morphing(i)
 
-        shape = morphing(t)
+        shape_transform = model.Transform()
+        shape_transform.scale(scaling(i))
+        shape_transform.translate(translation(i))
+        transformed_shape = [shape_transform.apply(point) for point in shape]
 
-        scale_transform = model.Transform()
-        scale_transform.scale(scaling(t))
-        scaled_shape = [scale_transform.apply(point) for point in shape]
-
-        transform = model.Transform(quaternion=quaternion)
-        transform.matrix = numpy.matmul(transform.matrix, model.rpy_to_matrix(rotation(t)))
-        transform.translate(path[i])
-        slices.append([transform.apply(point) for point in scaled_shape])
+        slice_transform = model.Transform(quaternion=quaternion)
+        slice_transform.matrix = numpy.matmul(slice_transform.matrix,
+                                              model.rpy_to_matrix(rotation(i)))
+        slice_transform.translate(path[i])
+        slices.append([slice_transform.apply(point) for point in transformed_shape])
 
     return slices
 
-def loft(path, shape, rotation=None, scaling=None, morphing=None):
+def loft(path, shape, translation=None, rotation=None, scaling=None, morphing=None):
     default_z_vect = numpy.array([0.0, 0.0, 1.0])
 
     if len(path) < 2:
@@ -246,6 +246,8 @@ def loft(path, shape, rotation=None, scaling=None, morphing=None):
         rotation = lambda _: numpy.zeros(3)
     if scaling is None:
         scaling = lambda _: numpy.ones(3)
+    if translation is None:
+        translation = lambda _: numpy.zeros(3)
 
     # Make initial rotation matrix
     z_vect = model.normalize(path[1][0:3] - path[0][0:3])
@@ -270,7 +272,7 @@ def loft(path, shape, rotation=None, scaling=None, morphing=None):
             previous_vect = z_vect
         segments.append(model.Transform(matrix=matrix).quaternion())
 
-    return make_loft_slices(path, segments, rotation, scaling, morphing)
+    return make_loft_slices(path, segments, translation, rotation, scaling, morphing)
 
 def rotate(curve, axis, edges=None, angles=None):
     points = []
