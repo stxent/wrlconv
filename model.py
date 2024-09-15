@@ -308,11 +308,26 @@ class Material:
             return not self == other
 
 
-    def __init__(self):
-        self.color = Material.Color()
+    def __init__(self, description=None, name=None):
+        self.color = Material.Color(name)
         self.diffuse = None
         self.normal = None
         self.specular = None
+
+        if description is not None:
+            # TODO Textures
+            if 'shininess' in description:
+                self.color.shininess = float(description['shininess'])
+            if 'transparency' in description:
+                self.color.transparency = float(description['transparency'])
+            if 'diffuse' in description:
+                self.color.diffuse = numpy.array(description['diffuse'])
+            if 'specular' in description:
+                self.color.specular = numpy.array(description['specular'])
+            if 'emissive' in description:
+                self.color.emissive = numpy.array(description['emissive'])
+            if 'ambient' in description:
+                self.color.ambient = numpy.array(description['ambient'])
 
     def __eq__(self, other):
         if isinstance(other, Material):
