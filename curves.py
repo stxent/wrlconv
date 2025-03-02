@@ -78,7 +78,7 @@ class Bezier(Line):
 
 
 class BezierQuad(model.Mesh):
-    def __init__(self, a, b, c, d, resolution, inverse=False): # pylint: disable=invalid-name
+    def __init__(self, a, b, c, d, resolution, inverse=False, points=None): # pylint: disable=invalid-name
         '''
         a[0] a[1] a[2] a[3]
         b[0] b[1] b[2] b[3]
@@ -97,7 +97,14 @@ class BezierQuad(model.Mesh):
         self.d = d
         # pylint: enable=invalid-name
 
-        self.tessellate(numpy.array(resolution) + 1, inverse)
+        if points is None:
+            steps = (1.0 / resolution[0], 1.0 / resolution[1])
+            points = [
+                [i * steps[0] for i in range(0, resolution[0] + 1)],
+                [i * steps[1] for i in range(0, resolution[1] + 1)]
+            ]
+
+        self.tessellate(numpy.array(resolution) + 1, inverse, points)
 
     def interpolate(self, u, v): # pylint: disable=invalid-name
         def make_curve(row):
@@ -113,12 +120,11 @@ class BezierQuad(model.Mesh):
 
         return q.point(u)
 
-    def tessellate(self, resolution, inverse):
-        step = ([1.0 / (resolution[0] - 1), 1.0 / (resolution[1] - 1)])
+    def tessellate(self, resolution, inverse, points):
         total = resolution[0] * resolution[1]
         for j in range(0, resolution[1]):
             for i in range(0, resolution[0]):
-                self.geo_vertices.append(self.interpolate(i * step[0], j * step[1]))
+                self.geo_vertices.append(self.interpolate(points[0][i], points[1][j]))
 
         for j in range(0, resolution[1] - 1):
             for i in range(0, resolution[0] - 1):
@@ -303,11 +309,11 @@ def create_tri_cap_mesh(slices, inverse): # FIXME
     geo_polygons = []
 
     if not inverse:
-        for i, _ in enumerate(indices):
-            geo_polygons.append([len(vertices), indices[i], indices[i - 1]])
+        for i, value in enumerate(indices):
+            geo_polygons.append([len(vertices), value, indices[i - 1]])
     else:
-        for i, _ in enumerate(indices):
-            geo_polygons.append([indices[i - 1], indices[i], len(vertices)])
+        for i, value in enumerate(indices):
+            geo_polygons.append([indices[i - 1], value, len(vertices)])
 
     # Generate object
     mesh = model.Mesh()
