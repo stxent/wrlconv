@@ -94,8 +94,7 @@ class X3dScene(X3dEntry):
 
             if isinstance(entry, X3dTransform):
                 parts = []
-                for i in range(0, len(entry.ancestors)):
-                    shape = entry.ancestors[i]
+                for i, shape in enumerate(entry.ancestors):
                     demangled = entry.demangled() if entry.demangled() != '' else entry.name
                     subname = name + [demangled] if demangled != '' else name
                     subname[-1] += '_' + str(i) if len(entry.ancestors) > 1 else ''
@@ -259,7 +258,7 @@ class X3dAppearance(X3dEntry):
             elif isinstance(entry, X3dMultiTexture):
                 if max(filter(lambda x: x is not None,
                               entry.mapping.values())) >= len(entry.ancestors):
-                    raise Exception() # Texture index is out of range
+                    raise IndexError() # Texture index is out of range
                 if entry.mapping['diffuse'] is not None:
                     material.diffuse = entry.ancestors[entry.mapping['diffuse']].texture
                 if entry.mapping['normal'] is not None:
@@ -354,7 +353,7 @@ class X3dMultiTexture(X3dEntry):
                 if current_chain is not None:
                     chains[current_chain].append(i)
                 else:
-                    raise Exception() # Unsupported sequence
+                    raise ValueError() # Unsupported sequence
 
         for node in chains['diffuse']:
             if modes[node] == 'MODULATE':
@@ -362,12 +361,12 @@ class X3dMultiTexture(X3dEntry):
             elif modes[node] == 'DOTPRODUCT3':
                 self.mapping['normal'] = node
             else:
-                raise Exception() # Unsupported mode
+                raise ValueError() # Unsupported mode
         for node in chains['specular']:
             if modes[node] == 'MODULATE':
                 self.mapping['specular'] = node
             else:
-                raise Exception() # Unsupported mode
+                raise ValueError() # Unsupported mode
 
 
 class X3dParser:
@@ -399,7 +398,7 @@ class X3dParser:
                 self.current = self.scene
             else:
                 debug('Error')
-                raise Exception()
+                raise ValueError()
         elif self.scene is not None:
             entry = None
             reused = False

@@ -617,7 +617,7 @@ class AttributedMesh(Mesh):
             for box_top, box_bottom, key in regions:
                 if key == 0:
                     # Key 0 is a default key for unattributed vertices
-                    raise Exception()
+                    raise KeyError()
                 top = numpy.maximum(box_top, box_bottom)
                 bottom = numpy.minimum(box_top, box_bottom)
                 self.regions.append((key, (top, bottom)))
@@ -632,7 +632,7 @@ class AttributedMesh(Mesh):
 
     def apply_transform(self, transforms):
         if len(self.geo_vertices) > len(self.attributes):
-            raise Exception()
+            raise ValueError()
 
         default_transform = transforms[0] if 0 in transforms else Transform()
 

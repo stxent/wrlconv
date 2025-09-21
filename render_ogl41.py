@@ -136,7 +136,7 @@ def build_solid_object_groups(shaders, input_objects):
         render_appearance = RenderAppearance.make_from_material(
             shaders, appearance.material, appearance.smooth, appearance.wireframe, appearance.solid)
         output.append(RenderMesh(group, render_appearance))
-        debug('Render group of {:d} mesh(es) created'.format(len(group)))
+        debug(f'Render group of {len(group)} mesh(es) created')
 
     return output
 
@@ -167,7 +167,7 @@ def build_line_object_groups(shaders, input_objects):
         appearance = group[0].appearance()
         render_appearance = RenderAppearance.make_from_material(shaders, appearance.material)
         output.append(RenderLineArray(group, render_appearance))
-        debug('Render group of {:d} line array(s) created'.format(len(group)))
+        debug(f'Render group of {len(group)} line array(s) created')
 
     return output
 
@@ -213,7 +213,7 @@ class RenderAppearance:
 
             if IMAGES_ENABLED:
                 if not os.path.isfile(path[1]):
-                    raise Exception()
+                    raise FileNotFoundError()
                 image = Image.open(path[1])
                 try:
                     self.size, image_data = image.size, image.tobytes('raw', 'RGBA', 0, -1)
@@ -234,13 +234,13 @@ class RenderAppearance:
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
             glTexImage2D(self.mode, 0, GL_RGBA8, self.size[0], self.size[1], 0, GL_RGBA,
                          GL_UNSIGNED_BYTE, image_data)
-            debug('Texture loaded: {:s}, width: {:d}, height: {:d}, id: {:d}'.format(
-                path[0], self.size[0], self.size[1], self.buffer))
+            debug(f'Texture loaded, path {path[0]}, width {self.size[0]}, height {self.size[1]}'
+                  f', id {self.buffer}')
 
 
     def __init__(self, shader=None, material=None, smooth=False, wireframe=False, solid=True):
         if shader is None:
-            raise Exception()
+            raise ValueError()
 
         self.textures = []
 
@@ -316,7 +316,7 @@ class RenderLineArray(RenderObject):
             for poly in mesh.geometry()[1]:
                 count = len(poly)
                 if count < 2 or count > 2:
-                    raise Exception()
+                    raise ValueError()
                 primitives[count - 2] += 1
 
         lines = primitives[0] * 2
@@ -367,8 +367,8 @@ class RenderLineArray(RenderObject):
 
         glBindVertexArray(0)
 
-        debug('Point cloud created in {:f}, id {:s}, lines {:d}, vertices {:d}'.format(
-            time.time() - started, self.ident, int(lines / 2), length))
+        debug(f'Point cloud created in {time.time() - started}, id {self.ident}'
+              f', lines {lines // 2}, vertices {length}')
 
     def draw(self, projection_matrix, model_view_matrix, lights, wireframe):
         if self.appearance is not None:
@@ -502,8 +502,8 @@ class RenderMesh(RenderObject):
 
         glBindVertexArray(0)
 
-        debug('Mesh created in {:f}, id {:s}, triangles {:d}, quads {:d}, vertices {:d}'.format(
-            time.time() - started, self.ident, int(triangles / 3), int(quads / 4), length))
+        debug(f'Mesh created in {time.time() - started}, id {self.ident}'
+              f', triangles {triangles // 3}, quads {quads // 4}, vertices {length}')
 
     def draw(self, projection_matrix, model_view_matrix, lights, wireframe):
         if self.appearance is not None:
@@ -704,9 +704,10 @@ class BaseModelShader(Shader):
                 flags += ['#define SPECULAR_MAP']
 
             def load_file(path):
-                source = open(os.path.join(self.dir, path), 'rb').read().decode('utf-8').split('\n')
-                source = [source[0]] + flags + source[1:]
-                return '\n'.join(source)
+                with open(os.path.join(self.dir, path), 'rb') as file:
+                    source = file.read().decode('utf-8').split('\n')
+                    source = [source[0]] + flags + source[1:]
+                    return '\n'.join(source)
 
             self.create(load_file('default.vert'), load_file('default.frag'))
 
@@ -767,7 +768,10 @@ class UnlitModelShader(Shader):
         super().__init__()
 
         if self.program is None:
-            load_file = lambda path: open(os.path.join(self.dir, path), 'rb').read().decode('utf-8')
+            def load_file(path):
+                with open(os.path.join(self.dir, path), 'rb') as file:
+                    return file.read().decode('utf-8')
+
             self.create(load_file('unlit.vert'), load_file('unlit.frag'))
 
         self.projection_loc = glGetUniformLocation(self.program, 'projectionMatrix')
@@ -795,13 +799,12 @@ class SystemShader(Shader):
 
         if self.program is None and prefix != '':
             def load_file(path, flags):
-                source = open(os.path.join(self.dir, path), 'rb').read().decode('utf-8').split('\n')
-                source = [source[0]] + flags + source[1:]
-                return '\n'.join(source)
+                with open(os.path.join(self.dir, path), 'rb') as file:
+                    source = file.read().decode('utf-8').split('\n')
+                    source = [source[0]] + flags + source[1:]
+                    return '\n'.join(source)
 
-            self.create(
-                load_file(prefix + '.vert', flags),
-                load_file(prefix + '.frag', flags))
+            self.create(load_file(prefix + '.vert', flags), load_file(prefix + '.frag', flags))
 
         self.projection_loc = glGetUniformLocation(self.program, 'projectionMatrix')
         self.model_view_loc = glGetUniformLocation(self.program, 'modelViewMatrix')
@@ -929,9 +932,8 @@ class Framebuffer:
                                       self.depth)
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
-
-        debug('Framebuffer built, size {:d}x{:d}, color {:d}, depth {:d}'.format(
-            size[0], size[1], self.color, self.depth))
+        debug(f'Framebuffer built, size {size[0]}x{size[1]}'
+              f', color {self.color}, depth {self.depth}')
 
     def free(self):
         if self.color:
@@ -1104,7 +1106,7 @@ class Render(Scene):
                      mask_data)
         glBindTexture(GL_TEXTURE_2D, 0)
         self.overlay_mask = Texture(mode=GL_TEXTURE_2D, location=0, identifier=mask_buffer)
-        debug('Overlay built, size {:d}x{:d}, texture {:d}'.format(x, y, mask_buffer))
+        debug(f'Overlay built, size {x}x{y}, texture {mask_buffer}')
 
     def draw_scene(self):
         # First pass

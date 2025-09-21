@@ -18,7 +18,7 @@ except ImportError:
 class Line:
     def __init__(self, beg, end, resolution):
         if resolution < 1:
-            raise Exception()
+            raise ValueError()
         self.beg = numpy.array(list(beg))
         self.end = numpy.array(list(end))
         self.resolution = resolution
@@ -31,7 +31,7 @@ class Line:
         # Argument position is in range [0.0, 1.0]
         if 0.0 <= position <= 1.0:
             return self.beg * (1.0 - position) + self.end * position
-        raise Exception()
+        raise ValueError()
 
     def reverse(self):
         self.end, self.beg = self.beg, self.end
@@ -70,7 +70,7 @@ class Bezier(Line):
             b23 = 3.0 * (position ** 2.0) * (1.0 - position)
             b33 = position ** 3.0
             return self.beg * b03 + self.cbeg * b13 + self.cend * b23 + self.end * b33
-        raise Exception()
+        raise ValueError()
 
     def reverse(self):
         self.cend, self.cbeg = self.cbeg, self.cend
@@ -88,7 +88,7 @@ class BezierQuad(model.Mesh):
         super().__init__()
 
         if resolution[0] < 1 or resolution[1] < 1:
-            raise Exception()
+            raise ValueError()
 
         # pylint: disable=invalid-name
         self.a = a
@@ -152,7 +152,7 @@ class BezierTri(model.Mesh):
         super().__init__()
 
         if resolution < 1:
-            raise Exception()
+            raise ValueError()
 
         # pylint: disable=invalid-name
         self.a = a
@@ -245,7 +245,7 @@ def loft(path, shape, translation=None, rotation=None, scaling=None, morphing=No
     default_z_vect = numpy.array([0.0, 0.0, 1.0])
 
     if len(path) < 2:
-        raise Exception()
+        raise ValueError()
     if morphing is None:
         morphing = lambda _: shape
     if rotation is None:
@@ -290,7 +290,7 @@ def rotate(curve, axis, edges=None, angles=None):
     if edges is not None and angles is None:
         angles = [(math.pi * 2.0 / edges) * i for i in range(0, edges)]
     elif edges is not None or angles is None:
-        raise Exception()
+        raise ValueError()
 
     for angle in angles:
         mat = model.make_rotation_matrix(axis, angle)

@@ -48,7 +48,7 @@ class Box(model.Mesh):
 class Circle(model.Mesh):
     def __init__(self, radius, edges):
         if radius <= 0.0 or edges < 3:
-            raise Exception()
+            raise ValueError()
         super().__init__()
 
         angle, step = 0.0, math.pi * 2.0 / edges
@@ -63,7 +63,7 @@ class Circle(model.Mesh):
 class Geosphere(model.Mesh):
     def __init__(self, radius, depth=1):
         if radius <= 0.0 or depth < 1:
-            raise Exception()
+            raise ValueError()
         super().__init__()
 
         r = (1.0 + math.sqrt(5.0)) / 4.0 # pylint: disable=invalid-name
@@ -113,7 +113,7 @@ class Geosphere(model.Mesh):
 class Plane(model.Mesh):
     def __init__(self, size, resolution):
         if size[0] <= 0.0 or size[1] <= 0.0 or resolution[0] < 1 or resolution[1] < 1:
-            raise Exception()
+            raise ValueError()
         super().__init__()
 
         res = (resolution[0] + 1, resolution[1] + 1)
@@ -160,7 +160,7 @@ def make_circle_outline(center, radius, edges):
     vertices = []
     angle, delta = 0.0, math.pi * 2.0 / edges
 
-    for i in range(0, edges):
+    for _ in range(0, edges):
         # pylint: disable=invalid-name
         x = radius * math.cos(angle)
         y = radius * math.sin(angle)
