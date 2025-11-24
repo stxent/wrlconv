@@ -164,7 +164,8 @@ def store(data, path):
                 [1.0, 0.0, 0.0, -translation[0]],
                 [0.0, 1.0, 0.0, -translation[1]],
                 [0.0, 0.0, 1.0, -translation[2]],
-                [0.0, 0.0, 0.0,             1.0]])
+                [0.0, 0.0, 0.0,             1.0]
+            ])
             translated = numpy.matmul(translation_matrix, mesh.transform.matrix)
 
             scale = numpy.array([numpy.linalg.norm(
@@ -173,7 +174,8 @@ def store(data, path):
                 [1.0 / scale[0],            0.0,            0.0, 0.0],
                 [           0.0, 1.0 / scale[1],            0.0, 0.0],
                 [           0.0,            0.0, 1.0 / scale[2], 0.0],
-                [           0.0,            0.0,            0.0, 1.0]])
+                [           0.0,            0.0,            0.0, 1.0]
+            ])
             scaled = numpy.matmul(translated, scale_matrix)
 
             # Conversion from rotation matrix form to axis-angle form

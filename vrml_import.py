@@ -62,7 +62,10 @@ class VrmlEntry:
         self.parent = parent
         self.name = ''
         self.objects = []
-        self.level = self.parent.level + 2 if self.parent is not None else 0
+        self.level_value = self.parent.level_value + 2 if self.parent is not None else 0
+
+    def level(self, increment=0):
+        return ' ' * (self.level_value + increment)
 
     def chain(self, entry_type):
         if isinstance(self, (VrmlScene, VrmlTransform, VrmlInline)):
@@ -108,22 +111,22 @@ class VrmlEntry:
                 initial_pos = stream.tell()
                 self.read(stream, data[:regexp.start()])
                 if initial_pos != stream.tell():
-                    print('{:s}Read error'.format(' ' * self.level))
+                    print('{:s}Read error'.format(self.level()))
                     break
                 if balance < 0:
-                    debug('{:s}Wrong balance: {:d}'.format(' ' * self.level, balance))
+                    debug('{:s}Wrong balance: {:d}'.format(self.level(), balance))
                     stream.seek(-(len(data) - regexp.start() + offset), os.SEEK_CUR)
                     break
                 stream.seek(-(len(data) - regexp.end()), os.SEEK_CUR)
                 entry = None
                 debug('{:s}Entry: "{:s}" "{:s}" "{:s}" Balance: {:d}'.format(
-                    ' ' * self.level, regexp.group(1), regexp.group(2), regexp.group(3), balance))
+                    self.level(), regexp.group(1), regexp.group(2), regexp.group(3), balance))
 
                 try:
                     entry = self.chain(regexp.group(3))
                 except TypeError:
                     debug('{:s}Unsupported chunk sequence: {:s}->{:s}'.format(
-                        ' ' * self.level, self.__class__.__name__, regexp.group(3)))
+                        self.level(), self.__class__.__name__, regexp.group(3)))
                     offset = skip_chunk(stream)
                     stream.seek(-offset, os.SEEK_CUR)
 
@@ -143,7 +146,7 @@ class VrmlEntry:
                     for current in ptr.entries:
                         if entry == current:
                             debug('{:s}Not unique, using entry with id: {:d}'.format(
-                                ' ' * self.level, current.ident))
+                                self.level(), current.ident))
                             entry = current
                             duplicate = True
                             break
@@ -162,13 +165,13 @@ class VrmlEntry:
                 self.read(stream, data)
                 using = re.search(r'USE\s+([\w\.\-]+)', data, re.I | re.S)
                 if using is not None and using.start() < len(data) - offset:
-                    debug('{:s}Using entry {:s}'.format(' ' * self.level, using.group(1)))
+                    debug('{:s}Using entry {:s}'.format(self.level(), using.group(1)))
                     ptr = self
                     while not isinstance(ptr, (VrmlInline, VrmlScene)):
                         ptr = ptr.parent
                     self.objects.extend(filter(lambda x: x.name == using.group(1), ptr.entries))
                 if balance < 0:
-                    debug('{:s}Balance mismatch: {:d}'.format(' ' * self.level, balance))
+                    debug('{:s}Balance mismatch: {:d}'.format(self.level(), balance))
                     self.finalize()
                     if initial_pos == stream.tell():
                         stream.seek(-offset, os.SEEK_CUR)
@@ -321,7 +324,7 @@ class VrmlInline(VrmlTransform):
         if url_search is not None:
             old_dir = os.getcwd()
             if os.path.isfile(url_search.group(1)):
-                debug('{:s}Loading file: {:s}'.format(' ' * self.level, url_search.group(1)))
+                debug('{:s}Loading file: {:s}'.format(self.level(), url_search.group(1)))
                 with open(url_search.group(1), 'rb') as input_file:
                     if os.path.dirname(url_search.group(1)):
                         os.chdir(os.path.dirname(url_search.group(1)))
@@ -363,7 +366,7 @@ class VrmlGeometry(VrmlEntry):
         position = search_type.end()
 
         debug('{:s}Start {:s} polygons read'.format(
-            ' ' * self.level, 'coordinate' if coordinates else 'texture'))
+            self.level(), 'coordinate' if coordinates else 'texture'))
         while True:
             while True:
                 regexp = VrmlGeometry.POLYGON_PATTERN.search(data, position)
@@ -373,7 +376,7 @@ class VrmlGeometry(VrmlEntry):
                     offset = len(data) - regexp.start() + offset
                     if balance != 0:
                         debug('{:s}Wrong balance: {:d}, offset: {:d}'.format(
-                            ' ' * self.level, balance, offset))
+                            self.level(), balance, offset))
                         break
 
                     vertex_string = regexp.group(1).replace(',', '').replace('\t', '')
@@ -383,7 +386,7 @@ class VrmlGeometry(VrmlEntry):
                         polygons.extend(model.Mesh.triangulate(vertices))
                     except ValueError:
                         debug('{:s}Wrong polygon vertex count: {:d}'.format(
-                            ' ' * self.level, len(vertices)))
+                            self.level(), len(vertices)))
                         break
                     position = regexp.end()
                 else:
@@ -395,7 +398,7 @@ class VrmlGeometry(VrmlEntry):
                 if initial_pos != stream.tell():
                     stream.seek(-offset, os.SEEK_CUR)
                 debug('{:s}Balance mismatch: {:d}, offset: {:d}'.format(
-                    ' ' * self.level, balance, offset))
+                    self.level(), balance, offset))
                 break
             data = stream.readline().decode('utf-8')
             if not data:
@@ -404,11 +407,11 @@ class VrmlGeometry(VrmlEntry):
         if coordinates:
             self.geo_polygons = polygons
             debug('{:s}Read poly done, {:d} polygons'.format(
-                ' ' * self.level, len(self.geo_polygons)))
+                self.level(), len(self.geo_polygons)))
         else:
             self.tex_polygons = polygons
             debug('{:s}Read UV poly done, {:d} polygons'.format(
-                ' ' * self.level, len(self.tex_polygons)))
+                self.level(), len(self.tex_polygons)))
 
 
 class VrmlCoords(VrmlEntry):
@@ -423,7 +426,7 @@ class VrmlCoords(VrmlEntry):
         index_search = re.search(r'point\s*\[', string, re.S)
 
         if index_search is not None:
-            debug('{:s}Start vertex read, width: {:d}'.format(' ' * self.level, self.size))
+            debug('{:s}Start vertex read, width: {:d}'.format(self.level(), self.size))
 
             self.vertices = []
             delta, offset, balance = 0, 0, 0
@@ -440,7 +443,7 @@ class VrmlCoords(VrmlEntry):
                             offset += 1
                         if balance != 0:
                             debug('{:s}Wrong balance: {:d}, offset: {:d}'.format(
-                                ' ' * self.level, balance, offset))
+                                self.level(), balance, offset))
                             break
                         vertices = [float(regexp.group(i + 1)) for i in range(0, self.size)]
                         self.vertices.append(numpy.array(vertices))
@@ -455,13 +458,13 @@ class VrmlCoords(VrmlEntry):
                     if initial_pos != stream.tell():
                         stream.seek(-offset, os.SEEK_CUR)
                     debug('{:s}Balance mismatch: {:d}, offset: {:d}'.format(
-                        ' ' * self.level, balance, offset))
+                        self.level(), balance, offset))
                     break
                 data = stream.readline().decode('utf-8')
                 if not data:
                     break
                 v_pos = 0
-            debug('{:s}End vertex read, count: {:d}'.format(' ' * self.level, len(self.vertices)))
+            debug('{:s}End vertex read, count: {:d}'.format(self.level(), len(self.vertices)))
 
 
 class VrmlGeoCoords(VrmlCoords):
@@ -525,7 +528,7 @@ class VrmlMaterial(VrmlEntry):
                                re.I | re.S)
             if result is not None:
                 values = [float(result.group(x)) for x in range(1, pattern[0] + 1)]
-                debug('{:s}Material attribute {:s} found'.format(' ' * self.level, pattern[1]))
+                debug('{:s}Material attribute {:s} found'.format(self.level(), pattern[1]))
                 self.values[pattern[1]] = values[0] if len(values) == 1 else numpy.array(values)
 
     def demangled(self):
@@ -547,17 +550,17 @@ class VrmlMaterial(VrmlEntry):
         if 'ambientIntensity' in self.values:
             self.color.ambient = self.color.diffuse * self.values['ambientIntensity']
 
-        debug('{:s}Material properties:'.format(' ' * self.level))
-        debug('{:s}Shininess:      {:.3f}'.format(' ' * (self.level + 1), self.color.shininess))
-        debug('{:s}Transparency:   {:.3f}'.format(' ' * (self.level + 1), self.color.transparency))
+        debug('{:s}Material properties:'.format(self.level()))
+        debug('{:s}Shininess:      {:.3f}'.format(self.level(1), self.color.shininess))
+        debug('{:s}Transparency:   {:.3f}'.format(self.level(1), self.color.transparency))
         debug('{:s}Diffuse Color:  {:.3f}, {:.3f}, {:.3f}'.format(
-            ' ' * (self.level + 1), *self.color.diffuse))
+            self.level(1), *self.color.diffuse))
         debug('{:s}Emissive Color: {:.3f}, {:.3f}, {:.3f}'.format(
-            ' ' * (self.level + 1), *self.color.emissive))
+            self.level(1), *self.color.emissive))
         debug('{:s}Specular Color: {:.3f}, {:.3f}, {:.3f}'.format(
-            ' ' * (self.level + 1), *self.color.specular))
+            self.level(1), *self.color.specular))
         debug('{:s}Ambient Color:  {:.3f}, {:.3f}, {:.3f}'.format(
-            ' ' * (self.level + 1), *self.color.ambient))
+            self.level(1), *self.color.ambient))
 
     def __eq__(self, other):
         if not isinstance(other, VrmlMaterial):

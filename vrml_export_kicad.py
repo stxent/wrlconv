@@ -21,6 +21,12 @@ def debug(text):
 def indent(level):
     return '\t' * level
 
+def mangle_material_name(name):
+    return name.replace('.', '')
+
+def mangle_mesh_name(name):
+    return name.replace('.', 'p')
+
 def store(data, path):
     exported_materials = []
 
@@ -33,12 +39,13 @@ def store(data, path):
 
         if material in exported_materials:
             exported = exported_materials[exported_materials.index(material)]
-            output += indent(level + 1) + 'material USE MA_{:s}\n'.format(exported.color.ident)
+            output += indent(level + 1) + 'material USE MA_{:s}\n'.format(
+                mangle_material_name(exported.color.ident))
             debug('Export: reused material {:s} instead of {:s}'.format(
                 exported.color.ident, material.color.ident))
         else:
             output += indent(level + 1) + 'material DEF MA_{:s} Material {{\n'.format(
-                material.color.ident)
+                mangle_material_name(material.color.ident))
             output += indent(level + 2) + 'diffuseColor {:g} {:g} {:g}\n'.format(
                 *material.color.diffuse)
             output += indent(level + 2) + 'ambientIntensity {:g}\n'.format(ambient_intensity)
@@ -62,7 +69,8 @@ def store(data, path):
         geo_vertices, geo_polygons = mesh.geometry()
 
         # Export vertices
-        output += indent(level + 1) + 'coord DEF FS_{:s} Coordinate {{\n'.format(mesh.ident)
+        output += indent(level + 1) + 'coord DEF FS_{:s} Coordinate {{\n'.format(
+            mangle_mesh_name(mesh.ident))
         output += indent(level + 2) + 'point [\n'
         for vertex in geo_vertices:
             output += '\t' + ' '.join([str(round(x, 6)) for x in transform.apply(vertex)]) + '\n'
@@ -89,7 +97,8 @@ def store(data, path):
         output = ''
         transform = top_transform if mesh.transform is None else mesh.transform
 
-        output += indent(level) + 'DEF ME_{:s}_{:s} Group {{\n'.format(top_name, mesh.ident)
+        output += indent(level) + 'DEF ME_{:s}_{:s} Group {{\n'.format(
+            mangle_mesh_name(top_name), mangle_mesh_name(mesh.ident))
         output += indent(level + 1) + 'children [\n'
         output += encode_shape(mesh, transform, level + 2)
         output += indent(level + 1) + ']\n'
@@ -100,7 +109,7 @@ def store(data, path):
         output = ''
         started = time.time()
 
-        output += indent(level) + 'DEF OB_{:s} Transform {{\n'.format(mesh.ident)
+        output += indent(level) + 'DEF OB_{:s} Transform {{\n'.format(mangle_mesh_name(mesh.ident))
         output += indent(level + 1) + 'translation 0.0 0.0 0.0\n'
         output += indent(level + 1) + 'rotation 1.0 0.0 0.0 0.0\n'
         output += indent(level + 1) + 'scale 1.0 1.0 1.0\n'

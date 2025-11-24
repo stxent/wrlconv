@@ -27,10 +27,13 @@ class X3dEntry:
         self.parent = parent
         self.name = ''
         self.ancestors = []
-        self.level = self.parent.level + 1 if self.parent is not None else -1
+        self.level_value = self.parent.level_value + 1 if self.parent is not None else -1
 
     def demangled(self):
         return self.name
+
+    def level(self, increment=0):
+        return ' ' * (self.level_value + increment)
 
     def parse(self, attributes):
         pass
@@ -38,7 +41,7 @@ class X3dEntry:
     def parse_attributes(self, attributes):
         if 'DEF' in attributes:
             self.name = attributes['DEF']
-            debug('{:s}Entry name {:s}'.format('  ' * self.level, self.name))
+            debug('{:s}Entry name {:s}'.format(self.level(), self.name))
         self.parse(attributes)
 
 
@@ -152,17 +155,15 @@ class X3dTransform(X3dEntry):
             vector = model.normalize(vector)
             self.transform.rotate(vector, angle)
             debug('{:s}Rotation:    {:.3f} about [{:.3f}, {:.3f}, {:.3f}]'.format(
-                '  ' * (self.level + 1), values[3], *values[0:3]))
+                self.level(1), values[3], *values[0:3]))
         if 'scale' in attributes:
             values = get_values(attributes['scale'])
             self.transform.scale(values)
-            debug('{:s}Scale:       [{:.3f}, {:.3f}, {:.3f}]'.format(
-                '  ' * (self.level + 1), *values))
+            debug('{:s}Scale:       [{:.3f}, {:.3f}, {:.3f}]'.format(self.level(1), *values))
         if 'translation' in attributes:
             values = get_values(attributes['translation'])
             self.transform.translate(values)
-            debug('{:s}Translation: [{:.3f}, {:.3f}, {:.3f}]'.format(
-                '  ' * (self.level + 1), *values))
+            debug('{:s}Translation: [{:.3f}, {:.3f}, {:.3f}]'.format(self.level(1), *values))
 
     def demangled(self):
         # Demangle Blender names
@@ -208,12 +209,10 @@ class X3dGeometry(X3dEntry):
 
         if 'coordIndex' in attributes:
             self.geo_polygons = parse_polygons(attributes['coordIndex'])
-            debug('{:s}Found {:d} polygons'.format(
-                '  ' * self.level, len(self.geo_polygons)))
+            debug('{:s}Found {:d} polygons'.format(self.level(), len(self.geo_polygons)))
         if 'texCoordIndex' in attributes:
             self.tex_polygons = parse_polygons(attributes['texCoordIndex'])
-            debug('{:s}Found {:d} texture polygons'.format(
-                '  ' * self.level, len(self.tex_polygons)))
+            debug('{:s}Found {:d} texture polygons'.format(self.level(), len(self.tex_polygons)))
 
 
 class X3dCoords(X3dEntry):
@@ -230,7 +229,7 @@ class X3dCoords(X3dEntry):
                 vertices.append(numpy.array(points[i * self.size:(i + 1) * self.size]))
             self.vertices = vertices
             debug('{:s}Found {:d} vertices, width {:d}'.format(
-                '  ' * self.level, len(self.vertices), self.size))
+                self.level(), len(self.vertices), self.size))
 
 
 class X3dGeoCoords(X3dCoords):
@@ -294,17 +293,17 @@ class X3dMaterial(X3dEntry):
         if 'ambientIntensity' in attributes:
             self.color.ambient = self.color.diffuse * float(attributes['ambientIntensity'])
 
-        debug('{:s}Material properties:'.format('  ' * self.level))
-        debug('{:s}Shininess:      {:.3f}'.format('  ' * (self.level + 1), self.color.shininess))
-        debug('{:s}Transparency:   {:.3f}'.format('  ' * (self.level + 1), self.color.transparency))
+        debug('{:s}Material properties:'.format(self.level()))
+        debug('{:s}Shininess:      {:.3f}'.format(self.level(1), self.color.shininess))
+        debug('{:s}Transparency:   {:.3f}'.format(self.level(1), self.color.transparency))
         debug('{:s}Diffuse Color:  [{:.3f}, {:.3f}, {:.3f}]'.format(
-            '  ' * (self.level + 1), *self.color.diffuse))
+            self.level(1), *self.color.diffuse))
         debug('{:s}Emissive Color: [{:.3f}, {:.3f}, {:.3f}]'.format(
-            '  ' * (self.level + 1), *self.color.emissive))
+            self.level(1), *self.color.emissive))
         debug('{:s}Specular Color: [{:.3f}, {:.3f}, {:.3f}]'.format(
-            '  ' * (self.level + 1), *self.color.specular))
+            self.level(1), *self.color.specular))
         debug('{:s}Ambient Color:  [{:.3f}, {:.3f}, {:.3f}]'.format(
-            '  ' * (self.level + 1), *self.color.ambient))
+            self.level(1), *self.color.ambient))
 
     def demangled(self):
         # Demangle Blender names
@@ -388,9 +387,9 @@ class X3dParser:
         del self.parser # Get rid of circular references
 
     def start(self, tag, attributes):
-        # level = self.current.level if self.current is not None else 0
-        # debug('{:s}Enter tag {:s}, current {:s}.format(
-        #     '  ' * level, tag, self.current.__class__.__name__))
+        # level = self.current.level() if self.current is not None else ''
+        # debug('{:s}Enter tag {:s}, current {:s}'.format(
+        #     level, tag, self.current.__class__.__name__))
 
         if tag == 'Scene':
             if self.scene is None:
@@ -406,11 +405,11 @@ class X3dParser:
                 entry_name = attributes['USE']
                 defined = [entry for entry in self.entries if entry.name == entry_name]
                 if defined:
-                    debug('{:s}Reused entry {:s}'.format('  ' * self.current.level, entry_name))
+                    debug('{:s}Reused entry {:s}'.format(self.current.level(), entry_name))
                     entry = defined[0]
                     reused = True
                 if entry is None:
-                    debug('{:s}Entry {:s} not found'.format('  ' * self.current.level, entry_name))
+                    debug('{:s}Entry {:s} not found'.format(self.current.level(), entry_name))
             elif isinstance(self.current, (X3dScene, X3dTransform)):
                 if tag in ('Transform', 'Group', 'Collision', 'Switch'):
                     entry = X3dTransform(self.current)
@@ -449,10 +448,10 @@ class X3dParser:
             else:
                 self.ignore += 1
 
-    def end(self, _):
-        # level = self.current.level if self.current is not None else 0
+    def end(self, tag):
+        # level = self.current.level() if self.current is not None else ''
         # debug('{:s}Exit tag {:s}, current {:s}'.format(
-        #     '  ' * level, tag, self.current.__class__.__name__))
+        #     level, tag, self.current.__class__.__name__))
 
         if self.ignore > 0:
             self.ignore -= 1

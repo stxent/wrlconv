@@ -351,12 +351,7 @@ class Object:
         self.transform = None
         self.parent = parent
         self.style = style
-
-        if name is None:
-            self.ident = str(Object.IDENT)
-            Object.IDENT += 1
-        else:
-            self.ident = name
+        self.rename(name)
 
     def translate(self, arg):
         if self.transform is None:
@@ -373,8 +368,12 @@ class Object:
             self.transform = Transform()
         self.transform.scale(arg)
 
-    def rename(self, name):
-        self.ident = name
+    def rename(self, name=None):
+        if name is None:
+            self.ident = str(Object.IDENT)
+            Object.IDENT += 1
+        else:
+            self.ident = name
 
 
 class Mesh(Object):
