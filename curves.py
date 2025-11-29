@@ -351,6 +351,16 @@ def create_rotation_mesh(slices, wrap=True, inverse=False):
 
     return mesh
 
+def get_line_function(start, end):
+    # Returns (A, B, C)
+    delta_x, delta_y = end[0] - start[0], end[1] - start[1]
+
+    if delta_x == 0.0:
+        return (1.0, 0.0, -start[0])
+    if delta_y == 0.0:
+        return (0.0, 1.0, -start[1])
+    return (delta_y, -delta_x, delta_x * start[1] - delta_y * start[0])
+
 def intersect_line_plane(plane_point, plane_normal, line_start, line_end):
     line = model.normalize(line_end - line_start)
     if numpy.dot(plane_normal, line) == 0.0:
@@ -360,3 +370,46 @@ def intersect_line_plane(plane_point, plane_normal, line_start, line_end):
     if position <= 0.0 or position >= line_length:
         return None
     return line * position + line_start
+
+def intersect_line_functions(func_a, func_b, epsilon):
+    # 2D lines are used, lines are described as (A, B, C) coefficients
+    det = func_a[0] * func_b[1] - func_a[1] * func_b[0]
+    if abs(det) <= epsilon:
+        return None
+
+    delta_x = -func_a[2] * func_b[1] + func_a[1] * func_b[2]
+    delta_y = -func_a[0] * func_b[2] + func_a[2] * func_b[0]
+    return (delta_x / det, delta_y / det)
+
+def intersect_lines(line_a, line_b, epsilon=1e-6):
+    # 2D lines are used, lines are described as (start, end) points
+    line_a_func = get_line_function(line_a[0], line_a[1])
+    line_b_func = get_line_function(line_b[0], line_b[1])
+
+    cross_point = intersect_line_functions(line_a_func, line_b_func, epsilon)
+    if cross_point is None:
+        return None
+
+    line_a_box = (
+        (min(line_a[0][0], line_a[1][0]), min(line_a[0][1], line_a[1][1])),
+        (max(line_a[0][0], line_a[1][0]), max(line_a[0][1], line_a[1][1]))
+    )
+    if not is_point_in_rect(line_a_box, cross_point, epsilon):
+        return None
+
+    line_b_box = (
+        (min(line_b[0][0], line_b[1][0]), min(line_b[0][1], line_b[1][1])),
+        (max(line_b[0][0], line_b[1][0]), max(line_b[0][1], line_b[1][1]))
+    )
+    if not is_point_in_rect(line_b_box, cross_point, epsilon):
+        return None
+
+    return cross_point
+
+def is_point_in_rect(rect, point, epsilon=1e-6):
+    in_range = lambda x, start, end: start - epsilon <= x <= end + epsilon
+    if not in_range(point[0], rect[0][0], rect[1][0]):
+        return False
+    if not in_range(point[1], rect[0][1], rect[1][1]):
+        return False
+    return True

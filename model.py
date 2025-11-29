@@ -684,9 +684,10 @@ class LineArray(Object):
         if len(points) < 2:
             return
 
+        count = len(self.geo_vertices)
         for i, point in enumerate(points[:-1]):
             self.geo_vertices.append(point)
-            self.geo_polygons.append([i, i + 1])
+            self.geo_polygons.append([count + i, count + i + 1])
         self.geo_vertices.append(points[-1])
 
     def optimize(self):
