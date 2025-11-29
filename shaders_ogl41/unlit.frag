@@ -1,4 +1,5 @@
-#version 410 core
+#version 300 es
+precision mediump float;
 
 in vec3 calcPosition;
 in vec3 calcColor;

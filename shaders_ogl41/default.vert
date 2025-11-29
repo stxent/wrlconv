@@ -1,4 +1,4 @@
-#version 330 core
+#version 300 es
 
 #if defined(DIFFUSE_MAP) || defined(NORMAL_MAP) || defined(SPECULAR_MAP)
 #define TEXTURED
@@ -17,28 +17,26 @@ layout(location = 2) in vec2 texel;
 layout(location = 3) in vec3 tangent;
 #endif
 
-out VertexData {
-  vec3 position;
-  vec3 normal;
+out vec3 outputPosition;
+out vec3 outputNormal;
 #ifdef TEXTURED
-  vec2 texel;
+out vec2 outputTexel;
 #endif
 #ifdef NORMAL_MAP
-  vec3 tangent;
+out vec3 outputTangent;
 #endif
-} outputVertex;
 
 void main(void)
 {
   vec4 pos = modelViewMatrix * vec4(position, 1.0);
 
-  outputVertex.position = pos.xyz;
-  outputVertex.normal = vec3(normalMatrix * vec4(normal, 0.0));
+  outputPosition = pos.xyz;
+  outputNormal = vec3(normalMatrix * vec4(normal, 0.0));
 #ifdef TEXTURED
-  outputVertex.texel = texel;
+  outputTexel = texel;
 #endif
 #ifdef NORMAL_MAP
-  outputVertex.tangent = vec3(normalMatrix * vec4(tangent, 0.0));
+  outputTangent = vec3(normalMatrix * vec4(tangent, 0.0));
 #endif
 
   gl_Position = projectionMatrix * pos;

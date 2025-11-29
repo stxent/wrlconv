@@ -1,4 +1,5 @@
-#version 330 core
+#version 300 es
+precision mediump float;
 
 #ifdef AA_SAMPLES
 uniform sampler2DMS colorTexture;

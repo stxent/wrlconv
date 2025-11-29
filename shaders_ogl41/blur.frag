@@ -1,4 +1,5 @@
-#version 330 core
+#version 300 es
+precision mediump float;
 
 uniform vec2 direction;
 uniform sampler2D colorTexture;

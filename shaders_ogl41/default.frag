@@ -1,4 +1,5 @@
-#version 330 core
+#version 300 es
+precision mediump float;
 
 #if defined(DIFFUSE_MAP) || defined(NORMAL_MAP) || defined(SPECULAR_MAP)
 #define TEXTURED
@@ -23,41 +24,39 @@ uniform vec3 materialSpecularColor;
 uniform vec3 materialEmissiveColor;
 uniform float materialShininess;
 
-in VertexData {
-  vec3 position;
-  vec3 normal;
+in vec3 outputPosition;
+in vec3 outputNormal;
 #ifdef TEXTURED
-  vec2 texel;
+in vec2 outputTexel;
 #endif
 #ifdef NORMAL_MAP
-  vec3 tangent;
+in vec3 outputTangent;
 #endif
-} outputVertex;
 
 layout(location = 0) out vec4 color;
 
 void main(void)
 {
-  vec3 view = normalize(-outputVertex.position.xyz);
+  vec3 view = normalize(-outputPosition.xyz);
   color = vec4(materialEmissiveColor, materialDiffuseColor.a);
 
 #ifdef NORMAL_MAP
-  vec3 binormal = cross(outputVertex.tangent, outputVertex.normal);
-  vec3 normal = texture2D(normalTexture, outputVertex.texel.st).rgb;
+  vec3 binormal = cross(outputTangent, outputNormal);
+  vec3 normal = texture2D(normalTexture, outputTexel.st).rgb;
 
   normal = normalize(normal * 2.0 - 1.0);
   mat3 tbnMatrix = mat3(
-      outputVertex.tangent.x, binormal.x, outputVertex.normal.x,
-      outputVertex.tangent.y, binormal.y, outputVertex.normal.y,
-      outputVertex.tangent.z, binormal.z, outputVertex.normal.z);
+      outputTangent.x, binormal.x, outputNormal.x,
+      outputTangent.y, binormal.y, outputNormal.y,
+      outputTangent.z, binormal.z, outputNormal.z);
   view = tbnMatrix * view;
 #else
-  vec3 normal = outputVertex.normal;
+  vec3 normal = outputNormal;
 #endif
 
   for (int i = 0; i < LIGHT_COUNT; i++)
   {
-    vec3 light = normalize(lightPosition[i] - outputVertex.position);
+    vec3 light = normalize(lightPosition[i] - outputPosition);
 #ifdef NORMAL_MAP
     light = tbnMatrix * light;
 #endif
@@ -69,14 +68,14 @@ void main(void)
       vec3 reflection = normalize(-reflect(light, normal));
       vec3 specularPart = materialSpecularColor * pow(max(0.0, dot(reflection, view)), materialShininess);
 #ifdef SPECULAR_MAP
-      specularPart *= texture2D(specularTexture, outputVertex.texel.st).rgb;
+      specularPart *= texture2D(specularTexture, outputTexel.st).rgb;
 #endif
       color.rgb += specularPart;
     }
   }
 
 #ifdef DIFFUSE_MAP
-  color *= texture2D(diffuseTexture, outputVertex.texel.st);
+  color *= texture2D(diffuseTexture, outputTexel.st);
 #endif
   color = clamp(color, 0.0, 1.0);
 }
