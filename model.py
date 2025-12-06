@@ -25,6 +25,29 @@ def tangent(vertex1, vertex2, tangent1, tangent2):
         return (vertex1[0:3] * -tangent2[1] + vertex2[0:3] * tangent1[1]) / div
     return numpy.array([0.0, 0.0, 1.0])
 
+def calc_bounding_box(vertices):
+    if not vertices:
+        return (numpy.zeros(3), numpy.zeros(3))
+    bottom = top = vertices[0]
+    for point in vertices:
+        bottom = numpy.minimum(bottom, point)
+        top = numpy.maximum(top, point)
+    return (bottom, top)
+
+def calc_center_point(vertices):
+    center = numpy.zeros(3)
+    if vertices:
+        for point in vertices:
+            center += point
+        center /= len(vertices)
+    return center
+
+def calc_median_point(vertices):
+    if not vertices:
+        return numpy.zeros(3)
+    bottom, top = calc_bounding_box(vertices)
+    return (bottom + top) / 2.0
+
 def create_model_view_matrix(eye, center, z_axis):
     forward = normalize(center - eye)
     side = numpy.cross(forward, normalize(z_axis))

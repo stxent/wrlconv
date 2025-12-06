@@ -204,14 +204,97 @@ class BezierTri(model.Mesh):
                         [row_offset(i) + j + 1, row_offset(i - 1) + j + 1, row_offset(i - 1) + j])
 
 
-def optimize(points):
-    if len(points) >= 1:
-        result = [points[0]]
-        for point in points[1:]:
-            if not model.Mesh.isclose(point, result[-1]):
-                result.append(point)
-        return result
-    return []
+def create_rotation_mesh(slices, wrap=True, inverse=False):
+    geo_vertices = list(itertools.chain.from_iterable(slices))
+    geo_polygons = []
+
+    edges = len(slices) if wrap else len(slices) - 1
+    size = len(slices[0])
+    for i in range(0, edges):
+        for vertex in range(0, size - 1):
+            beg, end = i, i + 1 if i < len(slices) - 1 else 0
+            if inverse:
+                beg, end = end, beg
+
+            beg_index, end_index = beg * size + vertex, end * size + vertex
+            indices = [beg_index]
+            if not model.Mesh.isclose(geo_vertices[beg_index], geo_vertices[end_index]):
+                indices += [end_index]
+            if not model.Mesh.isclose(geo_vertices[beg_index + 1], geo_vertices[end_index + 1]):
+                indices += [end_index + 1]
+            indices += [beg_index + 1]
+
+            geo_polygons.append(indices)
+
+    # Generate object
+    mesh = model.Mesh()
+    mesh.geo_vertices = geo_vertices
+    mesh.geo_polygons = geo_polygons
+    return mesh
+
+def create_tri_cap_mesh(slices, inverse): # FIXME
+    if inverse:
+        vertices = [slices[i][0] for i in range(0, len(slices))]
+    else:
+        vertices = [slices[i][len(slices[i]) - 1] for i in range(0, len(slices))]
+
+    indices = range(0, len(slices))
+    geo_vertices = vertices + [sum(vertices) / len(slices)]
+    geo_polygons = []
+
+    if not inverse:
+        for i, value in enumerate(indices):
+            geo_polygons.append([len(vertices), value, indices[i - 1]])
+    else:
+        for i, value in enumerate(indices):
+            geo_polygons.append([indices[i - 1], value, len(vertices)])
+
+    # Generate object
+    mesh = model.Mesh()
+    mesh.geo_vertices = geo_vertices
+    mesh.geo_polygons = geo_polygons
+    return mesh
+
+def loft(path, shape, translation=None, rotation=None, scaling=None, morphing=None):
+    default_z_vec = numpy.array([0.0, 0.0, 1.0])
+
+    if len(path) < 2:
+        raise ValueError()
+    if morphing is None:
+        morphing = lambda _: shape
+    if rotation is None:
+        rotation = lambda _: numpy.zeros(3)
+    if scaling is None:
+        scaling = lambda _: numpy.ones(3)
+    if translation is None:
+        translation = lambda _: numpy.zeros(3)
+
+    # Make initial rotation matrix
+    path_vec = model.normalize(path[1][0:3] - path[0][0:3])
+    rotation_vec = numpy.cross(default_z_vec, path_vec)
+    if numpy.linalg.norm(rotation_vec) != 0.0:
+        rotation_vec = model.normalize(rotation_vec)
+        rotation_ang = math.acos(numpy.dot(default_z_vec, path_vec))
+        matrix = model.make_rotation_matrix(rotation_vec, rotation_ang)
+        previous_vec = path_vec
+    else:
+        matrix = numpy.identity(4)
+        previous_vec = default_z_vec
+
+    segments = []
+    segments.append(model.Transform(matrix=matrix).quaternion())
+
+    for i in range(1, len(path) - 1):
+        path_vec = model.normalize(path[i + 1][0:3] - path[i][0:3])
+        rotation_vec = numpy.cross(previous_vec, path_vec)
+        if numpy.linalg.norm(rotation_vec) != 0.0:
+            rotation_vec = model.normalize(rotation_vec)
+            rotation_ang = math.acos(numpy.dot(previous_vec, path_vec))
+            matrix = numpy.matmul(model.make_rotation_matrix(rotation_vec, rotation_ang), matrix)
+            previous_vec = path_vec
+        segments.append(model.Transform(matrix=matrix).quaternion())
+
+    return make_loft_slices(path, segments, translation, rotation, scaling, morphing)
 
 def make_loft_slices(path, segments, translation, rotation, scaling, morphing):
     slices = []
@@ -241,44 +324,14 @@ def make_loft_slices(path, segments, translation, rotation, scaling, morphing):
 
     return slices
 
-def loft(path, shape, translation=None, rotation=None, scaling=None, morphing=None):
-    default_z_vect = numpy.array([0.0, 0.0, 1.0])
-
-    if len(path) < 2:
-        raise ValueError()
-    if morphing is None:
-        morphing = lambda _: shape
-    if rotation is None:
-        rotation = lambda _: numpy.zeros(3)
-    if scaling is None:
-        scaling = lambda _: numpy.ones(3)
-    if translation is None:
-        translation = lambda _: numpy.zeros(3)
-
-    # Make initial rotation matrix
-    z_vect = model.normalize(path[1][0:3] - path[0][0:3])
-    x_vect = model.normalize(numpy.cross(default_z_vect, z_vect))
-    if numpy.linalg.norm(x_vect) != 0.0:
-        angle = math.acos(numpy.dot(default_z_vect, z_vect))
-        matrix = model.make_rotation_matrix(x_vect, angle)
-        previous_vect = z_vect
-    else:
-        matrix = numpy.identity(4)
-        previous_vect = default_z_vect
-
-    segments = []
-    segments.append(model.Transform(matrix=matrix).quaternion())
-
-    for i in range(1, len(path) - 1):
-        z_vect = model.normalize(path[i + 1][0:3] - path[i][0:3])
-        x_vect = model.normalize(numpy.cross(previous_vect, z_vect))
-        if numpy.linalg.norm(x_vect) != 0.0:
-            angle = math.acos(numpy.dot(previous_vect, z_vect))
-            matrix = numpy.matmul(matrix, model.make_rotation_matrix(x_vect, angle))
-            previous_vect = z_vect
-        segments.append(model.Transform(matrix=matrix).quaternion())
-
-    return make_loft_slices(path, segments, translation, rotation, scaling, morphing)
+def optimize(points):
+    if points:
+        result = [points[0]]
+        for point in points[1:]:
+            if not model.Mesh.isclose(point, result[-1]):
+                result.append(point)
+        return result
+    return []
 
 def rotate(curve, axis, edges=None, angles=None):
     points = []
@@ -295,61 +348,15 @@ def rotate(curve, axis, edges=None, angles=None):
     for angle in angles:
         mat = model.make_rotation_matrix(axis, angle)
         slices.append([numpy.matmul(numpy.array([*p, 1.0]), mat)[0:3] for p in points])
-
     return slices
 
-def create_tri_cap_mesh(slices, inverse): # FIXME
-    if inverse:
-        vertices = [slices[i][0] for i in range(0, len(slices))]
-    else:
-        vertices = [slices[i][len(slices[i]) - 1] for i in range(0, len(slices))]
-
-    indices = range(0, len(slices))
-    geo_vertices = vertices + [sum(vertices) / len(slices)]
-    geo_polygons = []
-
-    if not inverse:
-        for i, value in enumerate(indices):
-            geo_polygons.append([len(vertices), value, indices[i - 1]])
-    else:
-        for i, value in enumerate(indices):
-            geo_polygons.append([indices[i - 1], value, len(vertices)])
-
-    # Generate object
-    mesh = model.Mesh()
-    mesh.geo_vertices = geo_vertices
-    mesh.geo_polygons = geo_polygons
-
-    return mesh
-
-def create_rotation_mesh(slices, wrap=True, inverse=False):
-    geo_vertices = list(itertools.chain.from_iterable(slices))
-    geo_polygons = []
-
-    edges = len(slices) if wrap else len(slices) - 1
-    size = len(slices[0])
-    for i in range(0, edges):
-        for vertex in range(0, size - 1):
-            beg, end = i, i + 1 if i < len(slices) - 1 else 0
-            if inverse:
-                beg, end = end, beg
-
-            beg_index, end_index = beg * size + vertex, end * size + vertex
-            indices = [beg_index]
-            if not model.Mesh.isclose(geo_vertices[beg_index], geo_vertices[end_index]):
-                indices += [end_index]
-            if not model.Mesh.isclose(geo_vertices[beg_index + 1], geo_vertices[end_index + 1]):
-                indices += [end_index + 1]
-            indices += [beg_index + 1]
-
-            geo_polygons.append(indices)
-
-    # Generate object
-    mesh = model.Mesh()
-    mesh.geo_vertices = geo_vertices
-    mesh.geo_polygons = geo_polygons
-
-    return mesh
+def calc_bezier_weight(a=None, b=None, angle=None): # pylint: disable=invalid-name
+    if angle is None:
+        if a is None or b is None:
+            # User must provide vectors a and b when angle argument is not used
+            raise TypeError()
+        angle = model.angle(a, b)
+    return (4.0 / 3.0) * math.tan(angle / 4.0)
 
 def get_line_function(start, end):
     # Returns (A, B, C)

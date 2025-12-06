@@ -51,11 +51,8 @@ def get_opengl_version():
     version_str = version.split(' ')[0]
     version_num = [int(part) for part in version_str.split('.')]
 
-    result = version_num[0]
-    if version_num[1] < 10:
-        result += version_num[1] * 10
-    else:
-        result += version_num[1]
+    result = version_num[0] * 100
+    result += version_num[1] * (10 if version_num[1] < 10 else 1)
     return result
 
 def get_normal(vertices, indices):
