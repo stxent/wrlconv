@@ -6,7 +6,7 @@
 # Project is distributed under the terms of the GNU General Public License v3.0
 
 import math
-import numpy
+import numpy as np
 
 try:
     import curves
@@ -20,17 +20,17 @@ class Box(model.Mesh):
     def __init__(self, size):
         super().__init__()
 
-        half_size = numpy.array(size) / 2.0
+        half_size = np.array(size) / 2.0
 
         vertices = [
-            numpy.array([ half_size[0],  half_size[1],  half_size[2]]),
-            numpy.array([-half_size[0],  half_size[1],  half_size[2]]),
-            numpy.array([-half_size[0], -half_size[1],  half_size[2]]),
-            numpy.array([ half_size[0], -half_size[1],  half_size[2]]),
-            numpy.array([ half_size[0],  half_size[1], -half_size[2]]),
-            numpy.array([-half_size[0],  half_size[1], -half_size[2]]),
-            numpy.array([-half_size[0], -half_size[1], -half_size[2]]),
-            numpy.array([ half_size[0], -half_size[1], -half_size[2]])
+            np.array([ half_size[0],  half_size[1],  half_size[2]]),
+            np.array([-half_size[0],  half_size[1],  half_size[2]]),
+            np.array([-half_size[0], -half_size[1],  half_size[2]]),
+            np.array([ half_size[0], -half_size[1],  half_size[2]]),
+            np.array([ half_size[0],  half_size[1], -half_size[2]]),
+            np.array([-half_size[0],  half_size[1], -half_size[2]]),
+            np.array([-half_size[0], -half_size[1], -half_size[2]]),
+            np.array([ half_size[0], -half_size[1], -half_size[2]])
         ]
         polygons = [
             [0, 1, 2, 3],
@@ -54,7 +54,7 @@ class Circle(model.Mesh):
         angle, step = 0.0, math.pi * 2.0 / edges
         for i in range(0, edges):
             x, y = radius * math.cos(angle), radius * math.sin(angle) # pylint: disable=invalid-name
-            self.geo_vertices.append(numpy.array([x, y, 0.0]))
+            self.geo_vertices.append(np.array([x, y, 0.0]))
             angle += step
         for i in range(1, edges - 1):
             self.geo_polygons.append([0, i, i + 1])
@@ -68,18 +68,18 @@ class Geosphere(model.Mesh):
 
         r = (1.0 + math.sqrt(5.0)) / 4.0 # pylint: disable=invalid-name
         vertices = [
-            numpy.array([-0.5,    r,  0.0]),
-            numpy.array([ 0.5,    r,  0.0]),
-            numpy.array([-0.5,   -r,  0.0]),
-            numpy.array([ 0.5,   -r,  0.0]),
-            numpy.array([ 0.0, -0.5,    r]),
-            numpy.array([ 0.0,  0.5,    r]),
-            numpy.array([ 0.0, -0.5,   -r]),
-            numpy.array([ 0.0,  0.5,   -r]),
-            numpy.array([   r,  0.0, -0.5]),
-            numpy.array([   r,  0.0,  0.5]),
-            numpy.array([  -r,  0.0, -0.5]),
-            numpy.array([  -r,  0.0,  0.5])
+            np.array([-0.5,    r,  0.0]),
+            np.array([ 0.5,    r,  0.0]),
+            np.array([-0.5,   -r,  0.0]),
+            np.array([ 0.5,   -r,  0.0]),
+            np.array([ 0.0, -0.5,    r]),
+            np.array([ 0.0,  0.5,    r]),
+            np.array([ 0.0, -0.5,   -r]),
+            np.array([ 0.0,  0.5,   -r]),
+            np.array([   r,  0.0, -0.5]),
+            np.array([   r,  0.0,  0.5]),
+            np.array([  -r,  0.0, -0.5]),
+            np.array([  -r,  0.0,  0.5])
         ]
 
         vertices = [model.normalize(vertex) * radius for vertex in vertices]
@@ -123,7 +123,7 @@ class Plane(model.Mesh):
         for j in range(0, res[1]):
             for i in range(0, res[0]):
                 self.geo_vertices.append(
-                    numpy.array([offset[0] + i * mult[0], offset[1] + j * mult[1], 0]))
+                    np.array([offset[0] + i * mult[0], offset[1] + j * mult[1], 0]))
         for j in range(0, res[1] - 1):
             for i in range(0, res[0] - 1):
                 point1 = j * res[0] + i
@@ -166,7 +166,7 @@ def make_circle_outline(center, radius, edges):
         y = radius * math.sin(angle)
         # pylint: enable=invalid-name
 
-        vertices.append(center + numpy.array([x, y, 0.0]))
+        vertices.append(center + np.array([x, y, 0.0]))
         angle += delta
 
     return dict(zip(list(range(0, len(vertices))), vertices))
@@ -179,7 +179,7 @@ def sort_vertices_by_angle(vertices, mean, normal, direction=None):
     for key in keys:
         vector = vertices[key] - mean
         angle = model.angle(direction, vector)
-        if numpy.linalg.det(numpy.array([direction, vector, normal])) < 0.0:
+        if np.linalg.det(np.array([direction, vector, normal])) < 0.0:
             angle = -angle
         angles.append((key, angle))
     angles.sort(key=lambda x: x[1])

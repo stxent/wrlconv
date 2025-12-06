@@ -10,7 +10,7 @@ import math
 import os
 import re
 import sys
-import numpy
+import numpy as np
 
 import helpers
 import render_ogl41
@@ -85,15 +85,15 @@ def main():
     parser.add_argument(dest='files', nargs='*')
     options = parser.parse_args()
 
-    translation = numpy.zeros(3)
-    rotation = numpy.array([0.0, 0.0, 1.0, 0.0])
-    scaling = numpy.ones(3)
+    translation = np.zeros(3)
+    rotation = np.array([0.0, 0.0, 1.0, 0.0])
+    scaling = np.ones(3)
 
     try:
-        rotation = numpy.array([float(x) for x in options.rotation.split(',')[0:4]])
+        rotation = np.array([float(x) for x in options.rotation.split(',')[0:4]])
         rotation[3] = math.radians(rotation[3])
-        scaling = numpy.array([float(x) for x in options.scale.split(',')[0:3]])
-        translation = numpy.array([float(x) for x in options.translation.split(',')[0:3]])
+        scaling = np.array([float(x) for x in options.scale.split(',')[0:3]])
+        translation = np.array([float(x) for x in options.translation.split(',')[0:3]])
     except ValueError:
         print('Wrong argument')
         sys.exit()

@@ -7,7 +7,7 @@
 
 import itertools
 import math
-import numpy
+import numpy as np
 
 try:
     import model
@@ -19,8 +19,8 @@ class Line:
     def __init__(self, beg, end, resolution):
         if resolution < 1:
             raise ValueError()
-        self.beg = numpy.array(list(beg))
-        self.end = numpy.array(list(end))
+        self.beg = np.array(list(beg))
+        self.end = np.array(list(end))
         self.resolution = resolution
 
     def apply(self, transform):
@@ -53,8 +53,8 @@ class Bezier(Line):
         '''
         super().__init__(beg, end, resolution)
 
-        self.cbeg = self.beg + numpy.array(list(beg_tension))
-        self.cend = self.end + numpy.array(list(end_tension))
+        self.cbeg = self.beg + np.array(list(beg_tension))
+        self.cend = self.end + np.array(list(end_tension))
 
     def apply(self, transform):
         self.cbeg = transform.apply(self.cbeg)
@@ -104,7 +104,7 @@ class BezierQuad(model.Mesh):
                 [i * steps[1] for i in range(0, resolution[1] + 1)]
             ]
 
-        self.tessellate(numpy.array(resolution) + 1, inverse, points)
+        self.tessellate(np.array(resolution) + 1, inverse, points)
 
     def interpolate(self, u, v): # pylint: disable=invalid-name
         def make_curve(row):
@@ -174,9 +174,9 @@ class BezierTri(model.Mesh):
 
     def tessellate(self, resolution, inverse):
         row_offset = lambda row: sum(range(0, row + 1))
-        point_u = numpy.array([1.0, 0.0, 0.0])
-        point_v = numpy.array([0.0, 1.0, 0.0])
-        point_w = numpy.array([0.0, 0.0, 1.0])
+        point_u = np.array([1.0, 0.0, 0.0])
+        point_v = np.array([0.0, 1.0, 0.0])
+        point_w = np.array([0.0, 0.0, 1.0])
 
         self.geo_vertices.append(self.interpolate(*list(point_u)))
 
@@ -256,29 +256,29 @@ def create_tri_cap_mesh(slices, inverse): # FIXME
     return mesh
 
 def loft(path, shape, translation=None, rotation=None, scaling=None, morphing=None):
-    default_z_vec = numpy.array([0.0, 0.0, 1.0])
+    default_z_vec = np.array([0.0, 0.0, 1.0])
 
     if len(path) < 2:
         raise ValueError()
     if morphing is None:
         morphing = lambda _: shape
     if rotation is None:
-        rotation = lambda _: numpy.zeros(3)
+        rotation = lambda _: np.zeros(3)
     if scaling is None:
-        scaling = lambda _: numpy.ones(3)
+        scaling = lambda _: np.ones(3)
     if translation is None:
-        translation = lambda _: numpy.zeros(3)
+        translation = lambda _: np.zeros(3)
 
     # Make initial rotation matrix
     path_vec = model.normalize(path[1][0:3] - path[0][0:3])
-    rotation_vec = numpy.cross(default_z_vec, path_vec)
-    if numpy.linalg.norm(rotation_vec) != 0.0:
+    rotation_vec = np.cross(default_z_vec, path_vec)
+    if np.linalg.norm(rotation_vec) != 0.0:
         rotation_vec = model.normalize(rotation_vec)
-        rotation_ang = math.acos(numpy.dot(default_z_vec, path_vec))
+        rotation_ang = math.acos(np.dot(default_z_vec, path_vec))
         matrix = model.make_rotation_matrix(rotation_vec, rotation_ang)
         previous_vec = path_vec
     else:
-        matrix = numpy.identity(4)
+        matrix = np.identity(4)
         previous_vec = default_z_vec
 
     segments = []
@@ -286,11 +286,11 @@ def loft(path, shape, translation=None, rotation=None, scaling=None, morphing=No
 
     for i in range(1, len(path) - 1):
         path_vec = model.normalize(path[i + 1][0:3] - path[i][0:3])
-        rotation_vec = numpy.cross(previous_vec, path_vec)
-        if numpy.linalg.norm(rotation_vec) != 0.0:
+        rotation_vec = np.cross(previous_vec, path_vec)
+        if np.linalg.norm(rotation_vec) != 0.0:
             rotation_vec = model.normalize(rotation_vec)
-            rotation_ang = math.acos(numpy.dot(previous_vec, path_vec))
-            matrix = numpy.matmul(model.make_rotation_matrix(rotation_vec, rotation_ang), matrix)
+            rotation_ang = math.acos(np.dot(previous_vec, path_vec))
+            matrix = np.matmul(model.make_rotation_matrix(rotation_vec, rotation_ang), matrix)
             previous_vec = path_vec
         segments.append(model.Transform(matrix=matrix).quaternion())
 
@@ -317,7 +317,7 @@ def make_loft_slices(path, segments, translation, rotation, scaling, morphing):
         transformed_shape = [shape_transform.apply(point) for point in shape]
 
         slice_transform = model.Transform(quaternion=quaternion)
-        slice_transform.matrix = numpy.matmul(slice_transform.matrix,
+        slice_transform.matrix = np.matmul(slice_transform.matrix,
                                               model.rpy_to_matrix(rotation(i)))
         slice_transform.translate(path[i])
         slices.append([slice_transform.apply(point) for point in transformed_shape])
@@ -347,7 +347,7 @@ def rotate(curve, axis, edges=None, angles=None):
 
     for angle in angles:
         mat = model.make_rotation_matrix(axis, angle)
-        slices.append([numpy.matmul(numpy.array([*p, 1.0]), mat)[0:3] for p in points])
+        slices.append([np.matmul(np.array([*p, 1.0]), mat)[0:3] for p in points])
     return slices
 
 def calc_bezier_weight(a=None, b=None, angle=None): # pylint: disable=invalid-name
@@ -370,10 +370,10 @@ def get_line_function(start, end):
 
 def intersect_line_plane(plane_point, plane_normal, line_start, line_end):
     line = model.normalize(line_end - line_start)
-    if numpy.dot(plane_normal, line) == 0.0:
+    if np.dot(plane_normal, line) == 0.0:
         return None
-    line_length = numpy.linalg.norm(line_end - line_start)
-    position = numpy.dot(plane_normal, plane_point - line_start) / numpy.dot(plane_normal, line)
+    line_length = np.linalg.norm(line_end - line_start)
+    position = np.dot(plane_normal, plane_point - line_start) / np.dot(plane_normal, line)
     if position <= 0.0 or position >= line_length:
         return None
     return line * position + line_start

@@ -9,7 +9,7 @@ import math
 import os
 import sys
 import time
-import numpy
+import numpy as np
 
 try:
     import geometry
@@ -56,7 +56,7 @@ def get_opengl_version():
     return result
 
 def get_normal(vertices, indices):
-    return model.normalize(numpy.cross(
+    return model.normalize(np.cross(
         vertices[indices[1]] - vertices[indices[0]],
         vertices[indices[2]] - vertices[indices[0]]))
 
@@ -69,7 +69,7 @@ def get_tangent(geo_vertices, tex_vertices, geo_indices, tex_indices):
 
 def generate_mesh_normals(meshes):
     blue_material = model.Material()
-    blue_material.color.diffuse = numpy.array([0.0, 0.0, 1.0])
+    blue_material.color.diffuse = np.array([0.0, 0.0, 1.0])
     normal_length = 0.2
 
     urchin = model.LineArray(name='Normals')
@@ -86,7 +86,7 @@ def generate_mesh_normals(meshes):
             geo_vertices = [mesh.transform.apply(vertex) for vertex in geo_vertices]
 
         if smooth:
-            normals = [numpy.zeros(3) for i in range(0, len(geo_vertices))]
+            normals = [np.zeros(3) for i in range(0, len(geo_vertices))]
             for poly in geo_polygons:
                 normal = get_normal(geo_vertices, poly)
                 for vertex in poly:
@@ -102,7 +102,7 @@ def generate_mesh_normals(meshes):
             normals = [get_normal(geo_vertices, poly) for poly in geo_polygons]
 
             for i, poly in enumerate(geo_polygons):
-                position = numpy.zeros(3)
+                position = np.zeros(3)
                 for vertex in poly:
                     position += geo_vertices[vertex]
                 position /= float(len(poly))
@@ -318,8 +318,8 @@ class RenderLineArray(RenderObject):
 
         lines = primitives[0] * 2
         length = lines
-        self.vertices = numpy.zeros(length * 3, dtype=numpy.float32)
-        self.colors = numpy.zeros(length * 3, dtype=numpy.float32)
+        self.vertices = np.zeros(length * 3, dtype=np.float32)
+        self.colors = np.zeros(length * 3, dtype=np.float32)
 
         if lines > 0:
             self.parts.append((GL_LINES, 0, lines))
@@ -399,10 +399,10 @@ class RenderMesh(RenderObject):
 
         triangles, quads = primitives[0] * 3, primitives[1] * 4
         length = triangles + quads
-        self.vertices = numpy.zeros(length * 3, dtype=numpy.float32)
-        self.normals = numpy.zeros(length * 3, dtype=numpy.float32)
-        self.texels = numpy.zeros(length * 2, dtype=numpy.float32) if textured else None
-        self.tangents = numpy.zeros(length * 3, dtype=numpy.float32) if textured else None
+        self.vertices = np.zeros(length * 3, dtype=np.float32)
+        self.normals = np.zeros(length * 3, dtype=np.float32)
+        self.texels = np.zeros(length * 2, dtype=np.float32) if textured else None
+        self.tangents = np.zeros(length * 3, dtype=np.float32) if textured else None
 
         if triangles > 0:
             self.parts.append((GL_TRIANGLES, 0, triangles))
@@ -422,7 +422,7 @@ class RenderMesh(RenderObject):
                 geo_vertices = [mesh.transform.apply(vertex) for vertex in geo_vertices]
 
             if smooth:
-                normals = [numpy.zeros(3) for i in range(0, len(geo_vertices))]
+                normals = [np.zeros(3) for i in range(0, len(geo_vertices))]
                 for poly in geo_polygons:
                     normal = get_normal(geo_vertices, poly)
                     for i in poly:
@@ -430,7 +430,7 @@ class RenderMesh(RenderObject):
                 normals = [model.normalize(vector) for vector in normals]
 
                 if textured:
-                    tangents = [numpy.zeros(3) for i in range(0, len(geo_vertices))]
+                    tangents = [np.zeros(3) for i in range(0, len(geo_vertices))]
                     for geo_poly, tex_poly in zip(geo_polygons, tex_polygons):
                         tangent = get_tangent(geo_vertices, tex_vertices, geo_poly, tex_poly)
                         for i in geo_poly:
@@ -505,8 +505,8 @@ class RenderMesh(RenderObject):
     def draw(self, projection_matrix, model_view_matrix, lights, wireframe):
         if self.appearance is not None:
             if self.transform is not None:
-                model_view_matrix = numpy.matmul(self.transform, model_view_matrix)
-                lights = [numpy.matmul(light, numpy.linalg.inv(self.transform)) for light in lights]
+                model_view_matrix = np.matmul(self.transform, model_view_matrix)
+                lights = [np.matmul(light, np.linalg.inv(self.transform)) for light in lights]
 
             self.appearance.enable(projection_matrix, model_view_matrix, lights)
             solid = self.appearance.solid
@@ -555,66 +555,66 @@ class Scene:
             self.rotation_rate = rotation_rate
             self.scaling_rate = scaling_rate
 
-            self.pov = numpy.array([0.0, 0.0, 0.0, 1.0])
-            self.camera = numpy.array([0.0, -self.distance, 0.0, 1.0])
-            self.axis = numpy.array([0.0, 0.0, 1.0, 0.0])
+            self.pov = np.array([0.0, 0.0, 0.0, 1.0])
+            self.camera = np.array([0.0, -self.distance, 0.0, 1.0])
+            self.axis = np.array([0.0, 0.0, 1.0, 0.0])
 
         def reset(self):
-            self.pov = numpy.array([0.0, 0.0, 0.0, 1.0])
-            self.camera = numpy.array([0.0, -self.distance, 0.0, 1.0])
-            self.axis = numpy.array([0.0, 0.0, 1.0, 0.0])
+            self.pov = np.array([0.0, 0.0, 0.0, 1.0])
+            self.camera = np.array([0.0, -self.distance, 0.0, 1.0])
+            self.axis = np.array([0.0, 0.0, 1.0, 0.0])
 
         def front(self):
-            distance = numpy.linalg.norm(self.camera - self.pov)
-            self.camera = numpy.array([0.0, -distance, 0.0, 0.0]) + self.pov # pylint: disable=E1130
-            self.axis = numpy.array([0.0, 0.0, 1.0, 0.0])
+            distance = np.linalg.norm(self.camera - self.pov)
+            self.camera = np.array([0.0, -distance, 0.0, 0.0]) + self.pov # pylint: disable=E1130
+            self.axis = np.array([0.0, 0.0, 1.0, 0.0])
 
         def side(self):
-            distance = numpy.linalg.norm(self.camera - self.pov)
-            self.camera = numpy.array([distance, 0.0, 0.0, 0.0]) + self.pov
-            self.axis = numpy.array([0.0, 0.0, 1.0, 0.0])
+            distance = np.linalg.norm(self.camera - self.pov)
+            self.camera = np.array([distance, 0.0, 0.0, 0.0]) + self.pov
+            self.axis = np.array([0.0, 0.0, 1.0, 0.0])
 
         def top(self):
-            distance = numpy.linalg.norm(self.camera - self.pov)
-            self.camera = numpy.array([0.0, 0.0, distance, 0.0]) + self.pov
-            self.axis = numpy.array([0.0, 1.0, 0.0, 0.0])
+            distance = np.linalg.norm(self.camera - self.pov)
+            self.camera = np.array([0.0, 0.0, distance, 0.0]) + self.pov
+            self.axis = np.array([0.0, 1.0, 0.0, 0.0])
 
         def rotate(self, hrot, vrot):
             camera = self.camera - self.pov
             axis = self.axis
             if hrot != 0.0:
-                horiz_rotation_matrix = numpy.array([
+                horiz_rotation_matrix = np.array([
                     [ math.cos(hrot), math.sin(hrot), 0.0, 0.0],
                     [-math.sin(hrot), math.cos(hrot), 0.0, 0.0],
                     [            0.0,            0.0, 1.0, 0.0],
                     [            0.0,            0.0, 0.0, 1.0]])
-                camera = numpy.matmul(camera, horiz_rotation_matrix)
-                axis = numpy.matmul(axis, horiz_rotation_matrix)
+                camera = np.matmul(camera, horiz_rotation_matrix)
+                axis = np.matmul(axis, horiz_rotation_matrix)
             if vrot != 0.0:
-                normal = numpy.cross(camera[0:3], self.axis[0:3])
-                normal /= numpy.linalg.norm(normal)
+                normal = np.cross(camera[0:3], self.axis[0:3])
+                normal /= np.linalg.norm(normal)
                 vert_rotation_matrix = model.make_rotation_matrix(normal, vrot).transpose()
-                camera = numpy.matmul(camera, vert_rotation_matrix)
-                axis = numpy.matmul(axis, vert_rotation_matrix)
+                camera = np.matmul(camera, vert_rotation_matrix)
+                axis = np.matmul(axis, vert_rotation_matrix)
             self.camera = camera + self.pov
             self.axis = axis
 
         def move(self, x, y): # pylint: disable=C0103
             camera = self.camera - self.pov
-            normal = numpy.cross(self.axis[0:3], camera[0:3])
-            normal /= numpy.linalg.norm(normal)
-            distance = numpy.linalg.norm(camera)
+            normal = np.cross(self.axis[0:3], camera[0:3])
+            normal /= np.linalg.norm(normal)
+            distance = np.linalg.norm(camera)
             width = 2.0 * math.tan(self.fov / 2.0) * distance
 
             offset = normal * (-x / width) + self.axis[0:3] * (-y / width)
             offset *= distance * self.translation_rate
-            offset = numpy.array([*offset, 0.0])
+            offset = np.array([*offset, 0.0])
 
             self.camera += offset
             self.pov += offset
 
         def zoom(self, z): # pylint: disable=C0103
-            scale = numpy.array([z, z, z, 1.0])
+            scale = np.array([z, z, z, 1.0])
             self.camera = (self.camera - self.pov) * scale + self.pov
 
         def zoom_in(self):
@@ -638,7 +638,7 @@ class Scene:
     def update_matrix(self, viewport):
         aspect = float(viewport[0]) / float(viewport[1])
         if self.ortho:
-            distance = numpy.linalg.norm(self.camera.camera - self.camera.pov)
+            distance = np.linalg.norm(self.camera.camera - self.camera.pov)
             width = 1.0 / math.tan(self.camera.fov / 2.0) * distance
             area = (width, width / aspect)
             self.projection_matrix = model.create_orthographic_matrix(area, self.depth)
@@ -709,7 +709,7 @@ class BaseModelShader(Shader):
             self.create(load_file('default.vert'), load_file('default.frag'))
 
         self.light_ambient = 0.1
-        self.light_diffuse = numpy.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], numpy.float32)
+        self.light_diffuse = np.array([[0.9, 0.9, 0.9], [0.9, 0.9, 0.9]], np.float32)
 
         self.projection_loc = glGetUniformLocation(self.program, 'projectionMatrix')
         self.model_view_loc = glGetUniformLocation(self.program, 'modelViewMatrix')
@@ -723,17 +723,17 @@ class BaseModelShader(Shader):
         self.enable_program()
 
         # Set precalculated matrices
-        normal_matrix = numpy.transpose(numpy.linalg.inv(model_view_matrix))
+        normal_matrix = np.transpose(np.linalg.inv(model_view_matrix))
         glUniformMatrix4fv(self.projection_loc, 1, GL_FALSE,
-                           numpy.array(projection_matrix, numpy.float32))
+                           np.array(projection_matrix, np.float32))
         glUniformMatrix4fv(self.model_view_loc, 1, GL_FALSE,
-                           numpy.array(model_view_matrix, numpy.float32))
+                           np.array(model_view_matrix, np.float32))
         glUniformMatrix4fv(self.normal_loc, 1, GL_FALSE,
-                           numpy.array(normal_matrix, numpy.float32))
+                           np.array(normal_matrix, np.float32))
 
         # Set precalculated light positions, configure colors of diffuse and ambient lighting
-        lights = numpy.array([numpy.matmul(light, model_view_matrix)[0:3] for light in lights],
-                             numpy.float32)
+        lights = np.array([np.matmul(light, model_view_matrix)[0:3] for light in lights],
+                           np.float32)
         glUniform3fv(self.light_loc, len(lights), lights)
         glUniform3fv(self.light_diffuse_loc, 2, self.light_diffuse)
         glUniform1f(self.light_ambient_loc, self.light_ambient)
@@ -778,13 +778,13 @@ class UnlitModelShader(Shader):
     def enable(self, projection_matrix, model_view_matrix, _1, _2, _3):
         self.enable_program()
 
-        normal_matrix = numpy.transpose(numpy.linalg.inv(model_view_matrix))
+        normal_matrix = np.transpose(np.linalg.inv(model_view_matrix))
         glUniformMatrix4fv(self.projection_loc, 1, GL_FALSE,
-                           numpy.array(projection_matrix, numpy.float32))
+                           np.array(projection_matrix, np.float32))
         glUniformMatrix4fv(self.model_view_loc, 1, GL_FALSE,
-                           numpy.array(model_view_matrix, numpy.float32))
+                           np.array(model_view_matrix, np.float32))
         glUniformMatrix4fv(self.normal_loc, 1, GL_FALSE,
-                           numpy.array(normal_matrix, numpy.float32))
+                           np.array(normal_matrix, np.float32))
 
 
 class SystemShader(Shader):
@@ -810,17 +810,17 @@ class SystemShader(Shader):
             area=(1.0, 1.0),
             distance=(0.001, 1000.0))
         self.model_view_matrix = model.create_model_view_matrix(
-            eye=numpy.array([0.0, 0.0, 1.0]),
-            center=numpy.zeros(3),
-            z_axis=numpy.array([0.0, 1.0, 0.0]))
+            eye=np.array([0.0, 0.0, 1.0]),
+            center=np.zeros(3),
+            z_axis=np.array([0.0, 1.0, 0.0]))
 
     def setup_projections(self):
         self.enable_program()
 
         glUniformMatrix4fv(self.projection_loc, 1, GL_FALSE,
-                           numpy.array(self.projection_matrix, numpy.float32))
+                           np.array(self.projection_matrix, np.float32))
         glUniformMatrix4fv(self.model_view_loc, 1, GL_FALSE,
-                           numpy.array(self.model_view_matrix, numpy.float32))
+                           np.array(self.model_view_matrix, np.float32))
 
 
 class BackgroundShader(SystemShader):
@@ -1147,12 +1147,12 @@ class Render(Scene):
                 self.screen_plane.draw()
 
                 glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[2].buffer)
-                self.shader_storage.blur.enable(self.viewport, numpy.array([0.0, 1.0]),
+                self.shader_storage.blur.enable(self.viewport, np.array([0.0, 1.0]),
                                                 self.framebuffers[1].color)
                 self.screen_plane.draw()
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0)
-                self.shader_storage.blur_masked.enable(self.viewport, numpy.array([1.0, 0.0]),
+                self.shader_storage.blur_masked.enable(self.viewport, np.array([1.0, 0.0]),
                                                        self.framebuffers[2].color,
                                                        self.framebuffers[1].color,
                                                        self.overlay_mask.buffer)

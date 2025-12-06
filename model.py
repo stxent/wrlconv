@@ -7,35 +7,35 @@
 
 import copy
 import math
-import numpy
+import numpy as np
 
 def angle(vector_a, vector_b):
     norm_vector_a = normalize(vector_a[0:3])
     norm_vector_b = normalize(vector_b[0:3])
-    dot = numpy.dot(norm_vector_a, norm_vector_b)
-    return math.acos(numpy.clip(dot, -1.0, 1.0))
+    dot = np.dot(norm_vector_a, norm_vector_b)
+    return math.acos(np.clip(dot, -1.0, 1.0))
 
 def normalize(vector):
-    length = numpy.linalg.norm(vector)
+    length = np.linalg.norm(vector)
     return vector / length if length != 0.0 else vector
 
 def tangent(vertex1, vertex2, tangent1, tangent2):
     div = tangent1[1] * tangent2[0] - tangent1[0] * tangent2[1]
     if div != 0.0:
         return (vertex1[0:3] * -tangent2[1] + vertex2[0:3] * tangent1[1]) / div
-    return numpy.array([0.0, 0.0, 1.0])
+    return np.array([0.0, 0.0, 1.0])
 
 def calc_bounding_box(vertices):
     if not vertices:
-        return (numpy.zeros(3), numpy.zeros(3))
+        return (np.zeros(3), np.zeros(3))
     bottom = top = vertices[0]
     for point in vertices:
-        bottom = numpy.minimum(bottom, point)
-        top = numpy.maximum(top, point)
+        bottom = np.minimum(bottom, point)
+        top = np.maximum(top, point)
     return (bottom, top)
 
 def calc_center_point(vertices):
-    center = numpy.zeros(3)
+    center = np.zeros(3)
     if vertices:
         for point in vertices:
             center += point
@@ -44,24 +44,24 @@ def calc_center_point(vertices):
 
 def calc_median_point(vertices):
     if not vertices:
-        return numpy.zeros(3)
+        return np.zeros(3)
     bottom, top = calc_bounding_box(vertices)
     return (bottom + top) / 2.0
 
 def create_model_view_matrix(eye, center, z_axis):
     forward = normalize(center - eye)
-    side = numpy.cross(forward, normalize(z_axis))
-    side = numpy.array([0.0, 1.0, 0.0]) if numpy.linalg.norm(side) == 0.0 else normalize(side)
-    z_axis = normalize(numpy.cross(side, forward))
+    side = np.cross(forward, normalize(z_axis))
+    side = np.array([0.0, 1.0, 0.0]) if np.linalg.norm(side) == 0.0 else normalize(side)
+    z_axis = normalize(np.cross(side, forward))
 
-    result = numpy.array([
+    result = np.array([
         [    1.0,     0.0,     0.0, 0.0],
         [    0.0,     1.0,     0.0, 0.0],
         [    0.0,     0.0,     1.0, 0.0],
         [-eye[0], -eye[1], -eye[2], 1.0]
     ])
-    result = numpy.matmul(result,
-        numpy.array([
+    result = np.matmul(result,
+        np.array([
             [side[0], z_axis[0], -forward[0], 0.0],
             [side[1], z_axis[1], -forward[1], 0.0],
             [side[2], z_axis[2], -forward[2], 0.0],
@@ -76,7 +76,7 @@ def create_perspective_matrix(aspect, rotation, distance):
     height = 1.0 / math.tan(fov)
     width = height / aspect
 
-    result = numpy.array([
+    result = np.array([
         [width,    0.0,                                0.0,  0.0],
         [  0.0, height,                                0.0,  0.0],
         [  0.0,    0.0,       -(far + near) / (far - near), -1.0],
@@ -88,7 +88,7 @@ def create_orthographic_matrix(area, distance):
     near, far = distance
     width, height = area
 
-    result = numpy.array([
+    result = np.array([
         [1.0 / width, 0.0, 0.0, 0.0],
         [0.0, 1.0 / height, 0.0, 0.0],
         [0.0, 0.0, -2.0 / (far - near), 0.0],
@@ -119,7 +119,7 @@ def uv_wrap_planar(mesh, borders=None):
             # pylint: disable=C0103
             u = (mesh.geo_vertices[index][0] - borders[0][0]) / size[0]
             v = (mesh.geo_vertices[index][1] - borders[0][1]) / size[1]
-            mesh.tex_vertices.append(numpy.array([u, v]))
+            mesh.tex_vertices.append(np.array([u, v]))
             # pylint: enable=C0103
         mesh.tex_polygons.append(poly)
 
@@ -137,7 +137,7 @@ def make_rotation_matrix(vector, rotation):
     a33 = cos + vector[2] * vector[2] * (1.0 - cos)
 
     # Column-major order
-    matrix = numpy.array([
+    matrix = np.array([
         [a11, a12, a13, 0.0],
         [a21, a22, a23, 0.0],
         [a31, a32, a33, 0.0],
@@ -159,26 +159,26 @@ def rpy_to_matrix(angles):
     cosy, siny = math.cos(angles[2]), math.sin(angles[2])
 
     # Column-major order
-    yaw_matrix = numpy.array([
+    yaw_matrix = np.array([
         [ cosy, -siny,   0.0, 0.0],
         [ siny,  cosy,   0.0, 0.0],
         [  0.0,   0.0,   1.0, 0.0],
         [  0.0,   0.0,   0.0, 1.0]
     ])
-    pitch_matrix = numpy.array([
+    pitch_matrix = np.array([
         [ cosp,   0.0,  sinp, 0.0],
         [  0.0,   1.0,   0.0, 0.0],
         [-sinp,   0.0,  cosp, 0.0],
         [  0.0,   0.0,   0.0, 1.0]
     ])
-    roll_matrix = numpy.array([
+    roll_matrix = np.array([
         [  1.0,   0.0,   0.0, 0.0],
         [  0.0,  cosr, -sinr, 0.0],
         [  0.0,  sinr,  cosr, 0.0],
         [  0.0,   0.0,   0.0, 1.0]
     ])
 
-    return numpy.matmul(yaw_matrix, numpy.matmul(pitch_matrix, roll_matrix))
+    return np.matmul(yaw_matrix, np.matmul(pitch_matrix, roll_matrix))
 
 def quaternion_to_matrix(quaternion):
     # pylint: disable=C0103
@@ -205,7 +205,7 @@ def quaternion_to_matrix(quaternion):
     m22 = 1.0 - 2.0 * (xx + yy)
 
     # Column-major order
-    matrix = numpy.array([
+    matrix = np.array([
         [m00, m01, m02, 0.0],
         [m10, m11, m12, 0.0],
         [m20, m21, m22, 0.0],
@@ -243,14 +243,14 @@ def matrix_to_quaternion(matrix):
         x = (matrix[0][2] + matrix[2][0]) / s
         y = (matrix[1][2] + matrix[2][1]) / s
         z = 0.25 * s
-    quaternion = numpy.array([w, x, y, z])
+    quaternion = np.array([w, x, y, z])
     # pylint: enable=C0103
 
     return quaternion
 
 def slerp(q0, q1, t): # pylint: disable=C0103
     q0, q1 = normalize(q0), normalize(q1)
-    dot = numpy.clip(numpy.sum(q0 * q1), -1.0, 1.0)
+    dot = np.clip(np.sum(q0 * q1), -1.0, 1.0)
 
     if abs(dot) == 1.0:
         return q0
@@ -276,10 +276,10 @@ class Material:
         IDENT = 0
 
         def __init__(self, name=None):
-            self.diffuse = numpy.ones(3)
-            self.ambient = numpy.zeros(3)
-            self.specular = numpy.zeros(3)
-            self.emissive = numpy.zeros(3)
+            self.diffuse = np.ones(3)
+            self.ambient = np.zeros(3)
+            self.specular = np.zeros(3)
+            self.emissive = np.zeros(3)
             self.shininess = 0.0
             self.transparency = 0.0
             if name is None:
@@ -344,13 +344,13 @@ class Material:
             if 'transparency' in description:
                 self.color.transparency = float(description['transparency'])
             if 'diffuse' in description:
-                self.color.diffuse = numpy.array(description['diffuse'])
+                self.color.diffuse = np.array(description['diffuse'])
             if 'specular' in description:
-                self.color.specular = numpy.array(description['specular'])
+                self.color.specular = np.array(description['specular'])
             if 'emissive' in description:
-                self.color.emissive = numpy.array(description['emissive'])
+                self.color.emissive = np.array(description['emissive'])
             if 'ambient' in description:
-                self.color.ambient = numpy.array(description['ambient'])
+                self.color.ambient = np.array(description['ambient'])
 
     def __eq__(self, other):
         if isinstance(other, Material):
@@ -464,14 +464,14 @@ class Mesh(Object):
     def detach_faces(self, regions):
         vertex_regions = []
         for box_top, box_bottom in regions:
-            top = numpy.maximum(box_top, box_bottom)
-            bottom = numpy.minimum(box_top, box_bottom)
+            top = np.maximum(box_top, box_bottom)
+            bottom = np.minimum(box_top, box_bottom)
             vertex_regions.append((top, bottom))
 
-        detached_polygons = numpy.zeros(len(self.geo_polygons), dtype=bool)
-        detached_vertices = numpy.zeros(len(self.geo_vertices), dtype=bool)
+        detached_polygons = np.zeros(len(self.geo_polygons), dtype=bool)
+        detached_vertices = np.zeros(len(self.geo_vertices), dtype=bool)
         index_from_position = []
-        reindexed = numpy.zeros(len(self.geo_vertices), dtype=numpy.uint32)
+        reindexed = np.zeros(len(self.geo_vertices), dtype=np.uint32)
         counter = 0
 
         # Create polygon array with detached polygons
@@ -501,7 +501,7 @@ class Mesh(Object):
             if not detached_polygons[i]:
                 src_polygons.append(copy.deepcopy(polygon))
 
-        discarded_indices = numpy.zeros(len(self.geo_vertices), dtype=numpy.uint32)
+        discarded_indices = np.zeros(len(self.geo_vertices), dtype=np.uint32)
         discarded_vertices = self.optimize_unused_vertices(src_polygons, len(self.geo_vertices))
         src_vertices = []
 
@@ -536,8 +536,8 @@ class Mesh(Object):
     def find_vertices(self, regions):
         vertex_regions = []
         for box_top, box_bottom in regions:
-            top = numpy.maximum(box_top, box_bottom)
-            bottom = numpy.minimum(box_top, box_bottom)
+            top = np.maximum(box_top, box_bottom)
+            bottom = np.minimum(box_top, box_bottom)
             vertex_regions.append((top, bottom))
 
         vertices = {}
@@ -554,7 +554,7 @@ class Mesh(Object):
             return
 
         discarded = self.optimize_unused_vertices(self.geo_polygons, len(self.geo_vertices))
-        reindexed = numpy.zeros(len(self.geo_vertices), dtype=numpy.uint32)
+        reindexed = np.zeros(len(self.geo_vertices), dtype=np.uint32)
         counter = 0
 
         # Find duplicate vertices
@@ -614,7 +614,7 @@ class Mesh(Object):
 
     @staticmethod
     def optimize_unused_vertices(polygons, vertex_count):
-        discarded = numpy.ones(vertex_count, dtype=bool)
+        discarded = np.ones(vertex_count, dtype=bool)
         for polygon in polygons:
             for vertex in polygon:
                 discarded[vertex] = False
@@ -640,8 +640,8 @@ class AttributedMesh(Mesh):
                 if key == 0:
                     # Key 0 is a default key for unattributed vertices
                     raise KeyError()
-                top = numpy.maximum(box_top, box_bottom)
-                bottom = numpy.minimum(box_top, box_bottom)
+                top = np.maximum(box_top, box_bottom)
+                bottom = np.minimum(box_top, box_bottom)
                 self.regions.append((key, (top, bottom)))
         self.attributes = []
 
@@ -724,11 +724,11 @@ class Transform:
         elif quaternion is not None:
             self.matrix = quaternion_to_matrix(quaternion)
         else:
-            self.matrix = numpy.identity(4)
+            self.matrix = np.identity(4)
 
     def translate(self, pos):
         # Column-major order
-        matrix = numpy.array([
+        matrix = np.array([
             [0.0, 0.0, 0.0, pos[0]],
             [0.0, 0.0, 0.0, pos[1]],
             [0.0, 0.0, 0.0, pos[2]],
@@ -738,24 +738,24 @@ class Transform:
 
     def rotate(self, vector, rotation):
         matrix = make_rotation_matrix(vector, rotation)
-        self.matrix = numpy.matmul(self.matrix, matrix)
+        self.matrix = np.matmul(self.matrix, matrix)
 
     def scale(self, scale):
-        matrix = numpy.array([
+        matrix = np.array([
             [scale[0],      0.0,      0.0, 0.0],
             [     0.0, scale[1],      0.0, 0.0],
             [     0.0,      0.0, scale[2], 0.0],
             [     0.0,      0.0,      0.0, 1.0]
         ])
-        self.matrix = numpy.matmul(self.matrix, matrix)
+        self.matrix = np.matmul(self.matrix, matrix)
 
     def apply(self, vertex):
-        return numpy.matmul(self.matrix, numpy.array([*vertex, 1.0]))[0:3]
+        return np.matmul(self.matrix, np.array([*vertex, 1.0]))[0:3]
 
     def quaternion(self):
         return matrix_to_quaternion(self.matrix)
 
     def __mul__(self, other):
         transform = Transform()
-        transform.matrix = numpy.matmul(self.matrix, other.matrix)
+        transform.matrix = np.matmul(self.matrix, other.matrix)
         return transform

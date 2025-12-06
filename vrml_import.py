@@ -8,7 +8,7 @@
 import functools
 import os
 import re
-import numpy
+import numpy as np
 
 try:
     import model
@@ -446,7 +446,7 @@ class VrmlCoords(VrmlEntry):
                                 self.level(), balance, offset))
                             break
                         vertices = [float(regexp.group(i + 1)) for i in range(0, self.size)]
-                        self.vertices.append(numpy.array(vertices))
+                        self.vertices.append(np.array(vertices))
                         v_pos = regexp.end()
                     else:
                         delta, offset = calc_balance(data[v_pos:], -1, (), ('}'))
@@ -529,7 +529,7 @@ class VrmlMaterial(VrmlEntry):
             if result is not None:
                 values = [float(result.group(x)) for x in range(1, pattern[0] + 1)]
                 debug('{:s}Material attribute {:s} found'.format(self.level(), pattern[1]))
-                self.values[pattern[1]] = values[0] if len(values) == 1 else numpy.array(values)
+                self.values[pattern[1]] = values[0] if len(values) == 1 else np.array(values)
 
     def demangled(self):
         # Demangle Blender names

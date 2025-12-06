@@ -8,7 +8,7 @@
 import itertools
 import math
 import time
-import numpy
+import numpy as np
 
 try:
     import model
@@ -155,46 +155,46 @@ def store(data, path):
         started = time.time()
 
         if mesh.transform is None:
-            translation = numpy.zeros(3)
-            rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
-            scale = numpy.ones(3)
+            translation = np.zeros(3)
+            rotation = np.array([1.0, 0.0, 0.0, 0.0])
+            scale = np.ones(3)
         else:
             translation = mesh.transform.matrix[:,3][0:3]
-            translation_matrix = numpy.array([
+            translation_matrix = np.array([
                 [1.0, 0.0, 0.0, -translation[0]],
                 [0.0, 1.0, 0.0, -translation[1]],
                 [0.0, 0.0, 1.0, -translation[2]],
                 [0.0, 0.0, 0.0,             1.0]
             ])
-            translated = numpy.matmul(translation_matrix, mesh.transform.matrix)
+            translated = np.matmul(translation_matrix, mesh.transform.matrix)
 
-            scale = numpy.array([numpy.linalg.norm(
+            scale = np.array([np.linalg.norm(
                 translated[:,column][0:3]) for column in [0, 1, 2]])
-            scale_matrix = numpy.array([
+            scale_matrix = np.array([
                 [1.0 / scale[0],            0.0,            0.0, 0.0],
                 [           0.0, 1.0 / scale[1],            0.0, 0.0],
                 [           0.0,            0.0, 1.0 / scale[2], 0.0],
                 [           0.0,            0.0,            0.0, 1.0]
             ])
-            scaled = numpy.matmul(translated, scale_matrix)
+            scaled = np.matmul(translated, scale_matrix)
 
             # Conversion from rotation matrix form to axis-angle form
             angle = math.acos(((scaled.trace() - 1.0) - 1.0) / 2.0)
 
             if angle == 0.0:
-                rotation = numpy.array([1.0, 0.0, 0.0, 0.0])
+                rotation = np.array([1.0, 0.0, 0.0, 0.0])
             else:
                 skew = scaled - scaled.transpose()
-                vector = numpy.array([skew[2][1], skew[0][2], skew[1][0]])
+                vector = np.array([skew[2][1], skew[0][2], skew[1][0]])
                 vector = (1.0 / (2.0 * math.sin(angle))) * vector
                 vector = model.normalize(vector)
 
                 if abs(angle) < math.pi:
-                    rotation = numpy.array(vector.tolist() + [angle])
+                    rotation = np.array(vector.tolist() + [angle])
                 else:
-                    tensor = numpy.tensordot(vector, vector, 0)
-                    values = numpy.array([tensor[2][1], tensor[0][2], tensor[1][0]])
-                    vector = numpy.diag(tensor)
+                    tensor = np.tensordot(vector, vector, 0)
+                    values = np.array([tensor[2][1], tensor[0][2], tensor[1][0]])
+                    vector = np.diag(tensor)
                     vector = model.normalize(vector)
 
                     pos_indices, neg_indices = [], []
@@ -209,7 +209,7 @@ def store(data, path):
                     elif not pos_indices and len(neg_indices) == 1:
                         vector[neg_indices[0]] *= -1.0
 
-                    rotation = numpy.array(vector.tolist() + [angle])
+                    rotation = np.array(vector.tolist() + [angle])
 
             debug('Transform {:s}: translation {:s}, rotation {:s}, scale {:s}'.format(
                 mesh.ident, str(translation), str(rotation), str(scale)))

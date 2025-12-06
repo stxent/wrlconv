@@ -7,7 +7,7 @@
 
 import re
 from xml.parsers import expat
-import numpy
+import numpy as np
 
 try:
     import model
@@ -226,7 +226,7 @@ class X3dCoords(X3dEntry):
             points = [float(point) for point in attributes['point'].split(' ') if point]
             vertices = []
             for i in range(0, int(len(points) / self.size)):
-                vertices.append(numpy.array(points[i * self.size:(i + 1) * self.size]))
+                vertices.append(np.array(points[i * self.size:(i + 1) * self.size]))
             self.vertices = vertices
             debug('{:s}Found {:d} vertices, width {:d}'.format(
                 self.level(), len(self.vertices), self.size))
@@ -277,7 +277,7 @@ class X3dMaterial(X3dEntry):
 
     def parse(self, attributes):
         def get_values(string):
-            return numpy.array([float(x) for x in string.split(' ')])
+            return np.array([float(x) for x in string.split(' ')])
 
         self.color.ident = self.demangled()
         if 'shininess' in attributes:
