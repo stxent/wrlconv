@@ -5,6 +5,7 @@
 # Copyright (C) 2015 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
+import itertools
 import math
 import numpy as np
 
@@ -133,54 +134,69 @@ class Plane(model.Mesh):
                 self.geo_polygons.append([point1, point2, point4, point3])
 
 
-def make_bezier_quad_outline(points, resolution=(1, 1), roundness=1.0 / 3.0):
-    p01_vec = (points[1] - points[0]) * roundness
-    p03_vec = (points[3] - points[0]) * roundness
-    p21_vec = (points[1] - points[2]) * roundness
-    p23_vec = (points[3] - points[2]) * roundness
+def build_loft_mesh(slices, fill_start, fill_end):
+    mesh = model.Mesh()
 
-    p10_vec = -p01_vec
-    p12_vec = -p21_vec
-    p30_vec = -p03_vec
-    p32_vec = -p23_vec
+    number = len(slices[0])
+    for points in slices:
+        mesh.geo_vertices.extend(points)
 
-    side_a = curves.Bezier(points[0], p01_vec, points[1], p10_vec, resolution[0])
-    side_b = curves.Bezier(points[1], p12_vec, points[2], p21_vec, resolution[1])
-    side_c = curves.Bezier(points[2], p23_vec, points[3], p32_vec, resolution[0])
-    side_d = curves.Bezier(points[3], p30_vec, points[0], p03_vec, resolution[1])
+    if fill_start:
+        v_center_index = len(mesh.geo_vertices)
+        mesh.geo_vertices.append(model.calc_median_point(slices[0]))
 
-    vertices = []
-    vertices.extend(side_a.tessellate())
-    vertices.extend(side_b.tessellate())
-    vertices.extend(side_c.tessellate())
-    vertices.extend(side_d.tessellate())
-    return dict(zip(list(range(0, len(vertices))), vertices))
+        for i in range(0, number - 1):
+            mesh.geo_polygons.append([i, i + 1, v_center_index])
+        if not model.Mesh.isclose(slices[0][0], slices[0][-1]):
+            # Slice is not closed, append additional polygon
+            mesh.geo_polygons.append([number - 1, 0, v_center_index])
 
-def make_circle_outline(center, radius, edges):
-    vertices = []
-    angle, delta = 0.0, math.pi * 2.0 / edges
+    for i in range(0, len(slices) - 1):
+        for j in range(0, number - 1):
+            mesh.geo_polygons.append([
+                i * number + j,
+                (i + 1) * number + j,
+                (i + 1) * number + j + 1,
+                i * number + j + 1
+            ])
 
-    for _ in range(0, edges):
-        # pylint: disable=invalid-name
-        x = radius * math.cos(angle)
-        y = radius * math.sin(angle)
-        # pylint: enable=invalid-name
+    if fill_end:
+        v_center_index = len(mesh.geo_vertices)
+        v_start_index = (len(slices) - 1) * number
+        mesh.geo_vertices.append(model.calc_median_point(slices[-1]))
 
-        vertices.append(center + np.array([x, y, 0.0]))
-        angle += delta
+        for i in range(v_start_index, v_start_index + number - 1):
+            mesh.geo_polygons.append([i + 1, i, v_center_index])
+        if not model.Mesh.isclose(slices[-1][0], slices[-1][-1]):
+            # Slice is not closed, append additional polygon
+            mesh.geo_polygons.append([v_start_index, v_start_index + number - 1, v_center_index])
 
-    return dict(zip(list(range(0, len(vertices))), vertices))
+    return mesh
 
-def sort_vertices_by_angle(vertices, mean, normal, direction=None):
-    keys = list(vertices.keys())
-    if direction is None:
-        direction = vertices[next(iter(vertices))] - mean
-    angles = []
-    for key in keys:
-        vector = vertices[key] - mean
-        angle = model.angle(direction, vector)
-        if np.linalg.det(np.array([direction, vector, normal])) < 0.0:
-            angle = -angle
-        angles.append((key, angle))
-    angles.sort(key=lambda x: x[1])
-    return angles
+def build_rotation_mesh(slices, wrap=True, inverse=False):
+    geo_vertices = list(itertools.chain.from_iterable(slices))
+    geo_polygons = []
+
+    edges = len(slices) if wrap else len(slices) - 1
+    size = len(slices[0])
+    for i in range(0, edges):
+        for vertex in range(0, size - 1):
+            beg, end = i, i + 1 if i < len(slices) - 1 else 0
+            if inverse:
+                beg, end = end, beg
+
+            beg_index, end_index = beg * size + vertex, end * size + vertex
+            indices = [beg_index]
+            if not model.Mesh.isclose(geo_vertices[beg_index], geo_vertices[end_index]):
+                indices += [end_index]
+            if not model.Mesh.isclose(geo_vertices[beg_index + 1], geo_vertices[end_index + 1]):
+                indices += [end_index + 1]
+            indices += [beg_index + 1]
+
+            geo_polygons.append(indices)
+
+    # Generate object
+    mesh = model.Mesh()
+    mesh.geo_vertices = geo_vertices
+    mesh.geo_polygons = geo_polygons
+    return mesh

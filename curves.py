@@ -5,7 +5,6 @@
 # Copyright (C) 2016 xent
 # Project is distributed under the terms of the GNU General Public License v3.0
 
-import itertools
 import math
 import numpy as np
 
@@ -204,56 +203,49 @@ class BezierTri(model.Mesh):
                         [row_offset(i) + j + 1, row_offset(i - 1) + j + 1, row_offset(i - 1) + j])
 
 
-def create_rotation_mesh(slices, wrap=True, inverse=False):
-    geo_vertices = list(itertools.chain.from_iterable(slices))
-    geo_polygons = []
+def _make_loft_slices(path, segments, translation, rotation, scaling, morphing):
+    slices = []
 
-    edges = len(slices) if wrap else len(slices) - 1
-    size = len(slices[0])
-    for i in range(0, edges):
-        for vertex in range(0, size - 1):
-            beg, end = i, i + 1 if i < len(slices) - 1 else 0
-            if inverse:
-                beg, end = end, beg
+    count = len(segments)
+    current = segments[0]
 
-            beg_index, end_index = beg * size + vertex, end * size + vertex
-            indices = [beg_index]
-            if not model.Mesh.isclose(geo_vertices[beg_index], geo_vertices[end_index]):
-                indices += [end_index]
-            if not model.Mesh.isclose(geo_vertices[beg_index + 1], geo_vertices[end_index + 1]):
-                indices += [end_index + 1]
-            indices += [beg_index + 1]
+    for i in range(0, count + 1):
+        if 0 < i < len(segments):
+            quaternion = model.slerp(segments[i - 1], segments[i], 0.5)
+            current = segments[i]
+        else:
+            quaternion = current
 
-            geo_polygons.append(indices)
+        shape = morphing(i)
 
-    # Generate object
-    mesh = model.Mesh()
-    mesh.geo_vertices = geo_vertices
-    mesh.geo_polygons = geo_polygons
-    return mesh
+        shape_transform = model.Transform()
+        shape_transform.scale(scaling(i))
+        shape_transform.translate(translation(i))
+        transformed_shape = [shape_transform.apply(point) for point in shape]
 
-def create_tri_cap_mesh(slices, inverse): # FIXME
-    if inverse:
-        vertices = [slices[i][0] for i in range(0, len(slices))]
-    else:
-        vertices = [slices[i][len(slices[i]) - 1] for i in range(0, len(slices))]
+        slice_transform = model.Transform(quaternion=quaternion)
+        slice_transform.matrix = np.matmul(slice_transform.matrix,
+                                              model.rpy_to_matrix(rotation(i)))
+        slice_transform.translate(path[i])
+        slices.append([slice_transform.apply(point) for point in transformed_shape])
 
-    indices = range(0, len(slices))
-    geo_vertices = vertices + [sum(vertices) / len(slices)]
-    geo_polygons = []
+    return slices
 
-    if not inverse:
-        for i, value in enumerate(indices):
-            geo_polygons.append([len(vertices), value, indices[i - 1]])
-    else:
-        for i, value in enumerate(indices):
-            geo_polygons.append([indices[i - 1], value, len(vertices)])
+def connect_paths(*args):
+    if not args:
+        return []
+    if len(args) == 1:
+        return args[0]
 
-    # Generate object
-    mesh = model.Mesh()
-    mesh.geo_vertices = geo_vertices
-    mesh.geo_polygons = geo_polygons
-    return mesh
+    output = []
+    for i in range(0, len(args) - 1):
+        if i:
+            output.extend(args[i][1:-1])
+        else:
+            output.extend(args[i][:-1])
+        output.append((args[i][-1] + args[i + 1][0]) / 2.0)
+    output.extend(args[-1][1:])
+    return output
 
 def loft(path, shape, translation=None, rotation=None, scaling=None, morphing=None):
     default_z_vec = np.array([0.0, 0.0, 1.0])
@@ -294,35 +286,7 @@ def loft(path, shape, translation=None, rotation=None, scaling=None, morphing=No
             previous_vec = path_vec
         segments.append(model.Transform(matrix=matrix).quaternion())
 
-    return make_loft_slices(path, segments, translation, rotation, scaling, morphing)
-
-def make_loft_slices(path, segments, translation, rotation, scaling, morphing):
-    slices = []
-
-    count = len(segments)
-    current = segments[0]
-
-    for i in range(0, count + 1):
-        if 0 < i < len(segments):
-            quaternion = model.slerp(segments[i - 1], segments[i], 0.5)
-            current = segments[i]
-        else:
-            quaternion = current
-
-        shape = morphing(i)
-
-        shape_transform = model.Transform()
-        shape_transform.scale(scaling(i))
-        shape_transform.translate(translation(i))
-        transformed_shape = [shape_transform.apply(point) for point in shape]
-
-        slice_transform = model.Transform(quaternion=quaternion)
-        slice_transform.matrix = np.matmul(slice_transform.matrix,
-                                              model.rpy_to_matrix(rotation(i)))
-        slice_transform.translate(path[i])
-        slices.append([slice_transform.apply(point) for point in transformed_shape])
-
-    return slices
+    return _make_loft_slices(path, segments, translation, rotation, scaling, morphing)
 
 def optimize(points):
     if points:
