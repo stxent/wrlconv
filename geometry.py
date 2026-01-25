@@ -124,7 +124,7 @@ class Plane(model.Mesh):
         for j in range(0, res[1]):
             for i in range(0, res[0]):
                 self.geo_vertices.append(
-                    np.array([offset[0] + i * mult[0], offset[1] + j * mult[1], 0]))
+                    np.array([offset[0] + i * mult[0], offset[1] + j * mult[1], 0.0]))
         for j in range(0, res[1] - 1):
             for i in range(0, res[0] - 1):
                 point1 = j * res[0] + i
@@ -173,7 +173,7 @@ def build_loft_mesh(slices, fill_start, fill_end):
 
     return mesh
 
-def build_rotation_mesh(slices, wrap=True, inverse=False):
+def build_rotation_mesh(slices, wrap=True, invert=False):
     geo_vertices = list(itertools.chain.from_iterable(slices))
     geo_polygons = []
 
@@ -182,7 +182,7 @@ def build_rotation_mesh(slices, wrap=True, inverse=False):
     for i in range(0, edges):
         for vertex in range(0, size - 1):
             beg, end = i, i + 1 if i < len(slices) - 1 else 0
-            if inverse:
+            if invert:
                 beg, end = end, beg
 
             beg_index, end_index = beg * size + vertex, end * size + vertex

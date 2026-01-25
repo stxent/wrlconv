@@ -77,7 +77,7 @@ class Bezier(Line):
 
 
 class BezierQuad(model.Mesh):
-    def __init__(self, a, b, c, d, resolution, inverse=False, points=None): # pylint: disable=invalid-name
+    def __init__(self, a, b, c, d, resolution, inversion=False, points=None): # pylint: disable=invalid-name
         '''
         a[0] a[1] a[2] a[3]
         b[0] b[1] b[2] b[3]
@@ -86,8 +86,16 @@ class BezierQuad(model.Mesh):
         '''
         super().__init__()
 
-        if resolution[0] < 1 or resolution[1] < 1:
-            raise ValueError()
+        if isinstance(resolution, int):
+            if resolution < 1:
+                raise ValueError()
+            resolution_uv = (resolution, resolution)
+        elif isinstance(resolution, tuple):
+            if resolution[0] < 1 or resolution[1] < 1:
+                raise ValueError()
+            resolution_uv = resolution
+        else:
+            raise TypeError()
 
         # pylint: disable=invalid-name
         self.a = a
@@ -97,13 +105,13 @@ class BezierQuad(model.Mesh):
         # pylint: enable=invalid-name
 
         if points is None:
-            steps = (1.0 / resolution[0], 1.0 / resolution[1])
+            steps = (1.0 / resolution_uv[0], 1.0 / resolution_uv[1])
             points = [
-                [i * steps[0] for i in range(0, resolution[0] + 1)],
-                [i * steps[1] for i in range(0, resolution[1] + 1)]
+                [i * steps[0] for i in range(0, resolution_uv[0] + 1)],
+                [i * steps[1] for i in range(0, resolution_uv[1] + 1)]
             ]
 
-        self.tessellate(np.array(resolution) + 1, inverse, points)
+        self.tessellate(np.array(resolution_uv) + 1, inversion, points)
 
     def interpolate(self, u, v): # pylint: disable=invalid-name
         def make_curve(row):
@@ -119,7 +127,7 @@ class BezierQuad(model.Mesh):
 
         return q.point(u)
 
-    def tessellate(self, resolution, inverse, points):
+    def tessellate(self, resolution, inversion, points):
         total = resolution[0] * resolution[1]
         for j in range(0, resolution[1]):
             for i in range(0, resolution[0]):
@@ -134,14 +142,14 @@ class BezierQuad(model.Mesh):
                 p4 = (p3 + 1) % total
                 # pylint: enable=invalid-name
 
-                if inverse:
+                if inversion:
                     self.geo_polygons.append([p1, p3, p4, p2])
                 else:
                     self.geo_polygons.append([p1, p2, p4, p3])
 
 
 class BezierTri(model.Mesh):
-    def __init__(self, a, b, c, mean, resolution, inverse=False): # pylint: disable=invalid-name
+    def __init__(self, a, b, c, mean, resolution, inversion=False): # pylint: disable=invalid-name
         '''
                     a[0]
                 a[1]    a[2]
@@ -161,7 +169,7 @@ class BezierTri(model.Mesh):
 
         self.mean = mean
 
-        self.tessellate(resolution, inverse)
+        self.tessellate(resolution, inversion)
 
     def interpolate(self, u, v, w): # pylint: disable=invalid-name
         return (
@@ -171,7 +179,7 @@ class BezierTri(model.Mesh):
             + self.b[1] * 3.0 * v * (w ** 2.0) + self.b[2] * 3.0 * u * (w ** 2.0)
             + self.mean * 6.0 * u * v * w)
 
-    def tessellate(self, resolution, inverse):
+    def tessellate(self, resolution, inversion):
         row_offset = lambda row: sum(range(0, row + 1))
         point_u = np.array([1.0, 0.0, 0.0])
         point_v = np.array([0.0, 1.0, 0.0])
@@ -187,7 +195,7 @@ class BezierTri(model.Mesh):
                 u = (v * (i - j) + w * j) / i # pylint: disable=invalid-name
                 self.geo_vertices.append(self.interpolate(*list(u)))
 
-            if inverse:
+            if inversion:
                 for j in range(0, i):
                     self.geo_polygons.append(
                         [row_offset(i) + j + 1, row_offset(i) + j, row_offset(i - 1) + j])

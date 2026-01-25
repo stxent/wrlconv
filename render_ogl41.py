@@ -56,16 +56,16 @@ def get_opengl_version():
     return result
 
 def get_normal(vertices, indices):
-    return model.normalize(np.cross(
-        vertices[indices[1]] - vertices[indices[0]],
-        vertices[indices[2]] - vertices[indices[0]]))
+    return model.normalize(np.cross(vertices[indices[1]] - vertices[indices[0]],
+                                    vertices[indices[2]] - vertices[indices[0]]))
 
 def get_tangent(geo_vertices, tex_vertices, geo_indices, tex_indices):
     return model.normalize(model.tangent(
         geo_vertices[geo_indices[1]] - geo_vertices[geo_indices[0]],
         geo_vertices[geo_indices[2]] - geo_vertices[geo_indices[0]],
         tex_vertices[tex_indices[1]] - tex_vertices[tex_indices[0]],
-        tex_vertices[tex_indices[2]] - tex_vertices[tex_indices[0]]))
+        tex_vertices[tex_indices[2]] - tex_vertices[tex_indices[0]]
+    ))
 
 def generate_mesh_normals(meshes):
     blue_material = model.Material()

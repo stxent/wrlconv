@@ -57,14 +57,47 @@ def make_axes(length=4.0):
 
     return [x_axis, y_axis, z_axis]
 
-def make_grid():
+def make_detailed_plane(size, resolution, step, material):
+    if size <= 0.0 or resolution < 1 or step < 1:
+        raise ValueError()
+
+    plane = model.LineArray()
+    plane.appearance().material = material
+
+    res = resolution + 1
+    offset = -size / 2.0
+    mult = size / (res - 1)
+
+    for i in range(0, res):
+        plane.geo_vertices.append(np.array([offset + i * mult, offset, 0.0]))
+    for i in range(0, res):
+        plane.geo_vertices.append(np.array([offset + i * mult, -offset, 0.0]))
+    for i in range(1, res - 1):
+        plane.geo_vertices.append(np.array([ offset, offset + i * mult, 0.0]))
+        plane.geo_vertices.append(np.array([-offset, offset + i * mult, 0.0]))
+
+    for i in range(1, res - 1):
+        if i % step == 0:
+            continue
+        plane.geo_polygons.append([i, res + i])
+        plane.geo_polygons.append([res * 2 + (i - 1) * 2, res * 2 + (i - 1) * 2 + 1])
+
+    return plane
+
+def make_grid(detailed=False):
     # Materials
     dark_material = make_dark_gray_material()
     light_material = make_light_gray_material()
 
     # Objects
+    if detailed:
+        z_grid_detailed = make_detailed_plane(10, 100, 10, light_material)
+        z_grid_detailed.rename('ZGridDetailedHelper')
+    else:
+        z_grid_detailed = None
+
     z_grid = geometry.Plane((10, 10), (10, 10))
-    z_grid.appearance().material = dark_material
+    z_grid.appearance().material = light_material if detailed else dark_material
     z_grid.appearance().wireframe = True
     z_grid.rename('ZGridHelper')
     x_grid = geometry.Plane((2, 10), (2, 10))
@@ -78,4 +111,6 @@ def make_grid():
     y_grid.rotate([1.0, 0.0, 0.0], math.pi / 2.0)
     y_grid.rename('YGridHelper')
 
+    if detailed:
+        return [x_grid, y_grid, z_grid, z_grid_detailed]
     return [x_grid, y_grid, z_grid]
