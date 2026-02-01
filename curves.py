@@ -330,6 +330,42 @@ def calc_bezier_weight(a=None, b=None, angle=None): # pylint: disable=invalid-na
         angle = model.angle(a, b)
     return (4.0 / 3.0) * math.tan(angle / 4.0)
 
+def get_closest_point(first_point, first_vector, second_point, second_vector, epsilon=1e-6):
+    # Vector between origins
+    origin_vector = first_point - second_point
+
+    # Calculate dot products
+    dot1 = np.dot(first_vector, first_vector)
+    dot2 = np.dot(second_vector, second_vector)
+    dot12 = np.dot(first_vector, second_vector)
+    dot_first_to_origin = np.dot(origin_vector, first_vector)
+    dot_origin_to_second = np.dot(origin_vector, second_vector)
+
+    # Denominator
+    denom = dot1 * dot2 - math.pow(dot12, 2)
+
+    # Check if lines are parallel (denominator is close to zero)
+    if np.isclose(denom, 0.0):
+        # Lines are parallel or coincident
+        return None
+
+    # Calculate parameters t1 and t2 for the closest points
+    t1 = (dot_origin_to_second * dot12 - dot_first_to_origin * dot2) / denom
+    t2 = (dot_origin_to_second - dot_first_to_origin * dot12) / denom
+
+    # Calculate the closest points on each line
+    first_closest = first_point + t1 * first_vector
+    second_closest = second_point + t2 * second_vector
+
+    # The cross point is the midpoint of the shortest segment between the two lines
+    cross_point = (first_closest + second_closest) / 2.0
+
+    # Check for actual intersection (distance between closest points is near zero)
+    distance = np.linalg.norm(first_closest - second_closest)
+    if distance < epsilon:
+        return cross_point
+    return None
+
 def get_line_function(start, end):
     # Returns (A, B, C)
     delta_x, delta_y = end[0] - start[0], end[1] - start[1]
