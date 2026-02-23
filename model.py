@@ -367,7 +367,7 @@ class Material:
 
 
 class Object:
-    POINTS, LINES, PATCHES = range(0, 3)
+    POINTS, LINES, PATCHES = range(3)
     IDENT = 0
 
     def __init__(self, style, parent=None, name=None):
@@ -558,7 +558,7 @@ class Mesh(Object):
         counter = 0
 
         # Find duplicate vertices
-        for i in range(0, len(self.geo_vertices)):
+        for i in range(len(self.geo_vertices)):
             if not discarded[i]:
                 origin = self.geo_vertices[i]
                 for j in range(i + 1, len(self.geo_vertices)):

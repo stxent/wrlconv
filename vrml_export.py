@@ -29,7 +29,7 @@ def store(data, path):
 
     def encode_appearance(material, level):
         def calc_intensity(ambient, diffuse):
-            return sum([ambient[i] / diffuse[i] for i in range(0, 3) if diffuse[i] != 0.0]) / 3.0
+            return sum([ambient[i] / diffuse[i] for i in range(3) if diffuse[i] != 0.0]) / 3.0
 
         ambient_intensity = min(calc_intensity(material.color.ambient, material.color.diffuse), 1.0)
         output = indent(level) + 'appearance Appearance {\n'
@@ -198,7 +198,7 @@ def store(data, path):
                     vector = model.normalize(vector)
 
                     pos_indices, neg_indices = [], []
-                    for i in range(0, 3):
+                    for i in range(3):
                         if values[i] < 0.0:
                             neg_indices.append(i)
                         elif values[i] > 0.0:

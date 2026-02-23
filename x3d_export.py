@@ -41,9 +41,9 @@ def indent(element, level=0):
 def write_appearance(root, material, exported_materials):
     def calc_intensity(ambient, diffuse):
         result = 0.0
-        for index in range(0, 3):
-            if diffuse[index]:
-                result += ambient[index] / diffuse[index]
+        for i in range(3):
+            if diffuse[i]:
+                result += ambient[i] / diffuse[i]
         return result / 3.0
 
     appearance_node = etree.SubElement(root, 'Appearance')
@@ -193,7 +193,7 @@ def write_transform(root, mesh, exported_groups, exported_materials):
                 vector = model.normalize(vector)
 
                 pos_indices, neg_indices = [], []
-                for i in range(0, 3):
+                for i in range(3):
                     if values[i] < 0.0:
                         neg_indices.append(i)
                     elif values[i] > 0.0:

@@ -68,9 +68,9 @@ def make_detailed_plane(size, resolution, step, material):
     offset = -size / 2.0
     mult = size / (res - 1)
 
-    for i in range(0, res):
+    for i in range(res):
         plane.geo_vertices.append(np.array([offset + i * mult, offset, 0.0]))
-    for i in range(0, res):
+    for i in range(res):
         plane.geo_vertices.append(np.array([offset + i * mult, -offset, 0.0]))
     for i in range(1, res - 1):
         plane.geo_vertices.append(np.array([ offset, offset + i * mult, 0.0]))

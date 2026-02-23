@@ -233,7 +233,7 @@ class VrmlScene(VrmlEntry):
             used.sort()
 
             vertices = [mesh.geo_vertices[i] for i in used]
-            translated = dict(zip(used, range(0, len(vertices))))
+            translated = dict(zip(used, range(len(vertices))))
             polygons = [[translated[i] for i in poly] for poly in mesh.geo_polygons]
 
             debug('Reindex: mesh {:s}, {:d} polygons, from {:d} to {:d} vertices'.format(
@@ -445,7 +445,7 @@ class VrmlCoords(VrmlEntry):
                             debug('{:s}Wrong balance: {:d}, offset: {:d}'.format(
                                 self.level(), balance, offset))
                             break
-                        vertices = [float(regexp.group(i + 1)) for i in range(0, self.size)]
+                        vertices = [float(regexp.group(i + 1)) for i in range(self.size)]
                         self.vertices.append(np.array(vertices))
                         v_pos = regexp.end()
                     else:

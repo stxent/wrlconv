@@ -86,7 +86,7 @@ def generate_mesh_normals(meshes):
             geo_vertices = [mesh.transform.apply(vertex) for vertex in geo_vertices]
 
         if smooth:
-            normals = [np.zeros(3) for i in range(0, len(geo_vertices))]
+            normals = [np.zeros(3) for i in range(len(geo_vertices))]
             for poly in geo_polygons:
                 normal = get_normal(geo_vertices, poly)
                 for vertex in poly:
@@ -341,7 +341,7 @@ class RenderLineArray(RenderObject):
                 offset = index[index_group]
                 index[index_group] += count
 
-                for i in range(0, count):
+                for i in range(count):
                     start, end = 3 * offset, 3 * (offset + 1)
                     self.vertices[start:end] = geo_vertices[poly[i]][0:3]
                     self.colors[start:end] = color
@@ -422,7 +422,7 @@ class RenderMesh(RenderObject):
                 geo_vertices = [mesh.transform.apply(vertex) for vertex in geo_vertices]
 
             if smooth:
-                normals = [np.zeros(3) for i in range(0, len(geo_vertices))]
+                normals = [np.zeros(3) for i in range(len(geo_vertices))]
                 for poly in geo_polygons:
                     normal = get_normal(geo_vertices, poly)
                     for i in poly:
@@ -430,7 +430,7 @@ class RenderMesh(RenderObject):
                 normals = [model.normalize(vector) for vector in normals]
 
                 if textured:
-                    tangents = [np.zeros(3) for i in range(0, len(geo_vertices))]
+                    tangents = [np.zeros(3) for i in range(len(geo_vertices))]
                     for geo_poly, tex_poly in zip(geo_polygons, tex_polygons):
                         tangent = get_tangent(geo_vertices, tex_vertices, geo_poly, tex_poly)
                         for i in geo_poly:
@@ -455,7 +455,7 @@ class RenderMesh(RenderObject):
                 offset = index[index_group]
                 index[index_group] += count
 
-                for vertex in range(0, count):
+                for vertex in range(count):
                     geo_beg, geo_end = 3 * offset, 3 * (offset + 1)
                     tex_beg, tex_end = 2 * offset, 2 * (offset + 1)
 

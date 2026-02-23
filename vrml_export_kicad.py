@@ -32,7 +32,7 @@ def store(data, path):
 
     def encode_appearance(material, level):
         def calc_intensity(ambient, diffuse):
-            return sum([ambient[i] / diffuse[i] for i in range(0, 3) if diffuse[i] != 0.0]) / 3.0
+            return sum([ambient[i] / diffuse[i] for i in range(3) if diffuse[i] != 0.0]) / 3.0
 
         ambient_intensity = min(calc_intensity(material.color.ambient, material.color.diffuse), 1.0)
         output = indent(level) + 'appearance Appearance {\n'

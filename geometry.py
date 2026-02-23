@@ -53,7 +53,7 @@ class Circle(model.Mesh):
         super().__init__()
 
         angle, step = 0.0, math.pi * 2.0 / edges
-        for i in range(0, edges):
+        for i in range(edges):
             x, y = radius * math.cos(angle), radius * math.sin(angle) # pylint: disable=invalid-name
             self.geo_vertices.append(np.array([x, y, 0.0]))
             angle += step
@@ -94,7 +94,7 @@ class Geosphere(model.Mesh):
         def get_middle_point(vect1, vect2):
             return model.normalize(vect1 + (vect2 - vect1) / 2.0) * radius
 
-        for _ in range(0, depth):
+        for _ in range(depth):
             next_point = []
             for face in polygons:
                 index = len(vertices)
@@ -121,12 +121,12 @@ class Plane(model.Mesh):
         offset = (-size[0] / 2.0, -size[1] / 2.0)
         mult = size[0] / (res[0] - 1), size[1] / (res[1] - 1)
         total = res[0] * res[1]
-        for j in range(0, res[1]):
-            for i in range(0, res[0]):
+        for j in range(res[1]):
+            for i in range(res[0]):
                 self.geo_vertices.append(
                     np.array([offset[0] + i * mult[0], offset[1] + j * mult[1], 0.0]))
-        for j in range(0, res[1] - 1):
-            for i in range(0, res[0] - 1):
+        for j in range(res[1] - 1):
+            for i in range(res[0] - 1):
                 point1 = j * res[0] + i
                 point2 = (point1 + 1) % total
                 point3 = ((j + 1) * res[0] + i) % total
@@ -145,14 +145,14 @@ def build_loft_mesh(slices, fill_start, fill_end):
         v_center_index = len(mesh.geo_vertices)
         mesh.geo_vertices.append(model.calc_median_point(slices[0]))
 
-        for i in range(0, number - 1):
+        for i in range(number - 1):
             mesh.geo_polygons.append([i, i + 1, v_center_index])
         if not model.Mesh.isclose(slices[0][0], slices[0][-1]):
             # Slice is not closed, append additional polygon
             mesh.geo_polygons.append([number - 1, 0, v_center_index])
 
-    for i in range(0, len(slices) - 1):
-        for j in range(0, number - 1):
+    for i in range(len(slices) - 1):
+        for j in range(number - 1):
             mesh.geo_polygons.append([
                 i * number + j,
                 (i + 1) * number + j,
@@ -179,8 +179,8 @@ def build_rotation_mesh(slices, wrap=True, invert=False):
 
     edges = len(slices) if wrap else len(slices) - 1
     size = len(slices[0])
-    for i in range(0, edges):
-        for vertex in range(0, size - 1):
+    for i in range(edges):
+        for vertex in range(size - 1):
             beg, end = i, i + 1 if i < len(slices) - 1 else 0
             if invert:
                 beg, end = end, beg

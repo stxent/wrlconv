@@ -83,7 +83,7 @@ class X3dScene(X3dEntry):
             used.sort()
 
             vertices = [mesh.geo_vertices[i] for i in used]
-            translated = dict(zip(used, range(0, len(vertices))))
+            translated = dict(zip(used, range(len(vertices))))
             polygons = [[translated[i] for i in poly] for poly in mesh.geo_polygons]
 
             debug('Reindex: mesh {:s}, {:d} polygons, from {:d} to {:d} vertices'.format(
@@ -225,7 +225,7 @@ class X3dCoords(X3dEntry):
         if 'point' in attributes:
             points = [float(point) for point in attributes['point'].split(' ') if point]
             vertices = []
-            for i in range(0, int(len(points) / self.size)):
+            for i in range(int(len(points) / self.size)):
                 vertices.append(np.array(points[i * self.size:(i + 1) * self.size]))
             self.vertices = vertices
             debug('{:s}Found {:d} vertices, width {:d}'.format(
@@ -341,7 +341,7 @@ class X3dMultiTexture(X3dEntry):
 
         chains = {'diffuse': [], 'specular': []}
         current_chain = None
-        for i in range(0, tex_count):
+        for i in range(tex_count):
             if sources[i] == 'DIFFUSE':
                 current_chain = 'diffuse'
                 chains[current_chain] = [i] # Start new chain

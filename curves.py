@@ -37,7 +37,7 @@ class Line:
 
     def tessellate(self):
         scale = 1.0 / float(self.resolution)
-        return [self.point(float(i) * scale) for i in range(0, self.resolution + 1)]
+        return [self.point(float(i) * scale) for i in range(self.resolution + 1)]
 
 
 class Bezier(Line):
@@ -76,7 +76,7 @@ class Bezier(Line):
         super().reverse()
 
 
-class BezierQuad(model.Mesh):
+class BezierQuad:
     def __init__(self, a, b, c, d, resolution, inversion=False, points=None): # pylint: disable=invalid-name
         '''
         a[0] a[1] a[2] a[3]
@@ -84,18 +84,21 @@ class BezierQuad(model.Mesh):
         c[0] c[1] c[2] c[3]
         d[0] d[1] d[2] d[3]
         '''
-        super().__init__()
 
         if isinstance(resolution, int):
             if resolution < 1:
                 raise ValueError()
-            resolution_uv = (resolution, resolution)
+            self.resolution_u = self.resolution_v = resolution + 1
         elif isinstance(resolution, tuple):
             if resolution[0] < 1 or resolution[1] < 1:
                 raise ValueError()
-            resolution_uv = resolution
+            self.resolution_u = resolution[0] + 1
+            self.resolution_v = resolution[1] + 1
         else:
             raise TypeError()
+
+        self.inversion = inversion
+        self.points = points
 
         # pylint: disable=invalid-name
         self.a = a
@@ -103,15 +106,6 @@ class BezierQuad(model.Mesh):
         self.c = c
         self.d = d
         # pylint: enable=invalid-name
-
-        if points is None:
-            steps = (1.0 / resolution_uv[0], 1.0 / resolution_uv[1])
-            points = [
-                [i * steps[0] for i in range(0, resolution_uv[0] + 1)],
-                [i * steps[1] for i in range(0, resolution_uv[1] + 1)]
-            ]
-
-        self.tessellate(np.array(resolution_uv) + 1, inversion, points)
 
     def interpolate(self, u, v): # pylint: disable=invalid-name
         def make_curve(row):
@@ -127,28 +121,38 @@ class BezierQuad(model.Mesh):
 
         return q.point(u)
 
-    def tessellate(self, resolution, inversion, points):
-        total = resolution[0] * resolution[1]
-        for j in range(0, resolution[1]):
-            for i in range(0, resolution[0]):
-                self.geo_vertices.append(self.interpolate(points[0][i], points[1][j]))
+    def tessellate(self):
+        if self.points is None:
+            points_u = np.linspace(0.0, 1.0, self.resolution_u)
+            points_v = np.linspace(0.0, 1.0, self.resolution_v)
+        else:
+            points_u = self.points[0]
+            points_v = self.points[1]
+        mesh = model.Mesh()
 
-        for j in range(0, resolution[1] - 1):
-            for i in range(0, resolution[0] - 1):
+        total = self.resolution_u * self.resolution_v
+        for i in range(self.resolution_u):
+            for j in range(self.resolution_v):
+                mesh.geo_vertices.append(self.interpolate(points_v[j], points_u[i]))
+
+        for i in range(self.resolution_u - 1):
+            for j in range(self.resolution_v - 1):
                 # pylint: disable=invalid-name
-                p1 = j * resolution[0] + i
+                p1 = i * self.resolution_v + j
                 p2 = (p1 + 1) % total
-                p3 = ((j + 1) * resolution[0] + i) % total
+                p3 = ((i + 1) * self.resolution_v + j) % total
                 p4 = (p3 + 1) % total
                 # pylint: enable=invalid-name
 
-                if inversion:
-                    self.geo_polygons.append([p1, p3, p4, p2])
+                if self.inversion:
+                    mesh.geo_polygons.append([p1, p3, p4, p2])
                 else:
-                    self.geo_polygons.append([p1, p2, p4, p3])
+                    mesh.geo_polygons.append([p1, p2, p4, p3])
+
+        return mesh
 
 
-class BezierTri(model.Mesh):
+class BezierTri:
     def __init__(self, a, b, c, mean, resolution, inversion=False): # pylint: disable=invalid-name
         '''
                     a[0]
@@ -156,7 +160,6 @@ class BezierTri(model.Mesh):
             b[2]    mean    c[1]
         b[0]    b[1]    c[2]    c[0]
         '''
-        super().__init__()
 
         if resolution < 1:
             raise ValueError()
@@ -167,9 +170,9 @@ class BezierTri(model.Mesh):
         self.c = c
         # pylint: enable=invalid-name
 
+        self.inversion = inversion
         self.mean = mean
-
-        self.tessellate(resolution, inversion)
+        self.resolution = resolution
 
     def interpolate(self, u, v, w): # pylint: disable=invalid-name
         return (
@@ -179,36 +182,42 @@ class BezierTri(model.Mesh):
             + self.b[1] * 3.0 * v * (w ** 2.0) + self.b[2] * 3.0 * u * (w ** 2.0)
             + self.mean * 6.0 * u * v * w)
 
-    def tessellate(self, resolution, inversion):
-        row_offset = lambda row: sum(range(0, row + 1))
+    def tessellate(self):
+        mesh = model.Mesh()
+
+        row_offset = lambda row: sum(range(row + 1))
         point_u = np.array([1.0, 0.0, 0.0])
         point_v = np.array([0.0, 1.0, 0.0])
         point_w = np.array([0.0, 0.0, 1.0])
 
-        self.geo_vertices.append(self.interpolate(*list(point_u)))
+        mesh.geo_vertices.append(self.interpolate(*list(point_u)))
 
-        for i in range(1, resolution + 1):
-            v = (point_u * (resolution - i) + point_v * i) / resolution # pylint: disable=invalid-name
-            w = (point_u * (resolution - i) + point_w * i) / resolution # pylint: disable=invalid-name
+        for i in range(1, self.resolution + 1):
+            # pylint: disable=invalid-name
+            v = (point_u * (self.resolution - i) + point_v * i) / self.resolution
+            w = (point_u * (self.resolution - i) + point_w * i) / self.resolution
+            # pylint: enable=invalid-name
 
-            for j in range(0, i + 1):
+            for j in range(i + 1):
                 u = (v * (i - j) + w * j) / i # pylint: disable=invalid-name
-                self.geo_vertices.append(self.interpolate(*list(u)))
+                mesh.geo_vertices.append(self.interpolate(*list(u)))
 
-            if inversion:
-                for j in range(0, i):
-                    self.geo_polygons.append(
+            if self.inversion:
+                for j in range(i):
+                    mesh.geo_polygons.append(
                         [row_offset(i) + j + 1, row_offset(i) + j, row_offset(i - 1) + j])
-                for j in range(0, i - 1):
-                    self.geo_polygons.append(
+                for j in range(i - 1):
+                    mesh.geo_polygons.append(
                         [row_offset(i - 1) + j, row_offset(i - 1) + j + 1, row_offset(i) + j + 1])
             else:
-                for j in range(0, i):
-                    self.geo_polygons.append(
+                for j in range(i):
+                    mesh.geo_polygons.append(
                         [row_offset(i - 1) + j, row_offset(i) + j, row_offset(i) + j + 1])
-                for j in range(0, i - 1):
-                    self.geo_polygons.append(
+                for j in range(i - 1):
+                    mesh.geo_polygons.append(
                         [row_offset(i) + j + 1, row_offset(i - 1) + j + 1, row_offset(i - 1) + j])
+
+        return mesh
 
 
 def _make_loft_slices(path, segments, translation, rotation, scaling, morphing):
@@ -217,7 +226,7 @@ def _make_loft_slices(path, segments, translation, rotation, scaling, morphing):
     count = len(segments)
     current = segments[0]
 
-    for i in range(0, count + 1):
+    for i in range(count + 1):
         if 0 < i < len(segments):
             quaternion = model.slerp(segments[i - 1], segments[i], 0.5)
             current = segments[i]
@@ -246,7 +255,7 @@ def connect_paths(*args):
         return args[0]
 
     output = []
-    for i in range(0, len(args) - 1):
+    for i in range(len(args) - 1):
         if i:
             output.extend(args[i][1:-1])
         else:
@@ -313,7 +322,7 @@ def rotate(curve, axis, edges=None, angles=None):
     slices = []
 
     if edges is not None and angles is None:
-        angles = [(math.pi * 2.0 / edges) * i for i in range(0, edges)]
+        angles = [(math.pi * 2.0 / edges) * i for i in range(edges)]
     elif edges is not None or angles is None:
         raise ValueError()
 
