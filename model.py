@@ -19,10 +19,10 @@ def normalize(vector):
     length = np.linalg.norm(vector)
     return vector / length if length != 0.0 else vector
 
-def tangent(vertex1, vertex2, tangent1, tangent2):
-    div = tangent1[1] * tangent2[0] - tangent1[0] * tangent2[1]
+def tangent(vertex_a, vertex_b, tangent_a, tangent_b):
+    div = tangent_a[1] * tangent_b[0] - tangent_a[0] * tangent_b[1]
     if div != 0.0:
-        return (vertex1[0:3] * -tangent2[1] + vertex2[0:3] * tangent1[1]) / div
+        return (vertex_a[0:3] * -tangent_b[1] + vertex_b[0:3] * tangent_a[1]) / div
     return np.array([0.0, 0.0, 1.0])
 
 def calc_bounding_box(vertices):
@@ -310,6 +310,16 @@ class Material:
         def __ne__(self, other):
             return not self == other
 
+        def __hash__(self):
+            return hash((
+                tuple(self.diffuse),
+                tuple(self.ambient),
+                tuple(self.specular),
+                tuple(self.emissive),
+                self.shininess,
+                self.transparency
+            ))
+
 
     class Texture:
         IDENT = 0
@@ -330,6 +340,9 @@ class Material:
         def __ne__(self, other):
             return not self == other
 
+        def __hash__(self):
+            return hash(tuple(self.path))
+
 
     def __init__(self, description=None, name=None):
         self.color = Material.Color(name)
@@ -344,13 +357,13 @@ class Material:
             if 'transparency' in description:
                 self.color.transparency = float(description['transparency'])
             if 'diffuse' in description:
-                self.color.diffuse = np.array(description['diffuse'])
+                self.color.diffuse = Material.parse_color_code(description['diffuse'])
             if 'specular' in description:
-                self.color.specular = np.array(description['specular'])
+                self.color.specular = Material.parse_color_code(description['specular'])
             if 'emissive' in description:
-                self.color.emissive = np.array(description['emissive'])
+                self.color.emissive = Material.parse_color_code(description['emissive'])
             if 'ambient' in description:
-                self.color.ambient = np.array(description['ambient'])
+                self.color.ambient = Material.parse_color_code(description['ambient'])
 
     def __eq__(self, other):
         if isinstance(other, Material):
@@ -364,6 +377,24 @@ class Material:
 
     def __ne__(self, other):
         return not self == other
+
+    def __hash__(self):
+        return hash((self.color, self.diffuse, self.normal, self.specular))
+
+    @staticmethod
+    def parse_color_code(color):
+        if isinstance(color, str):
+            # Parse as HTML color
+            text = color.upper().replace('#', '').replace('0X', '')
+            if len(text) != 6:
+                raise ValueError()
+            parts = [int(text[i * 2:(i + 1) * 2], 16) for i in range(3)]
+            return np.array(parts) / 255
+
+        # Parse as array
+        if len(color) != 3:
+            raise ValueError()
+        return np.array(color)
 
 
 class Object:
@@ -404,10 +435,26 @@ class Mesh(Object):
         def __init__(self, material):
             self.material = material if material is not None else Material()
             self.normals = False
-
             self.smooth = False
             self.solid = False
             self.wireframe = False
+
+        def __eq__(self, other):
+            if isinstance(other, Mesh.Appearance):
+                return (
+                    self.material == other.material
+                    and self.normals == other.normals
+                    and self.smooth == other.smooth
+                    and self.solid == other.solid
+                    and self.wireframe == other.wireframe
+                )
+            return False
+
+        def __ne__(self, other):
+            return not self == other
+
+        def __hash__(self):
+            return hash((self.material, self.normals, self.smooth, self.solid, self.wireframe))
 
 
     def __init__(self, parent=None, name=None, material=None):
@@ -533,7 +580,7 @@ class Mesh(Object):
 
         return mesh
 
-    def find_vertices(self, regions):
+    def find_vertices(self, regions, include=True):
         vertex_regions = []
         for box_top, box_bottom in regions:
             top = np.maximum(box_top, box_bottom)
@@ -542,10 +589,13 @@ class Mesh(Object):
 
         vertices = {}
         for i, vertex in enumerate(self.geo_vertices):
-            for region in vertex_regions:
-                if Mesh.intersection(region, vertex):
+            intersections = [Mesh.intersection(region, vertex) for region in vertex_regions]
+            if include:
+                if any(intersections):
                     vertices[i] = vertex
-                    break
+            else:
+                if not any(intersections):
+                    vertices[i] = vertex
 
         return vertices
 
@@ -558,9 +608,8 @@ class Mesh(Object):
         counter = 0
 
         # Find duplicate vertices
-        for i in range(len(self.geo_vertices)):
+        for i, origin in enumerate(self.geo_vertices):
             if not discarded[i]:
-                origin = self.geo_vertices[i]
                 for j in range(i + 1, len(self.geo_vertices)):
                     if not discarded[j] and Mesh.isclose(origin, self.geo_vertices[j], tolerance):
                         reindexed[j] = counter

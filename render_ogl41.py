@@ -115,25 +115,26 @@ def generate_mesh_normals(meshes):
 
 def build_solid_object_groups(shaders, input_objects):
     # Build meshes for solid objects
-    output = []
     objects = [entry for entry in input_objects if entry.style == model.Object.PATCHES]
 
-    # Join meshes with the same material in groups
-    mats = [obj.appearance().material for obj in objects]
-    keys = []
-    for mat in mats:
-        if mat not in keys:
-            keys.append(mat)
-    groups = []
-    for key in keys:
-        groups.append([obj for obj in objects if obj.appearance().material == key])
+    # Join meshes with the same material in groups, when the material is not transparent
+    object_appearances = set(obj.appearance() for obj in objects)
+    object_groups = []
+    render_appearances = {}
 
-    for group in groups:
-        appearance = group[0].appearance()
-        render_appearance = RenderAppearance.make_from_material(
+    for appearance in object_appearances:
+        if appearance.material.color.transparency > 0.0:
+            object_groups.extend([[obj] for obj in objects if obj.appearance() == appearance])
+        else:
+            object_groups.append([obj for obj in objects if obj.appearance() == appearance])
+
+        render_appearances[appearance] = RenderAppearance.make_from_material(
             shaders, appearance.material, appearance.smooth, appearance.wireframe, appearance.solid)
-        output.append(RenderMesh(group, render_appearance))
-        debug(f'Render group of {len(group)} mesh(es) created')
+
+    output = []
+    for group in object_groups:
+        key_appearance = group[0].appearance()
+        output.append(RenderMesh(group, render_appearances[key_appearance]))
 
     return output
 
@@ -172,9 +173,6 @@ def build_object_groups(shaders, input_objects):
     groups = []
     groups += build_solid_object_groups(shaders, input_objects)
     groups += build_line_object_groups(shaders, input_objects)
-
-    # Sort by material transparency
-    groups.sort(key=lambda group: group.appearance.material.color.transparency, reverse=False)
     return groups
 
 class Texture:
@@ -220,9 +218,9 @@ class RenderAppearance:
                 self.size = (8, 8)
                 black_pixel = bytearray([0x00, 0x00, 0x00, 0xFF])
                 purple_pixel = bytearray([0xFF, 0x00, 0xFF, 0xFF])
-                width, height = int(self.size[0] / 2), int(self.size[1] / 2)
-                image = ((black_pixel + purple_pixel) * width
-                         + (purple_pixel + black_pixel) * width) * height
+                width, height = self.size[0] // 2, self.size[1] // 2
+                image_data = ((black_pixel + purple_pixel) * width
+                              + (purple_pixel + black_pixel) * width) * height
                 self.filter_mode = (GL_NEAREST, GL_NEAREST)
 
             self.buffer = glGenTextures(1)
@@ -294,7 +292,7 @@ class RenderObject:
         self.ident = str(RenderObject.IDENT)
         RenderObject.IDENT += 1
 
-    def draw(self, projection_matrix, model_view_matrix, lights, wireframe):
+    def draw(self, projection_matrix, model_view_matrix, lights, cullface, wireframe):
         pass
 
 
@@ -304,7 +302,9 @@ class RenderLineArray(RenderObject):
 
         self.parts = []
         self.appearance = appearance
+        self.position = np.zeros(3)
         self.transform = transform
+        self.transparent = False
 
         started = time.time()
 
@@ -367,7 +367,7 @@ class RenderLineArray(RenderObject):
         debug(f'Point cloud created in {time.time() - started}, id {self.ident}'
               f', lines {lines // 2}, vertices {length}')
 
-    def draw(self, projection_matrix, model_view_matrix, lights, wireframe):
+    def draw(self, projection_matrix, model_view_matrix, lights, cullface, wireframe):
         if self.appearance is not None:
             self.appearance.enable(projection_matrix, model_view_matrix, lights)
 
@@ -382,10 +382,16 @@ class RenderMesh(RenderObject):
         super().__init__()
 
         self.appearance = appearance
+        self.position = np.zeros(3)
         self.transform = transform
+        self.transparent = False
         self.parts = []
 
-        textured = meshes[0].is_textured()
+        if appearance is not None and appearance.material.color.transparency > 0.0:
+            self.transparent = True
+
+        is_smooth = appearance.smooth if appearance is not None else False
+        is_textured = meshes[0].is_textured()
         started = time.time()
 
         primitives = [0, 0]
@@ -401,15 +407,13 @@ class RenderMesh(RenderObject):
         length = triangles + quads
         self.vertices = np.zeros(length * 3, dtype=np.float32)
         self.normals = np.zeros(length * 3, dtype=np.float32)
-        self.texels = np.zeros(length * 2, dtype=np.float32) if textured else None
-        self.tangents = np.zeros(length * 3, dtype=np.float32) if textured else None
+        self.texels = np.zeros(length * 2, dtype=np.float32) if is_textured else None
+        self.tangents = np.zeros(length * 3, dtype=np.float32) if is_textured else None
 
         if triangles > 0:
             self.parts.append((GL_TRIANGLES, 0, triangles))
         if quads > 0:
             self.parts.append((GL_QUADS, triangles, quads))
-
-        smooth = self.appearance.smooth if self.appearance is not None else False
 
         # Initial positions
         index = [0, triangles]
@@ -420,8 +424,10 @@ class RenderMesh(RenderObject):
 
             if mesh.transform is not None:
                 geo_vertices = [mesh.transform.apply(vertex) for vertex in geo_vertices]
+            if self.transparent:
+                self.position += sum(geo_vertices) / len(geo_vertices)
 
-            if smooth:
+            if is_smooth:
                 normals = [np.zeros(3) for i in range(len(geo_vertices))]
                 for poly in geo_polygons:
                     normal = get_normal(geo_vertices, poly)
@@ -429,7 +435,7 @@ class RenderMesh(RenderObject):
                         normals[i] += normal
                 normals = [model.normalize(vector) for vector in normals]
 
-                if textured:
+                if is_textured:
                     tangents = [np.zeros(3) for i in range(len(geo_vertices))]
                     for geo_poly, tex_poly in zip(geo_polygons, tex_polygons):
                         tangent = get_tangent(geo_vertices, tex_vertices, geo_poly, tex_poly)
@@ -438,13 +444,13 @@ class RenderMesh(RenderObject):
                     tangents = [model.normalize(vector) for vector in tangents]
             else:
                 normals = [get_normal(geo_vertices, poly) for poly in geo_polygons]
-                if textured:
+                if is_textured:
                     tangents = []
                     for geo_poly, tex_poly in zip(geo_polygons, tex_polygons):
                         tangents.append(get_tangent(geo_vertices, tex_vertices, geo_poly, tex_poly))
 
             for i, geo_poly in enumerate(geo_polygons):
-                if textured:
+                if is_textured:
                     tex_poly = tex_polygons[i]
 
                 count = len(geo_poly)
@@ -461,12 +467,15 @@ class RenderMesh(RenderObject):
 
                     self.vertices[geo_beg:geo_end] = geo_vertices[geo_poly[vertex]][0:3]
                     self.normals[geo_beg:geo_end] = \
-                        normals[geo_poly[vertex]] if smooth else normals[i]
-                    if textured:
+                        normals[geo_poly[vertex]] if is_smooth else normals[i]
+                    if is_textured:
                         self.texels[tex_beg:tex_end] = tex_vertices[tex_poly[vertex]]
                         self.tangents[geo_beg:geo_end] = \
-                            tangents[geo_poly[vertex]] if smooth else tangents[i]
+                            tangents[geo_poly[vertex]] if is_smooth else tangents[i]
                     offset += 1
+
+        if self.transparent:
+            self.position /= len(meshes)
 
         self.vao = glGenVertexArrays(1)
         glBindVertexArray(self.vao)
@@ -483,7 +492,7 @@ class RenderMesh(RenderObject):
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, None)
 
-        if textured:
+        if is_textured:
             self.texels_vbo = glGenBuffers(1)
             glBindBuffer(GL_ARRAY_BUFFER, self.texels_vbo)
             glBufferData(GL_ARRAY_BUFFER, self.texels, GL_STATIC_DRAW)
@@ -502,24 +511,28 @@ class RenderMesh(RenderObject):
         debug(f'Mesh created in {time.time() - started}, id {self.ident}'
               f', triangles {triangles // 3}, quads {quads // 4}, vertices {length}')
 
-    def draw(self, projection_matrix, model_view_matrix, lights, wireframe):
+    def draw(self, projection_matrix, model_view_matrix, lights, cullface, wireframe):
+        enable_cullface = cullface
+        enable_wireframe = wireframe
+
         if self.appearance is not None:
             if self.transform is not None:
                 model_view_matrix = np.matmul(self.transform, model_view_matrix)
                 lights = [np.matmul(light, np.linalg.inv(self.transform)) for light in lights]
 
             self.appearance.enable(projection_matrix, model_view_matrix, lights)
-            solid = self.appearance.solid
-            wireframe = wireframe or self.appearance.wireframe
-        else:
-            solid = True
 
-        if wireframe:
+            if enable_cullface:
+                enable_cullface = self.appearance.solid
+            if self.appearance.wireframe:
+                enable_wireframe = True
+
+        if enable_wireframe:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
             glDisable(GL_CULL_FACE)
         else:
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
-            if solid:
+            if enable_cullface:
                 glEnable(GL_CULL_FACE)
                 glCullFace(GL_BACK)
             else:
@@ -535,7 +548,8 @@ class ScreenMesh(RenderMesh):
     def __init__(self, meshes):
         super().__init__(meshes)
 
-    def draw(self, projection_matrix=None, model_view_matrix=None, lights=None, wireframe=None):
+    def draw(self, projection_matrix=None, model_view_matrix=None, lights=None,
+             cullface=False, wireframe=False):
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         glDisable(GL_CULL_FACE)
 
@@ -566,7 +580,7 @@ class Scene:
 
         def front(self):
             distance = np.linalg.norm(self.camera - self.pov)
-            self.camera = np.array([0.0, -distance, 0.0, 0.0]) + self.pov # pylint: disable=E1130
+            self.camera = np.array([0.0, -distance, 0.0, 0.0]) + self.pov
             self.axis = np.array([0.0, 0.0, 1.0, 0.0])
 
         def side(self):
@@ -985,6 +999,7 @@ class Render(Scene):
             self.parse_options(options)
         else:
             self.antialiasing = 0
+            self.cullface = True
             self.overlay = False
             self.wireframe = False
             self.use_framebuffers = False
@@ -1035,6 +1050,7 @@ class Render(Scene):
 
     def parse_options(self, options):
         self.antialiasing = 0 if 'antialiasing' not in options else options['antialiasing']
+        self.cullface = True if 'solid' not in options else options['solid']
         self.overlay = False if 'overlay' not in options else options['overlay']
         self.wireframe = False if 'wireframe' not in options else options['wireframe']
         if 'size' in options:
@@ -1106,6 +1122,8 @@ class Render(Scene):
         debug(f'Overlay built, size {x}x{y}, texture {mask_buffer}')
 
     def draw_scene(self):
+        transparent_objects = []
+
         # First pass
         if self.use_framebuffers:
             glBindFramebuffer(GL_FRAMEBUFFER, self.framebuffers[0].buffer)
@@ -1128,15 +1146,26 @@ class Render(Scene):
         self.shader_storage.background.enable()
         self.screen_plane.draw()
 
-        # Draw other objects, use depth mask and enable depth test
+        # Draw opaque objects, use depth mask and enable depth test
         glDepthMask(GL_TRUE)
         glEnable(GL_DEPTH_TEST)
         for entry in self.objects:
-            entry.draw(self.projection_matrix, self.model_view_matrix, self.lights, self.wireframe)
+            if not entry.transparent:
+                entry.draw(self.projection_matrix, self.model_view_matrix, self.lights,
+                           self.cullface, self.wireframe)
+            else:
+                distance = np.linalg.norm(entry.position - self.camera.camera[:3])
+                transparent_objects.append((entry, distance))
 
-        # Second pass, do not use depth mask, depth test is disabled
+        # Second pass, draw transparent objects, do not use depth mask, depth test is disabled
         glDepthMask(GL_FALSE)
         glDisable(GL_DEPTH_TEST)
+        transparent_objects.sort(key=lambda pair: pair[1], reverse=True)
+        for entry, _ in transparent_objects:
+            entry.draw(self.projection_matrix, self.model_view_matrix, self.lights,
+                       self.cullface, self.wireframe)
+
+        # Third pass, depth mask and depth test are disabled
         if self.use_framebuffers:
             if self.antialiasing > 0:
                 glDisable(GL_MULTISAMPLE)
@@ -1214,6 +1243,9 @@ class Render(Scene):
             self.camera.zoom_out()
         elif key == glfw.KEY_KP_ADD and action == glfw.PRESS:
             self.camera.zoom_in()
+        elif key == glfw.KEY_C and action == glfw.PRESS:
+            self.cullface = not self.cullface
+            updated = False
         elif key == glfw.KEY_Z and action == glfw.PRESS:
             self.wireframe = not self.wireframe
             updated = False
@@ -1247,7 +1279,7 @@ class Render(Scene):
 
     def handle_resize_event(self, window):
         w, h = glfw.get_framebuffer_size(window) # pylint: disable=invalid-name
-        viewport = (int(max(1, w)), int(max(1, h)))
+        viewport = (max(1, w), max(1, h))
 
         if viewport != self.viewport:
             self.viewport = viewport
