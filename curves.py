@@ -7,6 +7,7 @@
 
 import math
 import numpy as np
+import sys
 
 try:
     import model
@@ -86,16 +87,26 @@ class BezierQuad:
         '''
 
         if isinstance(resolution, int):
-            if resolution < 1:
-                raise ValueError()
             self.resolution_u = self.resolution_v = resolution + 1
-        elif isinstance(resolution, tuple):
-            if resolution[0] < 1 or resolution[1] < 1:
+        elif isinstance(resolution, tuple) and len(resolution) == 2:
+            self.resolution_u = resolution[0] + 1
+            self.resolution_v = resolution[1] + 1
+        elif isinstance(resolution, tuple) and len(resolution) == 4:
+            if resolution[0] != resolution[2] or resolution[1] != resolution[3]:
+                print(f'Patch resolutions not matched: {resolution}', file=sys.stderr)
                 raise ValueError()
             self.resolution_u = resolution[0] + 1
             self.resolution_v = resolution[1] + 1
         else:
+            print(f'Incorrect patch resolution: {resolution}', file=sys.stderr)
             raise TypeError()
+
+        if self.resolution_u < 2:
+            print(f'Incorrect patch resolution: {self.resolution_u}', file=sys.stderr)
+            raise ValueError()
+        if self.resolution_v < 2:
+            print(f'Incorrect patch resolution: {self.resolution_v}', file=sys.stderr)
+            raise ValueError()
 
         self.inversion = inversion
         self.points = points
@@ -161,7 +172,18 @@ class BezierTri:
         b[0]    b[1]    c[2]    c[0]
         '''
 
-        if resolution < 1:
+        if isinstance(resolution, int):
+            self.resolution = resolution
+        elif isinstance(resolution, tuple) and len(resolution) == 3:
+            if resolution[0] != resolution[1] or resolution[1] != resolution[2]:
+                print(f'Patch resolutions not matched: {resolution}', file=sys.stderr)
+                raise ValueError()
+            self.resolution = resolution[0]
+        else:
+            raise TypeError()
+
+        if self.resolution < 1:
+            print(f'Incorrect patch resolution: {self.resolution}', file=sys.stderr)
             raise ValueError()
 
         # pylint: disable=invalid-name
@@ -172,7 +194,6 @@ class BezierTri:
 
         self.inversion = inversion
         self.mean = mean
-        self.resolution = resolution
 
     def interpolate(self, u, v, w): # pylint: disable=invalid-name
         return (
@@ -180,7 +201,8 @@ class BezierTri:
             + self.a[2] * 3.0 * v * (u ** 2.0) + self.a[1] * 3.0 * w * (u ** 2.0)
             + self.c[1] * 3.0 * u * (v ** 2.0) + self.c[2] * 3.0 * w * (v ** 2.0)
             + self.b[1] * 3.0 * v * (w ** 2.0) + self.b[2] * 3.0 * u * (w ** 2.0)
-            + self.mean * 6.0 * u * v * w)
+            + self.mean * 6.0 * u * v * w
+        )
 
     def tessellate(self):
         mesh = model.Mesh()
