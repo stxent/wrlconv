@@ -1157,15 +1157,15 @@ class Render(Scene):
                 distance = np.linalg.norm(entry.position - self.camera.camera[:3])
                 transparent_objects.append((entry, distance))
 
-        # Second pass, draw transparent objects, do not use depth mask, depth test is disabled
+        # Second pass, draw transparent objects, do not use depth mask
         glDepthMask(GL_FALSE)
-        glDisable(GL_DEPTH_TEST)
         transparent_objects.sort(key=lambda pair: pair[1], reverse=True)
         for entry, _ in transparent_objects:
             entry.draw(self.projection_matrix, self.model_view_matrix, self.lights,
                        self.cullface, self.wireframe)
 
-        # Third pass, depth mask and depth test are disabled
+        # Third pass, disable depth test, depth mask is already disabled
+        glDisable(GL_DEPTH_TEST)
         if self.use_framebuffers:
             if self.antialiasing > 0:
                 glDisable(GL_MULTISAMPLE)

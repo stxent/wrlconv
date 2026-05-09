@@ -188,13 +188,15 @@ class X3dGeometry(X3dEntry):
         self.geo_polygons = []
         self.tex_polygons = []
         self.smooth = False
-        self.solid = True
+        self.solid = False
 
     def parse(self, attributes):
-        if 'solid' in attributes:
-            self.solid = attributes['solid'] == 'true'
         if 'smooth' in attributes:
+            debug('{:s}Geometry smooth attribute found'.format(self.level()))
             self.smooth = attributes['smooth'] == 'true'
+        if 'solid' in attributes:
+            debug('{:s}Geometry solid attribute found'.format(self.level()))
+            self.solid = attributes['solid'] == 'true'
 
         def parse_polygons(string):
             chunks = []

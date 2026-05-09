@@ -62,9 +62,11 @@ def store(data, path):
         return output
 
     def encode_geometry(mesh, transform, level):
-        output = ''
-        output += indent(level) + 'geometry IndexedFaceSet {\n'
-        output += indent(level + 1) + 'solid FALSE\n'
+        output = indent(level) + 'geometry IndexedFaceSet {\n'
+
+        appearance = mesh.appearance()
+        output += indent(level + 1) + 'solid {:s}\n'.format(
+            'TRUE' if appearance.solid else 'FALSE')
 
         geo_vertices, geo_polygons = mesh.geometry()
 

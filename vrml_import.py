@@ -217,8 +217,8 @@ class VrmlScene(VrmlEntry):
                 else:
                     mesh.appearance().material = new_material
                     exported_materials.append(new_material)
-            mesh.smooth = geometry.smooth
-            mesh.solid = geometry.solid
+            mesh.appearance().smooth = geometry.smooth
+            mesh.appearance().solid = geometry.solid
             for subentry in geometry.objects:
                 if isinstance(subentry, VrmlGeoCoords):
                     mesh.geo_vertices = subentry.vertices
@@ -352,8 +352,12 @@ class VrmlGeometry(VrmlEntry):
     def read(self, stream, string):
         initial_pos = stream.tell()
 
-        self.solid = re.search(r'solid\s+TRUE', string, re.S) is not None
-        self.smooth = re.search(r'smooth\s+TRUE', string, re.S) is not None
+        if re.search(r'smooth\s+TRUE', string, re.S) is not None:
+            debug('{:s}Geometry smooth attribute found'.format(self.level()))
+            self.smooth = True
+        if re.search(r'solid\s+TRUE', string, re.S) is not None:
+            debug('{:s}Geometry solid attribute found'.format(self.level()))
+            self.solid = True
 
         search_type = re.search(r'(\w+)Index\s*\[', string, re.S)
         if search_type is None:
