@@ -58,30 +58,34 @@ def transform_meshes(meshes, translation, rotation, scaling, options):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-q', dest='quiet', help='render model', default=False, action='store_true')
-    parser.add_argument('-o', dest='output', help='write model to specified file', default='')
-    parser.add_argument('-t', dest='translation', help='move mesh to new coordinates x,y,z',
-                        default='0.0,0.0,0.0')
-    parser.add_argument('-r', dest='rotation',
-                        help='rotate mesh around vector x,y,z by angle in degrees',
-                        default='0.0,0.0,1.0,0.0')
-    parser.add_argument('-s', dest='scale', help='scale shapes by x,y,z', default='1.0,1.0,1.0')
-    parser.add_argument('-f', dest='filter', help='regular expression, filter objects by name',
-                        default='')
-    parser.add_argument('-d', dest='debug', help='show debug information', default=False,
-                        action='store_true')
-    parser.add_argument('--kicad', dest='kicad', help='export to KiCad with simplified syntax',
+    parser.add_argument('-q', dest='quiet', help='disable model rendering',
                         default=False, action='store_true')
-    parser.add_argument('--axes', dest='axes', help='show axes', default=False, action='store_true')
-    parser.add_argument('--grid', dest='grid', help='show grid', default=False, action='store_true')
-    parser.add_argument('--fast', dest='fast', help='disable visual effects', default=False,
-                        action='store_true')
-    parser.add_argument('--normals', dest='normals', help='show normals', default=False,
-                        action='store_true')
-    parser.add_argument('--overlay', dest='overlay', help='enable overlay', default=False,
-                        action='store_true')
-    parser.add_argument('--smooth', dest='smooth', help='enable smooth shading', default=False,
-                        action='store_true')
+    parser.add_argument('-o', dest='output', help='write transformed models to a specified file',
+                        default='')
+    parser.add_argument('-t', dest='translation', help='move the mesh to new coordinates',
+                        default='0,0,0')
+    parser.add_argument('-r', dest='rotation', help='rotate the mesh around a vector',
+                        default='0,0,1,0')
+    parser.add_argument('-s', dest='scale', help='scale the shapes by the specified factors',
+                        default='1,1,1')
+    parser.add_argument('-f', dest='filter', help='filter objects by name using regular expression',
+                        default='')
+    parser.add_argument('-d', dest='debug', help='show debug information',
+                        default=False, action='store_true')
+    parser.add_argument('--kicad', dest='kicad', help='use VRML format with simplified syntax',
+                        default=False, action='store_true')
+    parser.add_argument('--axes', dest='axes', help='display coordinate axes in the 3D viewer',
+                        default=False, action='store_true')
+    parser.add_argument('--grid', dest='grid', help='display a grid in the 3D viewer',
+                        default=False, action='store_true')
+    parser.add_argument('--fast', dest='fast', help='disable visual effects',
+                        default=False, action='store_true')
+    parser.add_argument('--normals', dest='normals', help='Visualize surface normals of the mesh',
+                        default=False, action='store_true')
+    parser.add_argument('--overlay', dest='overlay', help='enable a text overlay',
+                        default=False, action='store_true')
+    parser.add_argument('--smooth', dest='smooth', help='enable smooth shading',
+                        default=False, action='store_true')
     parser.add_argument(dest='files', nargs='*')
     options = parser.parse_args()
 
